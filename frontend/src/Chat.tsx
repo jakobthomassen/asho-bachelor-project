@@ -14,7 +14,7 @@ export default function Chat() {
   async function sendMessage() {
     if (!input.trim()) return;
 
-    const userMsg = { role: "user", text: input };
+    const userMsg: ChatMessage = { role: "user", text: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
