@@ -1,14 +1,20 @@
 from fastapi import APIRouter, HTTPException
-from app.services.llm_client import chat_completion
+from uuid import uuid4
+from app.services.memory_store import append_message, get_history
+from app.services.llm_client import chat_with_history
 
 router = APIRouter()
 
 @router.get("/debug/openai")
 def debug_openai():
     try:
-        reply = chat_completion([
-            {"role": "user", "content": "Reply with the word OK only."}
-        ])
+        session_id = str(uuid4())
+
+        reply = chat_with_history([], "Reply with the word OK only.")
+
+        append_message(session_id, "user", "Reply with the word OK only.")
+        append_message(session_id, "assistant", reply)
+
         return {"openai_status": reply}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="OpenAI health check failed")
