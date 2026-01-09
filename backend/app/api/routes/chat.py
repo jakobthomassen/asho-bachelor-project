@@ -1,13 +1,19 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.llm_client import chat_completion
+from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
+from app.services.llm_client import chat_with_history
+from app.services.memory_store import append_message, get_history
 
 router = APIRouter()
 
-@router.post("/chat", response_model=ChatResponse)
-def chat_endpoint(payload: ChatRequest):
+@router.post("/chat", response_model=SimpleChatResponse)
+def chat(payload: SimpleChatRequest):
     try:
-        reply = chat_completion([m.model_dump() for m in payload.messages])
+        history = get_history(payload.session_id)
+        reply = chat_with_history(history, payload.message)
+
+        append_message(payload.session_id, "user", payload.message)
+        append_message(payload.session_id, "assistant", reply)
+
         return {"reply": reply}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="LLM failure")
