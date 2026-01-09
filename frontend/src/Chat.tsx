@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { useState } from "react";
+import { API_BASE_URL } from "./config";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -18,7 +19,7 @@ export default function Chat() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
-    const res = await fetch("http://127.0.0.1:8000/api/chat", {
+    const res = await fetch(`${API_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
