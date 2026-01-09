@@ -1,31 +1,42 @@
 import json
 import hashlib
 import time
-
+from fastapi import APIRouter, HTTPException, Response
 import psycopg
-from fastapi import APIRouter, HTTPException
 
-from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.llm_client import chat_completion
+from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
+from app.services.llm_client import chat_with_history
+from app.services.memory_store import append_message, get_history
 from app.core.config import settings
 
 router = APIRouter()
 
 if not settings.DATABASE_URL:
-    raise RuntimeError("DATABASE_URL is not set (needed for message_id idempotency)")
+    raise RuntimeError("DATABASE_URL is required for idempotency protection")
 
-def _req_hash(payload: ChatRequest) -> str:
-    normalized = {"messages": [m.model_dump() for m in payload.messages]}
+
+@router.options("/chat")
+def chat_options():
+    return Response(status_code=200)
+
+
+def _req_hash(payload: SimpleChatRequest) -> str:
+    normalized = {
+        "session_id": payload.session_id,
+        "message": payload.message
+    }
     s = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-@router.post("/chat", response_model=ChatResponse)
-def chat_endpoint(payload: ChatRequest):
+
+@router.post("/chat", response_model=SimpleChatResponse)
+def chat(payload: SimpleChatRequest):
     h = _req_hash(payload)
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
             with conn.cursor() as cur:
+
                 cur.execute(
                     "SELECT req_hash, status, response_json FROM llm_idempotency WHERE message_id=%s",
                     (payload.message_id,),
@@ -38,49 +49,41 @@ def chat_endpoint(payload: ChatRequest):
                     if existing_hash != h:
                         raise HTTPException(
                             status_code=409,
-                            detail="message_id reused with different request content",
+                            detail="message_id reused with different content",
                         )
 
-                    if status == "done" and response_json is not None:
-                        return response_json
+                    if status == "done" and response_json:
+                        return json.loads(response_json)
 
-                    # Another request is processing this message_id, wait briefly then re-check
-                    for _ in range(12):
+                    for _ in range(10):
                         time.sleep(0.2)
                         cur.execute(
                             "SELECT status, response_json FROM llm_idempotency WHERE message_id=%s",
                             (payload.message_id,),
                         )
                         status2, resp2 = cur.fetchone()
-                        if status2 == "done" and resp2 is not None:
-                            return resp2
+                        if status2 == "done" and resp2:
+                            return json.loads(resp2)
 
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Request is already being processed; retry shortly with same message_id",
-                    )
+                    raise HTTPException(status_code=409, detail="Message is still processing")
 
-                # Claim message_id so only one request calls the LLM
                 cur.execute(
-                    """
-                    INSERT INTO llm_idempotency (message_id, req_hash, status)
-                    VALUES (%s, %s, 'in_progress')
-                    """,
+                    "INSERT INTO llm_idempotency (message_id, req_hash, status) VALUES (%s,%s,'in_progress')",
                     (payload.message_id, h),
                 )
                 conn.commit()
 
-            # Call the LLM once
-            reply = chat_completion([m.model_dump() for m in payload.messages])
+            history = get_history(payload.session_id)
+            reply = chat_with_history(history, payload.message)
+
+            append_message(payload.session_id, "user", payload.message)
+            append_message(payload.session_id, "assistant", reply)
+
             response = {"reply": reply}
 
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    UPDATE llm_idempotency
-                    SET status='done', response_json=%s
-                    WHERE message_id=%s
-                    """,
+                    "UPDATE llm_idempotency SET status='done', response_json=%s WHERE message_id=%s",
                     (json.dumps(response), payload.message_id),
                 )
                 conn.commit()
