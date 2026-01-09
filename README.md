@@ -20,4 +20,4 @@ All backend configuration is environment driven. Secrets such as the OpenAI API 
 
 1. In a terminal navigate to the frontend directory and run: `npm install`
 2. In the same directory: `npm run dev`
-3. Type `O` + Enter in the terminal or navigate manually to http://localhost:5173/
+3. Type `O` + Enter in the terminal or navigate manually to http://localhost:5173/.
