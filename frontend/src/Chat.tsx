@@ -1,10 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
 import { useState } from "react";
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 export default function Chat() {
   const [sessionId] = useState(uuidv4());
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   async function sendMessage() {
     if (!input.trim()) return;
@@ -23,7 +28,10 @@ export default function Chat() {
     });
 
     const data = await res.json();
-    setMessages((prev) => [...prev, { role: "assistant", text: data.reply }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: String(data.reply) },
+    ]);
   }
 
   return (
