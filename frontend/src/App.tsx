@@ -1,5 +1,5 @@
-import ChatShellPage from "./app/pages/ChatShell/ChatShellPage";
+import AppRoutes from "./routes";
 
 export default function App() {
-  return <ChatShellPage />;
+  return <AppRoutes />;
 }
