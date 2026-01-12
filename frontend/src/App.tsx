@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { API_BASE_URL } from "./config";
 
 type Role = "user" | "asho";
 
@@ -11,16 +13,17 @@ interface Message {
 
 interface Conversation {
   id: string;
+  sessionId: string;
   title: string;
   createdAt: number;
   updatedAt: number;
   messages: Message[];
 }
 
-const STORAGE_KEY = "asho_conversations_v1";
+const STORAGE_KEY = "asho_conversations_v2";
 
-function uid(prefix = "") {
-  return `${prefix}${Math.random().toString(16).slice(2)}_${Date.now()}`;
+function uid() {
+  return uuidv4();
 }
 
 function loadConversations(): Conversation[] {
@@ -40,13 +43,14 @@ function saveConversations(convos: Conversation[]) {
 function makeNewConversation(): Conversation {
   const now = Date.now();
   return {
-    id: uid("c_"),
+    id: uid(),
+    sessionId: uid(),
     title: "Ny samtale",
     createdAt: now,
     updatedAt: now,
     messages: [
       {
-        id: uid("m_"),
+        id: uid(),
         role: "asho",
         text: "Hei, jeg er ASHO. Hva vil du snakke om i dag?",
         createdAt: now,
@@ -88,16 +92,14 @@ export default function App() {
 
   const createConversation = () => {
     const c = makeNewConversation();
-    const next = [c, ...conversations];
-    setConversations(next);
+    setConversations([c, ...conversations]);
     setActiveId(c.id);
   };
 
-  const selectConversation = (id: string) => {
-    setActiveId(id);
-  };
-
-  const updateConversation = (id: string, updater: (c: Conversation) => Conversation) => {
+  const updateConversation = (
+    id: string,
+    updater: (c: Conversation) => Conversation
+  ) => {
     setConversations((prev) => {
       const next = prev.map((c) => (c.id === id ? updater(c) : c));
       next.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -113,34 +115,64 @@ export default function App() {
     setInput("");
 
     const now = Date.now();
-    const userMsg: Message = { id: uid("m_"), role: "user", text: trimmed, createdAt: now };
-
-    updateConversation(activeConversation.id, (c) => {
-      const isFirstUserMessage = c.messages.filter((m) => m.role === "user").length === 0;
-      return {
-        ...c,
-        title: isFirstUserMessage ? trimmed.slice(0, 28) : c.title,
-        updatedAt: now,
-        messages: [...c.messages, userMsg],
-      };
-    });
-
-    const replyText = `Jeg hører deg. Du skrev: "${trimmed}".`;
-    const botMsg: Message = {
-      id: uid("m_"),
-      role: "asho",
-      text: replyText,
-      createdAt: Date.now(),
+    const userMsg: Message = {
+      id: uid(),
+      role: "user",
+      text: trimmed,
+      createdAt: now,
     };
 
-    setTimeout(() => {
+    updateConversation(activeConversation.id, (c) => ({
+      ...c,
+      title:
+        c.messages.filter((m) => m.role === "user").length === 0
+          ? trimmed.slice(0, 28)
+          : c.title,
+      updatedAt: now,
+      messages: [...c.messages, userMsg],
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: activeConversation.sessionId,
+          message_id: uid(),
+          message: trimmed,
+        }),
+      });
+
+      const data = await res.json();
+
+      const botMsg: Message = {
+        id: uid(),
+        role: "asho",
+        text: String(data.reply ?? ""),
+        createdAt: Date.now(),
+      };
+
       updateConversation(activeConversation.id, (c) => ({
         ...c,
         updatedAt: Date.now(),
         messages: [...c.messages, botMsg],
       }));
+    } catch {
+      updateConversation(activeConversation.id, (c) => ({
+        ...c,
+        messages: [
+          ...c.messages,
+          {
+            id: uid(),
+            role: "asho",
+            text: "Serverfeil. Prøv igjen.",
+            createdAt: Date.now(),
+          },
+        ],
+      }));
+    } finally {
       setIsSending(false);
-    }, 400);
+    }
   };
 
   const sendMessage = () => sendText(input);
@@ -150,6 +182,10 @@ export default function App() {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const selectConversation = (id: string) => {
+    setActiveId(id);
   };
 
   return (
@@ -164,7 +200,11 @@ export default function App() {
         }}
       >
         <div style={{ padding: "1rem", borderBottom: "1px solid #e5e7eb" }}>
-          <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#0f172a" }}>ASHO</div>
+          <div
+            style={{ fontWeight: 700, fontSize: "1.1rem", color: "#0f172a" }}
+          >
+            ASHO
+          </div>
           <div style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: 4 }}>
             Samtaler (historikk)
           </div>
@@ -199,16 +239,26 @@ export default function App() {
                   textAlign: "left",
                   padding: "0.75rem",
                   borderRadius: 12,
-                  border: active ? "1px solid #0f766e" : "1px solid transparent",
+                  border: active
+                    ? "1px solid #0f766e"
+                    : "1px solid transparent",
                   background: active ? "#ecfdf5" : "transparent",
                   cursor: "pointer",
                   marginBottom: 6,
                 }}
               >
-                <div style={{ fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    color: "#111827",
+                    fontSize: "0.95rem",
+                  }}
+                >
                   {c.title || "Samtale"}
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 2 }}>
+                <div
+                  style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 2 }}
+                >
                   {new Date(c.updatedAt).toLocaleString()}
                 </div>
               </button>
@@ -218,7 +268,9 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid #e5e7eb" }}>
+        <div
+          style={{ padding: "1rem 1.25rem", borderBottom: "1px solid #e5e7eb" }}
+        >
           <div style={{ fontWeight: 700, color: "#0f172a" }}>
             {activeConversation?.title ?? "Samtale"}
           </div>
@@ -244,13 +296,21 @@ export default function App() {
                   <div
                     style={{
                       padding: "0.7rem 0.9rem",
-                      borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      borderRadius: isUser
+                        ? "18px 18px 4px 18px"
+                        : "18px 18px 18px 4px",
                       background: isUser ? "#e5e7eb" : "#e0f2fe",
                       color: "#111827",
                       boxShadow: "0 4px 8px rgba(15,23,42,0.06)",
                     }}
                   >
-                    <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6b7280",
+                        marginBottom: 2,
+                      }}
+                    >
                       {isUser ? "Meg" : "ASHO"}
                     </div>
                     <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
@@ -306,7 +366,7 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Skriv en melding…"
+            placeholder='Skriv en melding…'
             style={{
               flex: 1,
               padding: "0.7rem 1rem",

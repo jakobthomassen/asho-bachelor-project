@@ -4,3 +4,4 @@ gunicorn
 python-dotenv
 pydantic
 openai
+psycopg[binary]

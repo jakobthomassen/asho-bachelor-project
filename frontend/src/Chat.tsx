@@ -24,6 +24,7 @@ export default function Chat() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         session_id: sessionId,
+        message_id: uuidv4(),
         message: userMsg.text,
       }),
     });
