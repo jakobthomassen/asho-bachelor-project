@@ -16,11 +16,6 @@ type ConsoleEntry = {
   text: string;
 };
 
-type PromptTrace = {
-  role: string;
-  content: string;
-};
-
 export default function Chat() {
   const [sessionId] = useState(uuidv4());
   const [input, setInput] = useState("");
