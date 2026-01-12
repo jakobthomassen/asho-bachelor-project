@@ -78,7 +78,9 @@ export default function Chat() {
   }
 
   return (
-    <div style={{ display: "flex", height: "90vh", padding: 20, gap: 16 }}>
+    <div
+      style={{ display: "flex", height: "90vh", padding: "20px 40px", gap: 16 }}
+    >
       {/* Chat Trace */}
       <div
         style={{
@@ -88,8 +90,6 @@ export default function Chat() {
           padding: 12,
         }}
       >
-        <h3>Chat Trace</h3>
-
         <div style={{ overflowY: "auto", height: "75%" }}>
           {messages.map((m, i) => (
             <div
@@ -101,8 +101,24 @@ export default function Chat() {
                 background: m.role === "user" ? "#f3f4f6" : "#e0f2fe",
               }}
             >
-              <div style={{ fontWeight: 600 }}>{m.role.toUpperCase()}</div>
-              <div style={{ margin: "6px 0" }}>{m.text}</div>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: "#000000",
+                }}
+              >
+                {m.role.toUpperCase()}
+              </div>
+
+              <div
+                style={{
+                  margin: "6px 0",
+                  color: "#000000",
+                }}
+              >
+                {m.text}
+              </div>
+
               <div style={{ fontSize: 12, color: "#4b5563" }}>
                 session_id: {m.session_id}
                 <br />
@@ -123,10 +139,11 @@ export default function Chat() {
           placeholder='Type debug message'
           style={{
             width: "100%",
+            boxSizing: "border-box",
             marginTop: 10,
-            padding: 8,
+            padding: 10,
             borderRadius: 8,
-            border: "1px solid #d1d5db",
+            border: "1px solid #9ca3af",
           }}
         />
       </div>
