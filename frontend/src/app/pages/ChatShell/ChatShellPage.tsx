@@ -30,7 +30,6 @@ export default function ChatShellPage() {
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
 
-  // Init
   useEffect(() => {
     const initial = loadConversations();
     if (initial.length === 0) {
@@ -45,7 +44,6 @@ export default function ChatShellPage() {
     }
   }, []);
 
-  // Persist
   useEffect(() => {
     if (conversations.length > 0) saveConversations(conversations);
   }, [conversations]);
@@ -55,12 +53,10 @@ export default function ChatShellPage() {
     [conversations, activeId]
   );
 
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeId, activeConversation?.messages.length, isSending]);
 
-  // Close context menu
   useEffect(() => {
     if (!contextMenu.open) return;
 
@@ -90,7 +86,6 @@ export default function ChatShellPage() {
     };
   }, [contextMenu.open]);
 
-  // Close confirm on ESC
   useEffect(() => {
     if (!confirm.open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -196,7 +191,6 @@ export default function ChatShellPage() {
     });
 
     try {
-      // dummy reply (swap with backend later)
       const replyText = `Jeg hører deg. Du skrev: "${trimmed}".`;
       const botMsg: Message = {
         id: uid("m_"),
