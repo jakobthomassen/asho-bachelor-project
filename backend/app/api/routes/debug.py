@@ -10,7 +10,7 @@ def debug_openai():
     try:
         session_id = str(uuid4())
 
-        reply = chat_with_history([], "Reply with the word OK only.")
+        reply = chat_with_history(session_id, [], "Reply with the word OK only.")
 
         append_message(session_id, "user", "Reply with the word OK only.")
         append_message(session_id, "assistant", reply)

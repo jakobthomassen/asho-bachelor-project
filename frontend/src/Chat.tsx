@@ -16,14 +16,30 @@ type ConsoleEntry = {
   text: string;
 };
 
+type PromptTrace = {
+  role: string;
+  content: string;
+};
+
 export default function Chat() {
   const [sessionId] = useState(uuidv4());
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<DebugMessage[]>([]);
   const [consoleLog, setConsoleLog] = useState<ConsoleEntry[]>([]);
+  const [promptTraces, setPromptTraces] = useState<any[]>([]);
 
   function log(text: string) {
     setConsoleLog((prev) => [...prev, { timestamp: Date.now(), text }]);
+  }
+
+  async function fetchPromptTraces() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/prompt-trace/${sessionId}`);
+      const data = await res.json();
+      setPromptTraces(data.traces || []);
+    } catch {
+      log("Failed to fetch prompt traces");
+    }
   }
 
   async function sendMessage() {
@@ -38,16 +54,18 @@ export default function Chat() {
 
     log(`POST /api/chat → ${JSON.stringify(payload)}`);
 
-    const userMsg: DebugMessage = {
-      role: "user",
-      text: input,
-      session_id: sessionId,
-      message_id,
-      method: "POST /api/chat",
-      timestamp: Date.now(),
-    };
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        text: input,
+        session_id: sessionId,
+        message_id,
+        method: "POST /api/chat",
+        timestamp: Date.now(),
+      },
+    ]);
 
-    setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
     try {
@@ -62,16 +80,19 @@ export default function Chat() {
       const data = await res.json();
       log(`Response body: ${JSON.stringify(data)}`);
 
-      const assistantMsg: DebugMessage = {
-        role: "assistant",
-        text: String(data.reply ?? ""),
-        session_id: sessionId,
-        message_id: uuidv4(),
-        method: "POST /api/chat",
-        timestamp: Date.now(),
-      };
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: String(data.reply ?? ""),
+          session_id: sessionId,
+          message_id: uuidv4(),
+          method: "POST /api/chat",
+          timestamp: Date.now(),
+        },
+      ]);
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      await fetchPromptTraces();
     } catch (err) {
       log(`ERROR: ${String(err)}`);
     }
@@ -101,24 +122,10 @@ export default function Chat() {
                 background: m.role === "user" ? "#f3f4f6" : "#e0f2fe",
               }}
             >
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: "#000000",
-                }}
-              >
+              <div style={{ fontWeight: 600, color: "#000" }}>
                 {m.role.toUpperCase()}
               </div>
-
-              <div
-                style={{
-                  margin: "6px 0",
-                  color: "#000000",
-                }}
-              >
-                {m.text}
-              </div>
-
+              <div style={{ margin: "6px 0", color: "#000" }}>{m.text}</div>
               <div style={{ fontSize: 12, color: "#4b5563" }}>
                 session_id: {m.session_id}
                 <br />
@@ -167,6 +174,29 @@ export default function Chat() {
             <div key={i}>
               [{new Date(c.timestamp).toLocaleTimeString()}] {c.text}
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Prompt Payloads */}
+      <div
+        style={{
+          flex: 1.2,
+          border: "1px solid #334155",
+          borderRadius: 12,
+          padding: 12,
+          background: "#020617",
+          color: "#e5e7eb",
+          fontFamily: "monospace",
+          fontSize: 11,
+        }}
+      >
+        <h3 style={{ color: "#38bdf8" }}>LLM Prompt Payloads</h3>
+        <div style={{ overflowY: "auto", height: "85%" }}>
+          {promptTraces.map((t, i) => (
+            <pre key={i} style={{ whiteSpace: "pre-wrap", marginBottom: 12 }}>
+              {JSON.stringify(t, null, 2)}
+            </pre>
           ))}
         </div>
       </div>
