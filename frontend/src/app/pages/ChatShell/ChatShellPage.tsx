@@ -29,7 +29,6 @@ export default function ChatShellPage() {
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
 
-  // Init
   useEffect(() => {
     const initial = loadConversations();
     if (initial.length === 0) {
@@ -44,7 +43,6 @@ export default function ChatShellPage() {
     }
   }, []);
 
-  // Persist
   useEffect(() => {
     if (conversations.length > 0) saveConversations(conversations);
   }, [conversations]);
@@ -54,12 +52,10 @@ export default function ChatShellPage() {
     [conversations, activeId]
   );
 
-  // Auto-scroll on new message / switching convo / sending state
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeId, activeConversation?.messages.length, isSending]);
 
-  // Close context menu on outside click / ESC / resize / scroll
   useEffect(() => {
     if (!contextMenu.open) return;
 
@@ -89,7 +85,6 @@ export default function ChatShellPage() {
     };
   }, [contextMenu.open]);
 
-  // Close confirm on ESC
   useEffect(() => {
     if (!confirm.open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -123,7 +118,6 @@ export default function ChatShellPage() {
     setConversations((prev) => {
       const filtered = prev.filter((c) => c.id !== id);
 
-      // If deleting active: select newest remaining, or create one
       if (activeId === id) {
         if (filtered.length > 0) setActiveId(filtered[0].id);
         else {
