@@ -1,10 +1,12 @@
 import type { Conversation } from "../../features/conversations/types";
+import ClarifyChips from "./ClarifyChips";
 
 type Props = {
   conversation: Conversation | undefined;
   clarifyOptions: string[];
   isSending: boolean;
   onSendText: (text: string) => void;
+  endRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export default function MessageList({
@@ -12,11 +14,22 @@ export default function MessageList({
   clarifyOptions,
   isSending,
   onSendText,
+  endRef,
 }: Props) {
+  const messages = conversation?.messages ?? [];
+
+  const lastAshoIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "asho") return i;
+    }
+    return -1;
+  })();
+
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem" }}>
-      {conversation?.messages.map((m) => {
+      {messages.map((m, idx) => {
         const isUser = m.role === "user";
+        const showClarify = !isUser && idx === lastAshoIndex;
 
         return (
           <div
@@ -31,7 +44,9 @@ export default function MessageList({
               <div
                 style={{
                   padding: "0.7rem 0.9rem",
-                  borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                  borderRadius: isUser
+                    ? "18px 18px 4px 18px"
+                    : "18px 18px 18px 4px",
                   background: isUser ? "#e5e7eb" : "#e0f2fe",
                   color: "#111827",
                   boxShadow: "0 4px 8px rgba(15,23,42,0.06)",
@@ -43,34 +58,21 @@ export default function MessageList({
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
               </div>
 
-              {!isUser && (
-                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {clarifyOptions.map((label) => (
-                    <button
-                      key={label}
-                      onClick={() => onSendText(label)}
-                      disabled={isSending}
-                      style={{
-                        padding: "0.4rem 0.65rem",
-                        borderRadius: 999,
-                        border: "1px solid #d1d5db",
-                        background: "#ffffff",
-                        color: "#0f172a",
-                        fontSize: "0.85rem",
-                        cursor: isSending ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+              {showClarify && (
+                <ClarifyChips
+                  options={clarifyOptions}
+                  disabled={isSending}
+                  onPick={onSendText}
+                />
               )}
             </div>
           </div>
         );
       })}
 
-      {isSending && <div style={{ color: "#6b7280" }}>ASHO skriver…</div>}
+      {isSending && <div style={{ color: "#6b7280", marginTop: 6 }}>ASHO skriver…</div>}
+
+      <div ref={endRef} />
     </div>
   );
 }

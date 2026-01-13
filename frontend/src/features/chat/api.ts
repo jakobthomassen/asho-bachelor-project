@@ -15,6 +15,10 @@ export async function postChatMessage(params: {
     }),
   });
 
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+
   const data = await res.json();
   return { reply: String(data.reply ?? "") };
 }

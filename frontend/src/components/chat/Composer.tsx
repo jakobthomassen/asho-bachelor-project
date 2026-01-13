@@ -15,7 +15,7 @@ export default function Composer({
   isSending,
   disabled,
 }: Props) {
-  const sendDisabled = !input.trim() || isSending || disabled;
+  const sendDisabled = disabled || isSending || !input.trim();
 
   return (
     <div
@@ -32,7 +32,7 @@ export default function Composer({
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Skriv en melding…"
-        disabled={isSending || disabled}
+        disabled={disabled || isSending}
         style={{
           flex: 1,
           padding: "0.7rem 1rem",
@@ -41,6 +41,7 @@ export default function Composer({
           outline: "none",
           fontSize: "1rem",
           color: "#111827",
+          background: disabled || isSending ? "#f9fafb" : "#ffffff",
         }}
       />
       <button
@@ -52,11 +53,11 @@ export default function Composer({
           border: "none",
           background: sendDisabled ? "#e5e7eb" : "#0f766e",
           color: sendDisabled ? "#9ca3af" : "#ffffff",
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: sendDisabled ? "not-allowed" : "pointer",
         }}
       >
-        Send
+        {isSending ? "Sender…" : "Send"}
       </button>
     </div>
   );

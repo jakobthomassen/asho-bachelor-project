@@ -5,6 +5,7 @@ type Props = {
   activeId: string;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
+  onOpenContextMenu: (e: React.MouseEvent, convId: string) => void;
 };
 
 export default function Sidebar({
@@ -12,6 +13,7 @@ export default function Sidebar({
   activeId,
   onNewConversation,
   onSelectConversation,
+  onOpenContextMenu,
 }: Props) {
   return (
     <aside
@@ -57,6 +59,7 @@ export default function Sidebar({
             <button
               key={c.id}
               onClick={() => onSelectConversation(c.id)}
+              onContextMenu={(e) => onOpenContextMenu(e, c.id)}
               style={{
                 width: "100%",
                 textAlign: "left",
@@ -67,14 +70,9 @@ export default function Sidebar({
                 cursor: "pointer",
                 marginBottom: 6,
               }}
+              title="Høyreklikk for flere valg"
             >
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: "#111827",
-                  fontSize: "0.95rem",
-                }}
-              >
+              <div style={{ fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>
                 {c.title || "Samtale"}
               </div>
               <div style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 2 }}>
