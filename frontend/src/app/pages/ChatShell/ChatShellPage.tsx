@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message } from "../../../features/conversations/types";
 import { loadConversations, saveConversations } from "../../../features/conversations/storage";
 import { makeNewConversation, uid } from "../../../features/conversations/helpers";
@@ -6,16 +6,30 @@ import { postChatMessage } from "../../../features/chat/api";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
+import ContextMenu from "../../../components/overlays/ContextMenu";
+import ConfirmModal from "../../../components/overlays/ConfirmModal";
 
+type ContextMenuState =
+  | { open: true; x: number; y: number; convId: string }
+  | { open: false };
+
+type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
+  const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
 
+  // Init
   useEffect(() => {
     const initial = loadConversations();
     if (initial.length === 0) {
@@ -30,6 +44,7 @@ export default function ChatShellPage() {
     }
   }, []);
 
+  // Persist
   useEffect(() => {
     if (conversations.length > 0) saveConversations(conversations);
   }, [conversations]);
@@ -39,10 +54,61 @@ export default function ChatShellPage() {
     [conversations, activeId]
   );
 
+  // Auto-scroll on new message / switching convo / sending state
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeId, activeConversation?.messages.length, isSending]);
+
+  // Close context menu on outside click / ESC / resize / scroll
+  useEffect(() => {
+    if (!contextMenu.open) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-context-menu="true"]')) return;
+      setContextMenu({ open: false });
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu({ open: false });
+    };
+
+    const onResize = () => setContextMenu({ open: false });
+    const onScroll = () => setContextMenu({ open: false });
+
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [contextMenu.open]);
+
+  // Close confirm on ESC
+  useEffect(() => {
+    if (!confirm.open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConfirm({ open: false });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirm.open]);
+
   const createConversation = () => {
+    setError(null);
     const c = makeNewConversation();
     setConversations((prev) => [c, ...prev]);
     setActiveId(c.id);
+  };
+
+  const selectConversation = (id: string) => {
+    setError(null);
+    setActiveId(id);
   };
 
   const updateConversation = (id: string, updater: (c: Conversation) => Conversation) => {
@@ -53,10 +119,63 @@ export default function ChatShellPage() {
     });
   };
 
+  const deleteConversation = (id: string) => {
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+
+      // If deleting active: select newest remaining, or create one
+      if (activeId === id) {
+        if (filtered.length > 0) setActiveId(filtered[0].id);
+        else {
+          const c = makeNewConversation();
+          setActiveId(c.id);
+          return [c];
+        }
+      }
+
+      return filtered;
+    });
+  };
+
+  const titleFor = (id: string) =>
+    conversations.find((c) => c.id === id)?.title ?? "Samtale";
+
+  const openContextMenu = (e: React.MouseEvent, convId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const menuWidth = 220;
+    const menuHeight = 72;
+
+    let x = e.clientX;
+    let y = e.clientY;
+
+    const maxX = window.innerWidth - menuWidth - 8;
+    const maxY = window.innerHeight - menuHeight - 8;
+
+    if (x > maxX) x = Math.max(8, maxX);
+    if (y > maxY) y = Math.max(8, maxY);
+
+    setContextMenu({ open: true, x, y, convId });
+  };
+
+  const requestDeleteFromMenu = () => {
+    if (!contextMenu.open) return;
+    setConfirm({ open: true, convId: contextMenu.convId });
+    setContextMenu({ open: false });
+  };
+
+  const confirmDelete = () => {
+    if (!confirm.open) return;
+    deleteConversation(confirm.convId);
+    setConfirm({ open: false });
+  };
+
   const sendText = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || !activeConversation || isSending) return;
 
+    setError(null);
     setIsSending(true);
     setInput("");
 
@@ -98,6 +217,8 @@ export default function ChatShellPage() {
         messages: [...c.messages, botMsg],
       }));
     } catch {
+      setError("Serverfeil. Prøv igjen.");
+
       updateConversation(activeConversation.id, (c) => ({
         ...c,
         messages: [
@@ -124,8 +245,6 @@ export default function ChatShellPage() {
     }
   };
 
-  const selectConversation = (id: string) => setActiveId(id);
-
   return (
     <div style={{ height: "100vh", display: "flex", background: "#f3f4f6" }}>
       <Sidebar
@@ -133,6 +252,7 @@ export default function ChatShellPage() {
         activeId={activeId}
         onNewConversation={createConversation}
         onSelectConversation={selectConversation}
+        onOpenContextMenu={openContextMenu}
       />
 
       <ChatPanel
@@ -144,6 +264,33 @@ export default function ChatShellPage() {
         onSendText={sendText}
         onSend={sendMessage}
         onKeyDown={onKeyDown}
+        error={error}
+        onDismissError={() => setError(null)}
+        endRef={messagesEndRef}
+      />
+
+      {contextMenu.open && (
+        <ContextMenu
+          open={contextMenu.open}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          title={titleFor(contextMenu.convId)}
+          onDelete={requestDeleteFromMenu}
+          onClose={() => setContextMenu({ open: false })}
+        />
+      )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Slett samtale?"
+        description={
+          <>
+            Dette vil slette <b>{confirm.open ? titleFor(confirm.convId) : ""}</b> og dens
+            meldinger. Du kan ikke angre dette.
+          </>
+        }
+        onCancel={() => setConfirm({ open: false })}
+        onConfirm={confirmDelete}
       />
     </div>
   );
