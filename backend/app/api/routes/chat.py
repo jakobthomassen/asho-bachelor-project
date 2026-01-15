@@ -74,7 +74,7 @@ def chat(payload: SimpleChatRequest):
                 conn.commit()
 
             history = get_history(payload.session_id)
-            reply = chat_with_history(history, payload.message)
+            reply = chat_with_history(payload.session_id, history, payload.message)
 
             append_message(payload.session_id, "user", payload.message)
             append_message(payload.session_id, "assistant", reply)
