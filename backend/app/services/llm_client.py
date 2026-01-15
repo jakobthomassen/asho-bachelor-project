@@ -2,6 +2,8 @@ from functools import lru_cache
 from typing import Any, List, Dict
 from openai import OpenAI, OpenAIError
 from app.core.config import settings
+from app.services.prompt_trace import store_prompt
+
 
 SYSTEM_PROMPT = "You are a simple chat bot. You will assist the user with whatever the user asks."
 
@@ -14,12 +16,14 @@ def get_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def chat_with_history(history: List[Dict[str, Any]], user_message: str) -> str:
+def chat_with_history(session_id: str, history: List[Dict[str, Any]], user_message: str) -> str:
     client = get_client()
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+
+    store_prompt(session_id, messages)
 
     try:
         response = client.chat.completions.create(
