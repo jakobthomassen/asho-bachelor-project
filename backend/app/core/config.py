@@ -9,4 +9,11 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL")
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
 
+    # Security and budgeting
+    MAX_MESSAGE_TOKENS = int(os.getenv("MAX_MESSAGE_TOKENS", "512"))
+    MAX_SESSION_TOKENS = int(os.getenv("MAX_SESSION_TOKENS", "8000"))
+
+    # Bound model verbosity/cost
+    MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "512"))
+
 settings = Settings()
