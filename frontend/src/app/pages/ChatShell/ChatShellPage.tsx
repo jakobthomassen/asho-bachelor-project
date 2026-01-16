@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Conversation, Message } from "../../../features/conversations/types";
-import { loadConversations, saveConversations } from "../../../features/conversations/storage";
-import { makeNewConversation, uid } from "../../../features/conversations/helpers";
-import { postChatMessage } from "../../../features/chat/api";
+import type {
+  Conversation,
+  Message,
+} from "../../../features/conversations/types";
+import {
+  loadConversations,
+  saveConversations,
+} from "../../../features/conversations/storage";
+import {
+  makeNewConversation,
+  uid,
+} from "../../../features/conversations/helpers";
+import { sendChatMessage } from "../../../features/chat/api";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
@@ -22,7 +31,9 @@ export default function ChatShellPage() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    open: false,
+  });
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -106,7 +117,10 @@ export default function ChatShellPage() {
     setActiveId(id);
   };
 
-  const updateConversation = (id: string, updater: (c: Conversation) => Conversation) => {
+  const updateConversation = (
+    id: string,
+    updater: (c: Conversation) => Conversation
+  ) => {
     setConversations((prev) => {
       const next = prev.map((c) => (c.id === id ? updater(c) : c));
       next.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -192,9 +206,9 @@ export default function ChatShellPage() {
     }));
 
     try {
-      const { reply } = await postChatMessage({
+      const { reply } = await sendChatMessage({
+        chatId: activeConversation.id, // ← Added chatId and removed messageId. api.ts handles chatid (hopefully)
         sessionId: activeConversation.sessionId,
-        messageId: uid(),
         message: trimmed,
       });
 
@@ -276,10 +290,11 @@ export default function ChatShellPage() {
 
       <ConfirmModal
         open={confirm.open}
-        title="Slett samtale?"
+        title='Slett samtale?'
         description={
           <>
-            Dette vil slette <b>{confirm.open ? titleFor(confirm.convId) : ""}</b> og dens
+            Dette vil slette{" "}
+            <b>{confirm.open ? titleFor(confirm.convId) : ""}</b> og dens
             meldinger. Du kan ikke angre dette.
           </>
         }

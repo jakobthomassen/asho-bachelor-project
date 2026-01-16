@@ -1,9 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class SimpleChatRequest(BaseModel):
-    session_id: str
-    message_id: str
-    message: str
+    chat_id: str = Field(..., min_length=1, description="Durable conversation identifier")
+    session_id: str = Field(..., min_length=1, description="Ephemeral client/session identifier")
+    message_id: str = Field(..., min_length=1, description="Idempotency key per message")
+    message: str = Field(..., min_length=1, description="User message content")
 
 class SimpleChatResponse(BaseModel):
     reply: str
