@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.services.security import validate_and_count
 from app.services.session_budget import add_tokens_and_check_budget
 
+CHAT_HISTORY = 12
+
 # NEW: DB-backed chat history
 from app.services.chat_history_store import (
     insert_message,
@@ -118,7 +120,7 @@ def chat(payload: SimpleChatRequest):
             history = fetch_recent_history(
                 conn,
                 chat_id=payload.chat_id,
-                limit_messages=6,
+                limit_messages=CHAT_HISTORY,
             )
 
             # 6) Call LLM
