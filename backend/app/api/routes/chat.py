@@ -2,6 +2,7 @@ import json
 import hashlib
 from fastapi import APIRouter, HTTPException, Response
 import psycopg
+import time
 
 from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
 from app.services.llm_client import chat_with_history
@@ -28,12 +29,9 @@ def chat_options():
     return Response(status_code=200)
 
 
-def _req_hash(session_id: str, normalized_message: str) -> str:
-    """
-    Idempotency hash. Left unchanged intentionally.
-    """
+def _req_hash(chat_id: str, normalized_message: str) -> str:
     normalized = {
-        "session_id": session_id,
+        "chat_id": chat_id,
         "message": normalized_message,
     }
     s = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
@@ -50,30 +48,33 @@ def chat(payload: SimpleChatRequest):
 
     normalized_message = sec.normalized_message
     input_tokens = sec.message_tokens
-    req_hash = _req_hash(payload.session_id, normalized_message)
+    req_hash = _req_hash(payload.chat_id, normalized_message)
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
 
             # 2) Idempotency claim
+                        # 2) Idempotency claim (chat_id + message_id)
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO llm_idempotency (message_id, req_hash, status)
-                    VALUES (%s, %s, 'in_progress')
-                    ON CONFLICT (message_id) DO NOTHING
+                    INSERT INTO llm_idempotency (chat_id, message_id, req_hash, status)
+                    VALUES (%s, %s, %s, 'in_progress')
+                    ON CONFLICT (chat_id, message_id) DO NOTHING
+                    RETURNING 1
                     """,
-                    (payload.message_id, req_hash),
+                    (payload.chat_id, payload.message_id, req_hash),
                 )
+                inserted = cur.fetchone() is not None
                 conn.commit()
 
                 cur.execute(
                     """
                     SELECT req_hash, status, response_json
                     FROM llm_idempotency
-                    WHERE message_id=%s
+                    WHERE chat_id=%s AND message_id=%s
                     """,
-                    (payload.message_id,),
+                    (payload.chat_id, payload.message_id),
                 )
                 row = cur.fetchone()
 
@@ -91,8 +92,26 @@ def chat(payload: SimpleChatRequest):
                 if status == "done" and response_json:
                     return json.loads(response_json)
 
-                if status == "in_progress" and response_json:
-                    return json.loads(response_json)
+                # If someone else is processing this message_id, wait briefly and return cached result if it finishes
+                if not inserted:
+                    for _ in range(12):
+                        time.sleep(0.2)
+                        cur.execute(
+                            """
+                            SELECT status, response_json
+                            FROM llm_idempotency
+                            WHERE chat_id=%s AND message_id=%s
+                            """,
+                            (payload.chat_id, payload.message_id),
+                        )
+                        status2, response_json2 = cur.fetchone()
+                        if status2 == "done" and response_json2:
+                            return json.loads(response_json2)
+
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Request is already being processed; retry with same message_id",
+                    )
 
             # 3) Budget: input tokens
             try:
@@ -160,9 +179,9 @@ def chat(payload: SimpleChatRequest):
                     """
                     UPDATE llm_idempotency
                     SET status='done', response_json=%s
-                    WHERE message_id=%s
+                    WHERE chat_id=%s AND message_id=%s
                     """,
-                    (json.dumps(response), payload.message_id),
+                    (json.dumps(response), payload.chat_id, payload.message_id),
                 )
                 conn.commit()
 
