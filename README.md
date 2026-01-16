@@ -1,23 +1,118 @@
 # ASHO Bachelor Project
 
-ASHO is a [...]
+A simple AI chat application with a FastAPI backend and a React (Vite) frontend. The backend calls OpenAI chat completions, enforces basic security and token budgets, and stores chat history plus idempotency state in Postgres. The frontend provides a conversation UI with local persistence.
 
-# Setup
+## Architecture
 
-This project is structured as a decoupled frontend and backend. The backend is a FastAPI service that exposes a REST API for AI chat functionality. The frontend will consume this API over HTTP.
+- Backend: FastAPI + OpenAI client + Postgres
+- Frontend: React + Vite + localStorage
+- DB: Postgres tables for chat history, idempotency, and session token usage
 
-All backend configuration is environment driven. Secrets such as the OpenAI API key must be provided via environment variables or a local .env file.
+## Features
 
-#### Local backend setup:
+- Chat API with idempotent message handling
+- Session token budgeting (input + output)
+- Server-side chat history stored in Postgres
+- Prompt trace endpoint for debugging (in-memory only)
+- Frontend chat shell with conversation list and local persistence
+- Optional debug OpenAI health endpoint
 
-1. Navigate to the backend folder and run `pip install -r requirements.txt`
-1. From the backend folder, run: `python -m uvicorn app.main:app --reload --reload-dir app`
-   or launch the provided `start_server.bat`
-1. The API will be available at: `http://127.0.0.1:8000`
-1. Health check: `http://127.0.0.1:8000/health`
+## API Endpoints
 
-#### Local frontend setup:
+- `POST /api/chat`
+  - Body: `chat_id`, `session_id`, `message_id`, `message`
+  - Returns: `{ "reply": "..." }`
+  - Enforces idempotency; reusing `message_id` with different content returns 409.
+- `GET /api/prompt-trace/{session_id}`
+  - Returns stored prompt payloads used for that session (in-memory only).
+- `GET /api/debug/openai`
+  - Only enabled if `ENABLE_DEBUG_ENDPOINTS=true`. Returns a simple OpenAI status reply.
+- `GET /health`
+  - Health check.
 
-1. In a terminal navigate to the frontend directory and run: `npm install`
-2. In the same directory: `npm run dev`
-3. Type `O` + Enter in the terminal or navigate manually to http://localhost:5173/.
+## Environment Variables
+
+Backend (`backend/.env` or system env):
+- `OPENAI_API_KEY` (required)
+- `MODEL_NAME` (default: `gpt-4o-mini`)
+- `DATABASE_URL` (required; Postgres)
+- `ALLOWED_ORIGINS` (comma-separated; default allows all)
+- `MAX_MESSAGE_TOKENS` (default: `512`)
+- `MAX_SESSION_TOKENS` (default: `8000`)
+- `MAX_OUTPUT_TOKENS` (default: `512`)
+- `ENABLE_DEBUG_ENDPOINTS` (`true` or `false`, default: `false`)
+
+Frontend (`frontend/.env`):
+- `VITE_API_BASE_URL` (example: `http://127.0.0.1:8000`)
+
+## Database Schema (Postgres)
+
+The backend expects these tables to exist:
+
+```sql
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id BIGSERIAL PRIMARY KEY,
+  chat_id TEXT NOT NULL,
+  session_id TEXT,
+  role TEXT NOT NULL CHECK (role IN ('user','assistant','system')),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS llm_idempotency (
+  message_id TEXT PRIMARY KEY,
+  req_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('in_progress','done')),
+  response_json TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS session_token_usage (
+  session_id TEXT PRIMARY KEY,
+  tokens_used INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+## Local Development
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+# set env vars, then:
+python -m uvicorn app.main:app --reload --reload-dir app
+```
+
+Windows helper:
+```bat
+start_server.bat
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://localhost:5173`.
+
+## Frontend Routes
+
+- `/` - main chat shell UI
+- `/soundtest` - placeholder sound test page
+- `/chat` - debug chat panel (shows API payloads and prompt traces)
+
+## Notes
+
+- Chat input is normalized and restricted by a character allowlist, token limits, and prompt-injection heuristics.
+- Prompt traces are stored in memory only and reset on server restart.
+- Conversations are persisted in the browser via localStorage.
+
+## Scripts
+
+- `start_server.bat` - run backend with uvicorn
+- `kill_uvi.bat` - kill uvicorn/python instances on Windows
