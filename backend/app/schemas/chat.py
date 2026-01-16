@@ -1,10 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from typing import List
 
-class SimpleChatRequest(BaseModel):
-    chat_id: str = Field(..., min_length=1, description="Durable conversation identifier")
-    session_id: str = Field(..., min_length=1, description="Ephemeral client/session identifier")
-    message_id: str = Field(..., min_length=1, description="Idempotency key per message")
-    message: str = Field(..., min_length=1, description="User message content")
+class ChatMessage(BaseModel):
+    role: str
+    content: str
 
-class SimpleChatResponse(BaseModel):
+class ChatRequest(BaseModel):
+    chat_id: str
+    message_id: str
+    messages: List[ChatMessage]
+
+class ChatResponse(BaseModel):
     reply: str
+
