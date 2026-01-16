@@ -11,7 +11,7 @@ import {
   makeNewConversation,
   uid,
 } from "../../../features/conversations/helpers";
-import { postChatMessage } from "../../../features/chat/api";
+import { sendChatMessage } from "../../../features/chat/api";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
@@ -206,7 +206,7 @@ export default function ChatShellPage() {
     }));
 
     try {
-      const { reply } = await postChatMessage({
+      const { reply } = await sendChatMessage({
         chatId: activeConversation.id, // ← Added chatId and removed messageId. api.ts handles chatid (hopefully)
         sessionId: activeConversation.sessionId,
         message: trimmed,
