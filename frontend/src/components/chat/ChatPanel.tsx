@@ -70,7 +70,7 @@ export default function ChatPanel({
           }}
           title="Gå til lydøvelser"
         >
-          Lydøvelser 🎧
+          Lydøvelser
         </button>
       </div>
 
