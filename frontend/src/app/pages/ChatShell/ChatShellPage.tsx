@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  Conversation,
-  Message,
-} from "../../../features/conversations/types";
-import {
-  loadConversations,
-  saveConversations,
-} from "../../../features/conversations/storage";
-import {
-  makeNewConversation,
-  uid,
-} from "../../../features/conversations/helpers";
+import type { Conversation, Message } from "../../../features/conversations/types";
+import { loadConversations, saveConversations } from "../../../features/conversations/storage";
+import { makeNewConversation, uid } from "../../../features/conversations/helpers";
 import { sendChatMessage } from "../../../features/chat/api";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
 import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
+import SubscribeModal from "../../../components/overlays/SubscribeModal";
+import ChatInfoModal from "../../../components/overlays/ChatInfoModal";
+
+import "./ChatShellPage.css";
+
+const LOGO_URL =
+  "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
 
 type ContextMenuState =
   | { open: true; x: number; y: number; convId: string }
@@ -25,16 +23,19 @@ type ContextMenuState =
 type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
+ 
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    open: false,
-  });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
+  const [showSubscribe, setShowSubscribe] = useState(false);
+  const [showChatInfo, setShowChatInfo] = useState(false);
+
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -117,10 +118,7 @@ export default function ChatShellPage() {
     setActiveId(id);
   };
 
-  const updateConversation = (
-    id: string,
-    updater: (c: Conversation) => Conversation
-  ) => {
+  const updateConversation = (id: string, updater: (c: Conversation) => Conversation) => {
     setConversations((prev) => {
       const next = prev.map((c) => (c.id === id ? updater(c) : c));
       next.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -145,8 +143,7 @@ export default function ChatShellPage() {
     });
   };
 
-  const titleFor = (id: string) =>
-    conversations.find((c) => c.id === id)?.title ?? "Samtale";
+  const titleFor = (id: string) => conversations.find((c) => c.id === id)?.title ?? "Samtale";
 
   const openContextMenu = (e: React.MouseEvent, convId: string) => {
     e.preventDefault();
@@ -207,7 +204,7 @@ export default function ChatShellPage() {
 
     try {
       const { reply } = await sendChatMessage({
-        chatId: activeConversation.id, // ← Added chatId and removed messageId. api.ts handles chatid (hopefully)
+        chatId: activeConversation.id,
         sessionId: activeConversation.sessionId,
         message: trimmed,
       });
@@ -254,53 +251,90 @@ export default function ChatShellPage() {
   };
 
   return (
-    <div style={{ height: "100vh", display: "flex", background: "#f3f4f6" }}>
-      <Sidebar
-        conversations={conversations}
-        activeId={activeId}
-        onNewConversation={createConversation}
-        onSelectConversation={selectConversation}
-        onOpenContextMenu={openContextMenu}
-      />
+    <div className="chatShell">
+      <div className="chatShell__header">
+        <div className="chatShell__headerSpacer" />
 
-      <ChatPanel
-        conversation={activeConversation}
-        input={input}
-        setInput={setInput}
-        isSending={isSending}
-        clarifyOptions={clarifyOptions}
-        onSendText={sendText}
-        onSend={sendMessage}
-        onKeyDown={onKeyDown}
-        error={error}
-        onDismissError={() => setError(null)}
-        endRef={messagesEndRef}
-      />
+        <div className="chatShell__brand">
+            <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
+            <div className="chatShell__title">ASHO</div>
+            <div className="chatShell__subtitle">støtte gjennom vanskelige tider</div>
 
-      {contextMenu.open && (
-        <ContextMenu
-          open={contextMenu.open}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          title={titleFor(contextMenu.convId)}
-          onDelete={requestDeleteFromMenu}
-          onClose={() => setContextMenu({ open: false })}
+            <div className="chatShell__nav">
+                <button className="chatShell__navButton" onClick={() => setShowChatInfo(true)}
+                >
+                Chat
+                </button>
+
+                <button className="chatShell__navButton" onClick={() => setShowSubscribe(true)}>
+                    Abonner
+                </button>
+                <button className="chatShell__navButton">Uro-skolen</button>
+            </div>
+
+            </div>
+        <div/>
+      </div>
+
+      <div className="chatShell__main">
+        <Sidebar
+          conversations={conversations}
+          activeId={activeId}
+          onNewConversation={createConversation}
+          onSelectConversation={selectConversation}
+          onOpenContextMenu={openContextMenu}
         />
-      )}
 
-      <ConfirmModal
-        open={confirm.open}
-        title='Slett samtale?'
-        description={
-          <>
-            Dette vil slette{" "}
-            <b>{confirm.open ? titleFor(confirm.convId) : ""}</b> og dens
-            meldinger. Du kan ikke angre dette.
-          </>
-        }
-        onCancel={() => setConfirm({ open: false })}
-        onConfirm={confirmDelete}
-      />
+        <ChatPanel
+          conversation={activeConversation}
+          input={input}
+          setInput={setInput}
+          isSending={isSending}
+          clarifyOptions={clarifyOptions}
+          onSendText={sendText}
+          onSend={sendMessage}
+          onKeyDown={onKeyDown}
+          error={error}
+          onDismissError={() => setError(null)}
+          endRef={messagesEndRef}
+        />
+
+        {contextMenu.open && (
+          <ContextMenu
+            open={contextMenu.open}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            title={titleFor(contextMenu.convId)}
+            onDelete={requestDeleteFromMenu}
+            onClose={() => setContextMenu({ open: false })}
+          />
+        )}
+
+        <ConfirmModal
+          open={confirm.open}
+          title="Slett samtale?"
+          description={
+            <>
+              Dette vil slette <b>{confirm.open ? titleFor(confirm.convId) : ""}</b> og dens meldinger. Du kan ikke angre
+              dette.
+            </>
+          }
+          onCancel={() => setConfirm({ open: false })}
+          onConfirm={confirmDelete}
+
+        />
+
+        <SubscribeModal
+            open={showSubscribe}
+            onClose={() => setShowSubscribe(false)}
+        />
+
+        <ChatInfoModal
+            open={showChatInfo}
+            onClose={() => setShowChatInfo(false)}
+        />
+
+      </div>
     </div>
   );
 }
