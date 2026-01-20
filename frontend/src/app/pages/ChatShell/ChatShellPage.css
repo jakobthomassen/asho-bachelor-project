@@ -1,0 +1,115 @@
+
+.chatShell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f4f6;
+}
+
+.chatShell__header {
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.chatShell__brand {
+  display: grid;
+  justify-items: center;
+}
+
+.chatShell__logo {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
+.chatShell__title {
+  margin-top: 6px;
+  font-weight: 900;
+  font-size: 1.25rem;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.chatShell__subtitle {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.chatShell__main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+
+.chatShell__nav {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.chatShell__navButton {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.chatShell__navButton:hover {
+  background: #f1f5f9;
+  border-color: #cbd5f5;
+}
+
+.subscribeOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.subscribeModal {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.subscribeTitle {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+}
+
+.subscribeText {
+  font-size: 0.95rem;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.subscribeClose {
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #0f766e;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
