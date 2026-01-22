@@ -5,30 +5,28 @@ type Props = {
   onClose: () => void;
 };
 
-export default function SubscribeModal({ open, onClose }: Props) {
+export default function UroSkolenModal({ open, onClose }: Props) {
   const navigate = useNavigate();
 
   if (!open) return null;
 
-  const goToSubscribe = () => {
+  const goToUroSkolen = () => {
     onClose();
-    navigate("/subscribe");
+    navigate("/uro-skolen");
   };
 
   return (
     <div className="subscribeOverlay" onClick={onClose}>
       <div className="subscribeModal" onClick={(e) => e.stopPropagation()}>
-        <h2 className="subscribeTitle">Abonner på ASHO</h2>
+        <h2 className="subscribeTitle">Uro-skolen</h2>
 
         <p className="subscribeText">
-          <b>149 kr / mnd</b>
-          <br />
-          Tilgang til lydfiler, guiding og Uro-skolen
+          Her finner du guiding og verktøy som kan hjelpe deg å forstå og håndtere uro.
         </p>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button className="subscribeClose" onClick={goToSubscribe}>
-            Gå til abonnement
+          <button className="subscribeClose" onClick={goToUroSkolen}>
+            Åpne Uro-skolen
           </button>
 
           <button
