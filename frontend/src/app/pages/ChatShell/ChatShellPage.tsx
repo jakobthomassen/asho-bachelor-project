@@ -10,6 +10,8 @@ import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
 import SubscribeModal from "../../../components/overlays/SubscribeModal";
 import ChatInfoModal from "../../../components/overlays/ChatInfoModal";
+import UroSkoleModal from "../../../components/overlays/UroSkoleModal";
+
 
 import "./ChatShellPage.css";
 
@@ -35,7 +37,7 @@ export default function ChatShellPage() {
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [showChatInfo, setShowChatInfo] = useState(false);
-
+  const [showUroSkole, setShowUroSkole] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -269,7 +271,12 @@ export default function ChatShellPage() {
                 <button className="chatShell__navButton" onClick={() => setShowSubscribe(true)}>
                     Abonner
                 </button>
-                <button className="chatShell__navButton">Uro-skolen</button>
+                <button
+                    className="chatShell__navButton"
+                    onClick={() => setShowUroSkole(true)}
+                    >
+                    Uro-skolen
+                </button>
             </div>
 
             </div>
@@ -332,6 +339,11 @@ export default function ChatShellPage() {
         <ChatInfoModal
             open={showChatInfo}
             onClose={() => setShowChatInfo(false)}
+        />
+
+        <UroSkoleModal
+            open={showUroSkole}
+            onClose={() => setShowUroSkole(false)}
         />
 
       </div>
