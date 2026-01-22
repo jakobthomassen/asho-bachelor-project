@@ -19,6 +19,10 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(debug_router, prefix="/api")
 app.include_router(prompt_trace_router, prefix="/api")
 
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
