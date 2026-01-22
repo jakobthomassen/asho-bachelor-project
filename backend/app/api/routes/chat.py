@@ -1,6 +1,6 @@
 import json
 import hashlib
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Header
 import psycopg
 import time
 
@@ -9,6 +9,7 @@ from app.services.llm_client import chat_with_history
 from app.core.config import settings
 from app.services.security import validate_and_count
 from app.services.session_budget import add_tokens_and_check_budget
+from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
 
 CHAT_HISTORY = 12
 
@@ -39,7 +40,7 @@ def _req_hash(chat_id: str, normalized_message: str) -> str:
 
 
 @router.post("/chat", response_model=SimpleChatResponse)
-def chat(payload: SimpleChatRequest):
+def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=None)):
     # 1) Security: normalize + per-message token cap
     try:
         sec = validate_and_count(payload.message, model_name=settings.MODEL_NAME)
@@ -52,9 +53,14 @@ def chat(payload: SimpleChatRequest):
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
+            ensure_auth_tables(conn)
+            session_token = parse_bearer_token(authorization)
+            if session_token:
+                user_id = get_user_id_for_session(conn, session_token)
+                if not user_id:
+                    raise HTTPException(status_code=401, detail="Invalid session token")
 
-            # 2) Idempotency claim
-                        # 2) Idempotency claim (chat_id + message_id)
+            # 2) Idempotency claim (chat_id + message_id)
             with conn.cursor() as cur:
                 cur.execute(
                     """
