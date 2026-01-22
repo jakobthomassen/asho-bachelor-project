@@ -24,31 +24,29 @@ export default function App() {
   return (
     <>
       {/* REMOVE THIS BLOCK TO DELETE THE PING-BACKEND UI */}
-      {userId ? (
-        <div className="authStatus">
-          <span>Innlogget</span>{" "}
-          <button
-            type="button"
-            onClick={pingBackend}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              color: "#2563eb",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-          >
-            ping backend
-          </button>{" "}
-          <span>
-            {backendStatus === "idle" && "(ikke sjekket)"}
-            {backendStatus === "checking" && "(sjekker...)"}
-            {backendStatus === "ok" && "(ok)"}
-            {backendStatus === "error" && "(feil)"}
-          </span>
-        </div>
-      ) : null}
+      <div className="authStatus">
+        {userId ? <span>Innlogget</span> : <span>Ikke innlogget</span>}{" "}
+        <button
+          type="button"
+          onClick={pingBackend}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            color: "#2563eb",
+            cursor: "pointer",
+            textDecoration: "underline",
+          }}
+        >
+          ping backend
+        </button>{" "}
+        <span>
+          {backendStatus === "idle" && "(ikke sjekket)"}
+          {backendStatus === "checking" && "(sjekker...)"}
+          {backendStatus === "ok" && "(ok)"}
+          {backendStatus === "error" && "(feil)"}
+        </span>
+      </div>
       {/* END OF PING-BACKEND UI */}
       <AppRoutes />
     </>
