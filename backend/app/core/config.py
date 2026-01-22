@@ -8,6 +8,8 @@ class Settings:
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
     DATABASE_URL = os.getenv("DATABASE_URL")
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+    SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "7"))
 
     # Security and budgeting
     MAX_MESSAGE_TOKENS = int(os.getenv("MAX_MESSAGE_TOKENS", "512"))

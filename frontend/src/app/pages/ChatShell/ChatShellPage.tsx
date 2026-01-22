@@ -3,6 +3,7 @@ import type { Conversation, Message } from "../../../features/conversations/type
 import { loadConversations, saveConversations } from "../../../features/conversations/storage";
 import { makeNewConversation, uid } from "../../../features/conversations/helpers";
 import { sendChatMessage } from "../../../features/chat/api";
+import { useAuth } from "../../AuthProvider";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
@@ -23,7 +24,7 @@ type ContextMenuState =
 type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
- 
+  const { userId, sessionToken, isReady, error: authError, login, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -207,6 +208,7 @@ export default function ChatShellPage() {
         chatId: activeConversation.id,
         sessionId: activeConversation.sessionId,
         message: trimmed,
+        sessionToken,
       });
 
       const botMsg: Message = {
@@ -273,7 +275,25 @@ export default function ChatShellPage() {
             </div>
 
             </div>
-        <div/>
+        <div className="chatShell__auth">
+          {userId ? (
+            <>
+              <div className="chatShell__authUser">Innlogget</div>
+              <button className="chatShell__authButton" onClick={logout}>
+                Logg ut
+              </button>
+            </>
+          ) : (
+            <button
+              className="chatShell__authButton"
+              onClick={login}
+              disabled={!isReady}
+            >
+              Logg inn med Google
+            </button>
+          )}
+          {authError ? <div className="chatShell__authError">{authError}</div> : null}
+        </div>
       </div>
 
       <div className="chatShell__main">
