@@ -1,0 +1,47 @@
+@import "../Subscribe/SubscribePage.css";
+
+.uroTitle {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.uroText {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.moduleList {
+  margin-top: 1rem;
+  display: grid;
+  gap: 10px;
+}
+
+.moduleItem {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 0.95rem;
+  background: #f8fafc;
+}
+
+.moduleItem__kicker {
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #0f766e;
+}
+
+.moduleItem__title {
+  margin-top: 4px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.moduleItem__text {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
