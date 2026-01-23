@@ -12,6 +12,7 @@ export type SendChatParams = {
   chatId: string;
   sessionId: string;
   message: string;
+  sessionToken?: string | null;
 };
 
 /**
@@ -32,7 +33,7 @@ export type SendChatResponse = {
 export async function sendChatMessage(
   params: SendChatParams
 ): Promise<SendChatResponse> {
-  const { chatId, sessionId, message } = params;
+  const { chatId, sessionId, message, sessionToken } = params;
 
   if (!chatId) {
     throw new Error("chatId is required");
@@ -51,11 +52,17 @@ export async function sendChatMessage(
     message,
   };
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (sessionToken) {
+    headers.Authorization = `Bearer ${sessionToken}`;
+  }
+
   const res = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
