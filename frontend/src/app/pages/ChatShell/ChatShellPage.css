@@ -70,6 +70,40 @@
   border-color: #cbd5f5;
 }
 
+.chatShell__auth {
+  justify-self: end;
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.chatShell__authUser {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.chatShell__authButton {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 999px;
+}
+
+.chatShell__authButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.chatShell__authError {
+  font-size: 0.7rem;
+  color: #b91c1c;
+  max-width: 220px;
+  text-align: right;
+}
+
 .subscribeOverlay {
   position: fixed;
   inset: 0;
