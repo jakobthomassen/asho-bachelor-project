@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { exchangeGoogleCredential } from "../features/auth/api";
+import { exchangeGoogleCredential, revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
@@ -34,7 +34,7 @@ const STORAGE_KEY = "asho.auth.session";
 
 function readStoredAuth(): { userId: string; sessionToken: string } | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { userId?: string; sessionToken?: string };
     if (typeof parsed.userId !== "string") return null;
@@ -46,11 +46,11 @@ function readStoredAuth(): { userId: string; sessionToken: string } | null {
 }
 
 function writeStoredAuth(userId: string, sessionToken: string) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken }));
 }
 
 function clearStoredAuth() {
-  sessionStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -122,6 +122,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== STORAGE_KEY) return;
+      const stored = readStoredAuth();
+      setState((prev) => ({
+        ...prev,
+        userId: stored?.userId ?? null,
+        sessionToken: stored?.sessionToken ?? null,
+        error: null,
+      }));
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const login = useCallback(async () => {
     setState((prev) => ({ ...prev, error: null }));
     if (!initializedRef.current) {
@@ -135,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    void revokeSession(state.sessionToken);
     clearStoredAuth();
     disableGoogleAutoSelect();
     setState((prev) => ({
@@ -143,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionToken: null,
       error: null,
     }));
-  }, []);
+  }, [state.sessionToken]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
