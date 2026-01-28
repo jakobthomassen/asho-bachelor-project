@@ -147,6 +147,21 @@ def get_user_id_for_session(conn: psycopg.Connection, session_token: str) -> Opt
     return str(row[0])
 
 
+def revoke_session(conn: psycopg.Connection, session_token: str) -> None:
+    if not session_token:
+        return
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM google_sessions
+            WHERE session_token = %s
+            """,
+            (session_token,),
+        )
+    conn.commit()
+
+
 def parse_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
