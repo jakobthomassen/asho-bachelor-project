@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import time
 import uuid
@@ -65,7 +67,7 @@ def _decode_google_jwt(credential: str) -> dict:
 
 def extract_google_user_id(credential: str) -> str:
     """
-    Extracts the Google 'sub' (user id) from an ID token.
+    Extracts the Google 'sub' (user id) from an ID token and hashes it.
     Note: This is a minimal PoC and does not verify the JWT signature.
     """
     payload = _decode_google_jwt(credential)
@@ -86,7 +88,16 @@ def extract_google_user_id(credential: str) -> str:
     if not isinstance(sub, str) or not sub:
         raise ValueError("Google credential missing user id")
 
-    return sub
+    secret = settings.GOOGLE_SUB_HASH_SECRET
+    if not secret:
+        raise ValueError("GOOGLE_SUB_HASH_SECRET is required")
+
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        sub.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return digest
 
 
 def create_session_for_user(conn: psycopg.Connection, user_id: str) -> str:
