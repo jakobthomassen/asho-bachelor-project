@@ -52,3 +52,14 @@ export async function exchangeGoogleCredential(
   const data = (await res.json()) as unknown;
   return coerceAuthResponse(data);
 }
+
+export async function revokeSession(sessionToken: string | null): Promise<void> {
+  if (!sessionToken) return;
+
+  await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+  });
+}
