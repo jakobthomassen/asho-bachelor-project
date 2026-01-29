@@ -7,7 +7,7 @@ type GoogleCredentialResponse = {
 type GoogleAccountsId = {
   initialize: (options: {
     client_id: string;
-    callback: (response: GoogleCredentialResponse) => void;
+    callback?: (response: GoogleCredentialResponse) => void;
     auto_select?: boolean;
     cancel_on_tap_outside?: boolean;
     ux_mode?: "popup" | "redirect";
@@ -15,6 +15,18 @@ type GoogleAccountsId = {
   }) => void;
   prompt: (momentListener?: (notification: PromptMomentNotification) => void) => void;
   disableAutoSelect?: () => void;
+  renderButton?: (
+    parent: HTMLElement,
+    options: {
+      theme?: "outline" | "filled_blue" | "filled_black";
+      size?: "large" | "medium" | "small";
+      type?: "standard" | "icon";
+      text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+      shape?: "rectangular" | "pill" | "circle" | "square";
+      width?: number;
+      locale?: string;
+    }
+  ) => void;
 };
 
 type PromptMomentNotification = {
@@ -51,7 +63,7 @@ async function waitForGoogleIdentity(): Promise<GoogleAccountsId | null> {
 
 export async function initGoogleIdentity(options: {
   clientId: string;
-  onCredential: (response: GoogleCredentialResponse) => void;
+  onCredential?: (response: GoogleCredentialResponse) => void;
 }): Promise<boolean> {
   const id = await waitForGoogleIdentity();
   if (!id) return false;
@@ -95,4 +107,29 @@ export async function promptGoogleSignIn(): Promise<boolean> {
 
 export function disableGoogleAutoSelect(): void {
   window.google?.accounts?.id?.disableAutoSelect?.();
+}
+
+export async function renderGoogleButton(
+  container: HTMLElement,
+  options?: {
+    theme?: "outline" | "filled_blue" | "filled_black";
+    size?: "large" | "medium" | "small";
+    text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+  }
+): Promise<boolean> {
+  const id = await waitForGoogleIdentity();
+  if (!id || !id.renderButton) return false;
+  id.renderButton(container, {
+    theme: options?.theme ?? "outline",
+    size: options?.size ?? "large",
+    text: options?.text ?? "signin_with",
+  });
+  return true;
+}
+
+export function clickRenderedButton(container: HTMLElement): boolean {
+  const button = container.querySelector("div[role=button]") as HTMLElement | null;
+  if (!button) return false;
+  button.click();
+  return true;
 }
