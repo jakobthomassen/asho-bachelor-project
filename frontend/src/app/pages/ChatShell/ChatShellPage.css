@@ -97,6 +97,20 @@
   opacity: 0.6;
 }
 
+.chatShell__authGoogle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: transparent;
+  padding: 0;
+}
+
+#google-signin-button {
+  display: inline-block;
+  min-width: 220px;
+  min-height: 40px;
+}
+
 .chatShell__authError {
   font-size: 0.7rem;
   color: #b91c1c;

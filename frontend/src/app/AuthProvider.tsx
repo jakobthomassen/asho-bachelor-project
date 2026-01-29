@@ -9,11 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { exchangeGoogleCredential, revokeSession } from "../features/auth/api";
+import { revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
-  promptGoogleSignIn,
+  renderGoogleButton,
 } from "../features/auth/google";
 
 type AuthState = {
@@ -65,6 +65,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const initializedRef = useRef(false);
+  const handledRedirectRef = useRef(false);
+  const renderAttemptRef = useRef(0);
+
+  useEffect(() => {
+    if (handledRedirectRef.current) return;
+    handledRedirectRef.current = true;
+
+    const hash = window.location.hash || "";
+    if (!hash.startsWith("#auth=google")) return;
+
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const sessionToken = params.get("session_token");
+    const userId = params.get("user_id");
+
+    console.info("[auth] redirect detected", {
+      hasSessionToken: Boolean(sessionToken),
+      hasUserId: Boolean(userId),
+    });
+
+    if (sessionToken && userId) {
+      writeStoredAuth(userId, sessionToken);
+      setState((prev) => ({
+        ...prev,
+        userId,
+        sessionToken,
+        error: null,
+      }));
+    }
+
+    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, []);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
@@ -81,38 +113,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const setup = async () => {
       const ok = await initGoogleIdentity({
         clientId: GOOGLE_CLIENT_ID,
-        onCredential: async (response) => {
-          if (!response.credential) {
-            setState((prev) => ({ ...prev, error: "Google sign-in failed" }));
-            return;
-          }
-
-          try {
-            const result = await exchangeGoogleCredential(response.credential);
-            if (cancelled) return;
-            writeStoredAuth(result.userId, result.sessionToken);
-            setState({
-              userId: result.userId,
-              sessionToken: result.sessionToken,
-              isReady: true,
-              error: null,
-            });
-          } catch (err) {
-            if (cancelled) return;
-            const message = err instanceof Error ? err.message : "Auth failed";
-            setState((prev) => ({ ...prev, error: message }));
-          }
-        },
       });
 
       if (cancelled) return;
 
       initializedRef.current = ok;
+      console.info("[auth] GIS initialized", { ok });
       setState((prev) => ({
         ...prev,
         isReady: ok,
         error: ok ? prev.error : "Google sign-in unavailable",
       }));
+
+      if (ok) {
+        const tryRender = async () => {
+          const target = document.getElementById("google-signin-button");
+          if (!target) {
+            renderAttemptRef.current += 1;
+            if (renderAttemptRef.current <= 20) {
+              setTimeout(tryRender, 250);
+            } else {
+              console.info("[auth] GIS button render failed: no target");
+            }
+            return;
+          }
+
+          const rendered = await renderGoogleButton(target, {
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            width: 240,
+          });
+          console.info("[auth] GIS button rendered", { rendered });
+        };
+
+        void tryRender();
+      }
     };
 
     setup();
@@ -144,10 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
       return;
     }
-    const ok = await promptGoogleSignIn();
-    if (!ok) {
-      setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
-    }
+    console.info("[auth] login requested (unused)");
   }, []);
 
   const logout = useCallback(() => {
