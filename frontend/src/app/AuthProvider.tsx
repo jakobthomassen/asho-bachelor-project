@@ -14,6 +14,8 @@ import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
   promptGoogleSignIn,
+  renderGoogleButton,
+  clickRenderedButton,
 } from "../features/auth/google";
 
 type AuthState = {
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializedRef = useRef(false);
   const handledRedirectRef = useRef(false);
+  const buttonContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (handledRedirectRef.current) return;
@@ -112,32 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const setup = async () => {
       const ok = await initGoogleIdentity({
         clientId: GOOGLE_CLIENT_ID,
-        onCredential: async (response) => {
-          console.info("[auth] received GIS credential", {
-            hasCredential: Boolean(response.credential),
-            selectBy: response.select_by ?? null,
-          });
-          if (!response.credential) {
-            setState((prev) => ({ ...prev, error: "Google sign-in failed" }));
-            return;
-          }
-
-          try {
-            const result = await exchangeGoogleCredential(response.credential);
-            if (cancelled) return;
-            writeStoredAuth(result.userId, result.sessionToken);
-            setState({
-              userId: result.userId,
-              sessionToken: result.sessionToken,
-              isReady: true,
-              error: null,
-            });
-          } catch (err) {
-            if (cancelled) return;
-            const message = err instanceof Error ? err.message : "Auth failed";
-            setState((prev) => ({ ...prev, error: message }));
-          }
-        },
       });
 
       if (cancelled) return;
@@ -149,6 +126,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isReady: ok,
         error: ok ? prev.error : "Google sign-in unavailable",
       }));
+
+      if (ok && buttonContainerRef.current) {
+        const rendered = await renderGoogleButton(buttonContainerRef.current, {
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+        });
+        console.info("[auth] GIS button rendered", { rendered });
+      }
     };
 
     setup();
@@ -181,10 +167,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     console.info("[auth] login requested");
-    const ok = await promptGoogleSignIn();
-    console.info("[auth] prompt result", { ok });
-    if (!ok) {
-      setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
+    const clicked = buttonContainerRef.current
+      ? clickRenderedButton(buttonContainerRef.current)
+      : false;
+    console.info("[auth] renderButton click", { clicked });
+
+    if (!clicked) {
+      const ok = await promptGoogleSignIn();
+      console.info("[auth] prompt result", { ok });
+      if (!ok) {
+        setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
+      }
     }
   }, []);
 
@@ -209,7 +202,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [state, login, logout]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <div
+        ref={buttonContainerRef}
+        style={{
+          position: "fixed",
+          left: -10000,
+          top: -10000,
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+        }}
+        aria-hidden
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {
