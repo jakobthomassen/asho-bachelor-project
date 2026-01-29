@@ -20,4 +20,11 @@ class Settings:
     # Bound model verbosity/cost
     MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "512"))
 
+    # Rolling summaries
+    MAX_HISTORY_TOKENS = int(os.getenv("MAX_HISTORY_TOKENS", "1800"))
+    MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "12"))
+    SUMMARY_MAX_TOKENS = int(os.getenv("SUMMARY_MAX_TOKENS", "350"))
+    SUMMARY_KEEP_LAST_MESSAGES = int(os.getenv("SUMMARY_KEEP_LAST_MESSAGES", "6"))
+    SUMMARY_WINDOW_MESSAGES = int(os.getenv("SUMMARY_WINDOW_MESSAGES", "30"))
+
 settings = Settings()

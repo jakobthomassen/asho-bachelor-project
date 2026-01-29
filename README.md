@@ -6,13 +6,14 @@ A simple AI chat application with a FastAPI backend and a React (Vite) frontend.
 
 - Backend: FastAPI + OpenAI client + Postgres
 - Frontend: React + Vite + localStorage
-- DB: Postgres tables for chat history, idempotency, and session token usage
+- DB: Postgres tables for chat history, idempotency, session token usage, and summaries
 
 ## Features
 
 - Chat API with idempotent message handling
 - Session token budgeting (input + output)
 - Server-side chat history stored in Postgres
+- Rolling summaries to reduce prompt size
 - Prompt trace endpoint for debugging (in-memory only)
 - Frontend chat shell with conversation list and local persistence
 - Optional debug OpenAI health endpoint
@@ -20,7 +21,7 @@ A simple AI chat application with a FastAPI backend and a React (Vite) frontend.
 ## API Endpoints
 
 - `POST /api/chat`
-  - Body: `chat_id`, `session_id`, `message_id`, `message`
+  - Body: `conversation_id`, `session_id`, `message_id`, `message`
   - Returns: `{ "reply": "..." }`
   - Enforces idempotency; reusing `message_id` with different content returns 409.
 - `GET /api/prompt-trace/{session_id}`
@@ -40,6 +41,11 @@ Backend (`backend/.env` or system env):
 - `MAX_MESSAGE_TOKENS` (default: `512`)
 - `MAX_SESSION_TOKENS` (default: `8000`)
 - `MAX_OUTPUT_TOKENS` (default: `512`)
+- `MAX_HISTORY_TOKENS` (default: `1800`)
+- `MAX_HISTORY_MESSAGES` (default: `12`)
+- `SUMMARY_MAX_TOKENS` (default: `350`)
+- `SUMMARY_KEEP_LAST_MESSAGES` (default: `6`)
+- `SUMMARY_WINDOW_MESSAGES` (default: `30`)
 - `ENABLE_DEBUG_ENDPOINTS` (`true` or `false`, default: `false`)
 
 Frontend (`frontend/.env`):
@@ -52,7 +58,7 @@ The backend expects these tables to exist:
 ```sql
 CREATE TABLE IF NOT EXISTS chat_messages (
   id BIGSERIAL PRIMARY KEY,
-  chat_id TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
   session_id TEXT,
   role TEXT NOT NULL CHECK (role IN ('user','assistant','system')),
   content TEXT NOT NULL,
@@ -60,16 +66,25 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE TABLE IF NOT EXISTS llm_idempotency (
-  message_id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
   req_hash TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('in_progress','done')),
   response_json TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (conversation_id, message_id)
 );
 
 CREATE TABLE IF NOT EXISTS session_token_usage (
   session_id TEXT PRIMARY KEY,
   tokens_used INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_summaries (
+  conversation_id TEXT PRIMARY KEY,
+  summary_text TEXT NOT NULL,
+  last_message_id BIGINT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```

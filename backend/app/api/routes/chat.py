@@ -5,19 +5,20 @@ import psycopg
 import time
 
 from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
-from app.services.llm_client import chat_with_history
+from app.services.llm_client import chat_with_history, summarize_history, SYSTEM_PROMPT
 from app.core.config import settings
 from app.services.security import validate_and_count
 from app.services.session_budget import add_tokens_and_check_budget
 from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
 
-CHAT_HISTORY = 12
+from app.services.token_count import count_tokens
 
 # NEW: DB-backed chat history
 from app.services.chat_history_store import (
     insert_message,
-    fetch_recent_history,
+    fetch_messages_after,
 )
+from app.services.chat_summary_store import get_summary, upsert_summary
 
 router = APIRouter()
 
@@ -37,6 +38,15 @@ def _req_hash(conversation_id: str, normalized_message: str) -> str:
     }
     s = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def _estimate_prompt_tokens(summary_text: str | None, history) -> int:
+    total = count_tokens(SYSTEM_PROMPT, model=settings.MODEL_NAME)
+    if summary_text:
+        total += count_tokens(summary_text, model=settings.MODEL_NAME)
+    for msg in history:
+        total += count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
+    return total
 
 
 @router.post("/chat", response_model=SimpleChatResponse)
@@ -190,12 +200,78 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 )
                 conn.commit()
 
-            # 6) Fetch recent history for this conversation
-            history = fetch_recent_history(
+            # 6) Rolling summary + bounded history window
+            summary_text = None
+            summary_last_id = 0
+            try:
+                summary_row = get_summary(conn, conversation_id=payload.conversation_id)
+                if summary_row:
+                    summary_text = summary_row.summary_text
+                    summary_last_id = summary_row.last_message_id
+            except Exception:
+                summary_text = None
+                summary_last_id = 0
+
+            summary_message = None
+            if summary_text:
+                summary_message = "Summary so far:\n" + summary_text
+
+            recent_rows = fetch_messages_after(
                 conn,
                 conversation_id=payload.conversation_id,
-                limit_messages=CHAT_HISTORY,
+                after_message_id=summary_last_id,
+                limit_messages=settings.MAX_HISTORY_MESSAGES,
+                newest_first=True,
             )
+            recent_rows.reverse()
+            history = [{"role": row.role, "content": row.content} for row in recent_rows]
+
+            try:
+                est_tokens = _estimate_prompt_tokens(summary_message, history)
+                if est_tokens > settings.MAX_HISTORY_TOKENS:
+                    candidate_rows = fetch_messages_after(
+                        conn,
+                        conversation_id=payload.conversation_id,
+                        after_message_id=summary_last_id,
+                        limit_messages=settings.SUMMARY_WINDOW_MESSAGES,
+                        newest_first=False,
+                    )
+                    if len(candidate_rows) > settings.SUMMARY_KEEP_LAST_MESSAGES:
+                        to_summarize = candidate_rows[:-settings.SUMMARY_KEEP_LAST_MESSAGES]
+                        summary_input = [
+                            {"role": row.role, "content": row.content} for row in to_summarize
+                        ]
+                        new_summary, _ = summarize_history(
+                            existing_summary=summary_text,
+                            messages=summary_input,
+                        )
+                        if new_summary:
+                            with conn.transaction():
+                                upsert_summary(
+                                    conn,
+                                    conversation_id=payload.conversation_id,
+                                    summary_text=new_summary,
+                                    last_message_id=to_summarize[-1].id,
+                                )
+                            summary_text = new_summary
+                            summary_last_id = to_summarize[-1].id
+                            summary_message = "Summary so far:\n" + summary_text
+                            recent_rows = fetch_messages_after(
+                                conn,
+                                conversation_id=payload.conversation_id,
+                                after_message_id=summary_last_id,
+                                limit_messages=settings.MAX_HISTORY_MESSAGES,
+                                newest_first=True,
+                            )
+                            recent_rows.reverse()
+                            history = [
+                                {"role": row.role, "content": row.content} for row in recent_rows
+                            ]
+            except Exception:
+                pass
+
+            if summary_message:
+                history = [{"role": "system", "content": summary_message}] + history
 
             # 7) Call LLM
             reply, output_tokens = chat_with_history(
