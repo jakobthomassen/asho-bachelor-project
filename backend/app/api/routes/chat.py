@@ -30,9 +30,9 @@ def chat_options():
     return Response(status_code=200)
 
 
-def _req_hash(chat_id: str, normalized_message: str) -> str:
+def _req_hash(conversation_id: str, normalized_message: str) -> str:
     normalized = {
-        "chat_id": chat_id,
+        "conversation_id": conversation_id,
         "message": normalized_message,
     }
     s = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
@@ -49,27 +49,65 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
     normalized_message = sec.normalized_message
     input_tokens = sec.message_tokens
-    req_hash = _req_hash(payload.chat_id, normalized_message)
+    req_hash = _req_hash(payload.conversation_id, normalized_message)
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
             ensure_auth_tables(conn)
             session_token = parse_bearer_token(authorization)
-            if session_token:
-                user_id = get_user_id_for_session(conn, session_token)
-                if not user_id:
-                    raise HTTPException(status_code=401, detail="Invalid session token")
+            if not session_token:
+                raise HTTPException(status_code=401, detail="Missing session token")
+            user_id = get_user_id_for_session(conn, session_token)
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Invalid session token")
 
-            # 2) Idempotency claim (chat_id + message_id)
+            # 2) Ensure conversation exists and is owned by user
+            title_seed = normalized_message[:28] or "Samtale"
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO llm_idempotency (chat_id, message_id, req_hash, status)
+                    SELECT user_id, title
+                    FROM conversations
+                    WHERE id = %s
+                    """,
+                    (payload.conversation_id,),
+                )
+                row = cur.fetchone()
+
+                if row is None:
+                    cur.execute(
+                        """
+                        INSERT INTO conversations (id, user_id, title)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (payload.conversation_id, user_id, title_seed),
+                    )
+                else:
+                    owner_id, current_title = row
+                    if str(owner_id) != str(user_id):
+                        raise HTTPException(status_code=403, detail="Conversation not owned by user")
+
+                    if current_title in {"Samtale", "Ny samtale"}:
+                        cur.execute(
+                            """
+                            UPDATE conversations
+                            SET title = %s, updated_at = NOW()
+                            WHERE id = %s AND user_id = %s
+                            """,
+                            (title_seed, payload.conversation_id, user_id),
+                        )
+                conn.commit()
+
+            # 3) Idempotency claim (conversation_id + message_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO llm_idempotency (conversation_id, message_id, req_hash, status)
                     VALUES (%s, %s, %s, 'in_progress')
-                    ON CONFLICT (chat_id, message_id) DO NOTHING
+                    ON CONFLICT (conversation_id, message_id) DO NOTHING
                     RETURNING 1
                     """,
-                    (payload.chat_id, payload.message_id, req_hash),
+                    (payload.conversation_id, payload.message_id, req_hash),
                 )
                 inserted = cur.fetchone() is not None
                 conn.commit()
@@ -78,9 +116,9 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     """
                     SELECT req_hash, status, response_json
                     FROM llm_idempotency
-                    WHERE chat_id=%s AND message_id=%s
+                    WHERE conversation_id=%s AND message_id=%s
                     """,
-                    (payload.chat_id, payload.message_id),
+                    (payload.conversation_id, payload.message_id),
                 )
                 row = cur.fetchone()
 
@@ -106,9 +144,9 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             """
                             SELECT status, response_json
                             FROM llm_idempotency
-                            WHERE chat_id=%s AND message_id=%s
+                            WHERE conversation_id=%s AND message_id=%s
                             """,
-                            (payload.chat_id, payload.message_id),
+                            (payload.conversation_id, payload.message_id),
                         )
                         status2, response_json2 = cur.fetchone()
                         if status2 == "done" and response_json2:
@@ -119,7 +157,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         detail="Request is already being processed; retry with same message_id",
                     )
 
-            # 3) Budget: input tokens
+            # 4) Budget: input tokens
             try:
                 with conn.transaction():
                     add_tokens_and_check_budget(
@@ -131,41 +169,63 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             except RuntimeError:
                 raise HTTPException(status_code=429, detail="Session token budget exceeded")
 
-            # 4) Persist user message (durable history)
+            # 5) Persist user message (durable history)
             with conn.transaction():
                 insert_message(
                     conn,
-                    chat_id=payload.chat_id,
+                    conversation_id=payload.conversation_id,
                     session_id=payload.session_id,
                     role="user",
                     content=normalized_message,
                 )
 
-            # 5) Fetch recent history for this chat
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE conversations
+                    SET updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (payload.conversation_id, user_id),
+                )
+                conn.commit()
+
+            # 6) Fetch recent history for this conversation
             history = fetch_recent_history(
                 conn,
-                chat_id=payload.chat_id,
+                conversation_id=payload.conversation_id,
                 limit_messages=CHAT_HISTORY,
             )
 
-            # 6) Call LLM
+            # 7) Call LLM
             reply, output_tokens = chat_with_history(
                 payload.session_id,
                 history,
                 normalized_message,
             )
 
-            # 7) Persist assistant message
+            # 8) Persist assistant message
             with conn.transaction():
                 insert_message(
                     conn,
-                    chat_id=payload.chat_id,
+                    conversation_id=payload.conversation_id,
                     session_id=payload.session_id,
                     role="assistant",
                     content=reply,
                 )
 
-            # 8) Budget: output tokens
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE conversations
+                    SET updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (payload.conversation_id, user_id),
+                )
+                conn.commit()
+
+            # 9) Budget: output tokens
             try:
                 with conn.transaction():
                     add_tokens_and_check_budget(
@@ -179,15 +239,15 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
             response = {"reply": reply}
 
-            # 9) Store idempotent result
+            # 10) Store idempotent result
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     UPDATE llm_idempotency
                     SET status='done', response_json=%s
-                    WHERE chat_id=%s AND message_id=%s
+                    WHERE conversation_id=%s AND message_id=%s
                     """,
-                    (json.dumps(response), payload.chat_id, payload.message_id),
+                    (json.dumps(response), payload.conversation_id, payload.message_id),
                 )
                 conn.commit()
 

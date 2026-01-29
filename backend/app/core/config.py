@@ -11,6 +11,7 @@ class Settings:
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_SUB_HASH_SECRET = os.getenv("GOOGLE_SUB_HASH_SECRET", "")
     SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "7"))
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "")
 
     # Security and budgeting
     MAX_MESSAGE_TOKENS = int(os.getenv("MAX_MESSAGE_TOKENS", "512"))
