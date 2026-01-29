@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { exchangeGoogleCredential, revokeSession } from "../features/auth/api";
+import { revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
