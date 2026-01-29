@@ -12,6 +12,13 @@ class ChatMessageRow:
     content: str
 
 
+@dataclass(frozen=True)
+class ChatMessageWithId:
+    id: int
+    role: str
+    content: str
+
+
 def insert_message(
     conn: psycopg.Connection,
     *,
@@ -81,3 +88,48 @@ def fetch_recent_history(
     for role, content in rows:
         history.append({"role": str(role), "content": str(content)})
     return history
+
+
+def fetch_messages_after(
+    conn: psycopg.Connection,
+    *,
+    conversation_id: str,
+    after_message_id: int,
+    limit_messages: int,
+    newest_first: bool = False,
+) -> List[ChatMessageWithId]:
+    """
+    Fetch messages after a given message id.
+
+    Args:
+      after_message_id: messages with id > after_message_id are returned.
+      newest_first: when True, returns newest-to-oldest (DESC).
+    """
+    if limit_messages <= 0:
+        return []
+
+    order = "DESC" if newest_first else "ASC"
+
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT id, role, content
+            FROM chat_messages
+            WHERE conversation_id = %s AND id > %s
+            ORDER BY id {order}
+            LIMIT %s
+            """,
+            (conversation_id, int(after_message_id), int(limit_messages)),
+        )
+        rows = cur.fetchall() or []
+
+    messages: List[ChatMessageWithId] = []
+    for msg_id, role, content in rows:
+        messages.append(
+            ChatMessageWithId(
+                id=int(msg_id),
+                role=str(role),
+                content=str(content),
+            )
+        )
+    return messages

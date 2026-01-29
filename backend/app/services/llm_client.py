@@ -29,6 +29,12 @@ Hvis opplevelsen blir overveldende eller utrygg, senk tempoet og orienter mot en
 Målet er ikke å fikse brukeren, men å støtte tilstedeværelse og gradvis regulering gjennom kroppslig oppmerksomhet i tråd med Urometoden.
 """
 
+SUMMARY_SYSTEM_PROMPT = """
+You are a concise summarizer. Update or create a rolling summary of the conversation.
+Focus on: user's goals, important facts, preferences, decisions, and unresolved questions.
+Keep it short, plain text, and avoid quoting verbatim. Do not add new information.
+"""
+
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
     api_key = (settings.OPENAI_API_KEY or "").strip()
@@ -49,7 +55,12 @@ def chat_with_history(
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
+    if not (
+        history
+        and history[-1].get("role") == "user"
+        and history[-1].get("content") == user_message
+    ):
+        messages.append({"role": "user", "content": user_message})
 
     store_prompt(session_id, messages)
 
@@ -76,3 +87,64 @@ def chat_with_history(
         usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
 
     return content, usage_tokens
+
+
+def summarize_history(
+    *,
+    existing_summary: str | None,
+    messages: List[Dict[str, Any]],
+) -> Tuple[str, int]:
+    """
+    Summarizes a list of chat messages, optionally extending an existing summary.
+
+    Returns (summary_text, summary_output_tokens_estimate_or_reported)
+    """
+    client = get_client()
+
+    summary_messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+    ]
+
+    if existing_summary:
+        summary_messages.append(
+            {
+                "role": "user",
+                "content": "Existing summary:\n" + existing_summary,
+            }
+        )
+
+    lines = []
+    for msg in messages:
+        role = str(msg.get("role") or "")
+        content = str(msg.get("content") or "")
+        lines.append(f"{role}: {content}")
+
+    summary_messages.append(
+        {
+            "role": "user",
+            "content": "New conversation turns:\n" + "\n".join(lines),
+        }
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=summary_messages,
+            temperature=0.2,
+            max_tokens=settings.SUMMARY_MAX_TOKENS,
+        )
+    except OpenAIError as e:
+        raise RuntimeError(f"OpenAI summarization failed: {e}") from e
+
+    content = response.choices[0].message.content or ""
+
+    usage_tokens = 0
+    try:
+        if getattr(response, "usage", None) and getattr(response.usage, "completion_tokens", None) is not None:
+            usage_tokens = int(response.usage.completion_tokens)
+        else:
+            usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
+    except Exception:
+        usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
+
+    return content.strip(), usage_tokens
