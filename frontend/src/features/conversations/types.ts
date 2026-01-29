@@ -14,4 +14,5 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   messages: Message[];
+  messagesLoaded?: boolean;
 }

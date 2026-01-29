@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message } from "../../../features/conversations/types";
-import { loadConversations, saveConversations } from "../../../features/conversations/storage";
-import { makeNewConversation, uid } from "../../../features/conversations/helpers";
+import { uid } from "../../../features/conversations/helpers";
+import {
+  createConversation as createConversationApi,
+  deleteConversation as deleteConversationApi,
+  fetchConversationMessages,
+  listConversations,
+  updateConversationTitle,
+} from "../../../features/conversations/api";
+import {
+  getSessionIdForConversation,
+  removeSessionIdForConversation,
+} from "../../../features/conversations/session";
+import {
+  loadConversations as loadCachedConversations,
+  saveConversations as saveCachedConversations,
+} from "../../../features/conversations/storage";
 import { sendChatMessage } from "../../../features/chat/api";
 import { useAuth } from "../../AuthProvider";
 
@@ -41,31 +55,120 @@ export default function ChatShellPage() {
   const [showUroSkole, setShowUroSkole] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
 
   useEffect(() => {
-    const initial = loadConversations();
-    if (initial.length === 0) {
-      const c = makeNewConversation();
-      setConversations([c]);
-      setActiveId(c.id);
-      saveConversations([c]);
-    } else {
-      const sorted = [...initial].sort((a, b) => b.updatedAt - a.updatedAt);
-      setConversations(sorted);
-      setActiveId(sorted[0].id);
+    if (!sessionToken) {
+      hasLoadedRef.current = false;
+      setConversations([]);
+      setActiveId("");
+      return;
     }
-  }, []);
+
+    const cachedRaw = loadCachedConversations(userId);
+    const cached = cachedRaw.map((c) => ({
+      ...c,
+      sessionId: c.sessionId || getSessionIdForConversation(c.id),
+      messagesLoaded: c.messagesLoaded ?? (c.messages?.length ? true : false),
+    }));
+    if (cached.length > 0) {
+      const sorted = [...cached].sort((a, b) => b.updatedAt - a.updatedAt);
+      setConversations(sorted);
+      setActiveId(sorted[0]?.id ?? "");
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setError(null);
+      try {
+        let list = await listConversations(sessionToken);
+        if (cancelled) return;
+
+        if (list.length === 0) {
+          const created = await createConversationApi(sessionToken, "Ny samtale");
+          if (cancelled) return;
+          list = [created];
+        }
+
+        const existing = new Map(cached.map((c) => [c.id, c]));
+        const mapped = list.map((c) => {
+          const prev = existing.get(c.id);
+          return {
+            id: c.id,
+            sessionId: getSessionIdForConversation(c.id),
+            title: c.title,
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            messages: prev?.messages ?? [],
+            messagesLoaded: prev?.messagesLoaded ?? false,
+          };
+        });
+
+        setConversations(mapped);
+        setActiveId(mapped[0]?.id ?? "");
+        hasLoadedRef.current = true;
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Kunne ikke laste samtaler";
+        setError(message);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, userId]);
 
   useEffect(() => {
-    if (conversations.length > 0) saveConversations(conversations);
-  }, [conversations]);
+    if (!userId) return;
+    if (!hasLoadedRef.current) return;
+    saveCachedConversations(userId, conversations);
+  }, [conversations, userId]);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId),
     [conversations, activeId]
   );
+
+  useEffect(() => {
+    if (!sessionToken || !activeId) return;
+    const current = conversations.find((c) => c.id === activeId);
+    if (!current || current.messagesLoaded) return;
+
+    let cancelled = false;
+
+    const loadMessages = async () => {
+      try {
+        const messages = await fetchConversationMessages(sessionToken, activeId);
+        if (cancelled) return;
+        updateConversation(activeId, (c) => ({
+          ...c,
+          messages: messages.map((m) => ({
+            id: m.id,
+            role: m.role === "user" ? "user" : "asho",
+            text: m.text,
+            createdAt: m.createdAt,
+          })),
+          messagesLoaded: true,
+        }));
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Kunne ikke laste meldinger";
+        setError(message);
+      }
+    };
+
+    loadMessages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, activeId, conversations]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,11 +212,30 @@ export default function ChatShellPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirm.open]);
 
-  const createConversation = () => {
+  const createConversation = async () => {
     setError(null);
-    const c = makeNewConversation();
-    setConversations((prev) => [c, ...prev]);
-    setActiveId(c.id);
+    if (!sessionToken) {
+      setError("Du må logge inn for å starte en ny samtale.");
+      return;
+    }
+
+    try {
+      const created = await createConversationApi(sessionToken, "Ny samtale");
+      const next = {
+        id: created.id,
+        sessionId: getSessionIdForConversation(created.id),
+        title: created.title,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+        messages: [],
+        messagesLoaded: true,
+      };
+      setConversations((prev) => [next, ...prev]);
+      setActiveId(created.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Kunne ikke opprette samtale";
+      setError(message);
+    }
   };
 
   const selectConversation = (id: string) => {
@@ -129,21 +251,27 @@ export default function ChatShellPage() {
     });
   };
 
-  const deleteConversation = (id: string) => {
-    setConversations((prev) => {
-      const filtered = prev.filter((c) => c.id !== id);
+  const deleteConversation = async (id: string) => {
+    setError(null);
+    if (!sessionToken) {
+      setError("Du må logge inn for å slette samtaler.");
+      return;
+    }
 
-      if (activeId === id) {
-        if (filtered.length > 0) setActiveId(filtered[0].id);
-        else {
-          const c = makeNewConversation();
-          setActiveId(c.id);
-          return [c];
+    try {
+      await deleteConversationApi(sessionToken, id);
+      removeSessionIdForConversation(id);
+      setConversations((prev) => {
+        const filtered = prev.filter((c) => c.id !== id);
+        if (activeId === id) {
+          setActiveId(filtered[0]?.id ?? "");
         }
-      }
-
-      return filtered;
-    });
+        return filtered;
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Kunne ikke slette samtale";
+      setError(message);
+    }
   };
 
   const titleFor = (id: string) => conversations.find((c) => c.id === id)?.title ?? "Samtale";
@@ -173,9 +301,9 @@ export default function ChatShellPage() {
     setContextMenu({ open: false });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!confirm.open) return;
-    deleteConversation(confirm.convId);
+    await deleteConversation(confirm.convId);
     setConfirm({ open: false });
   };
 
@@ -184,6 +312,10 @@ export default function ChatShellPage() {
     if (!trimmed || !activeConversation || isSending) return;
 
     setError(null);
+    if (!sessionToken) {
+      setError("Du må logge inn for å sende meldinger.");
+      return;
+    }
     setIsSending(true);
     setInput("");
 
@@ -195,19 +327,24 @@ export default function ChatShellPage() {
       createdAt: now,
     };
 
+    const shouldUpdateTitle =
+      activeConversation.messages.filter((m) => m.role === "user").length === 0;
+    const nextTitle = shouldUpdateTitle ? trimmed.slice(0, 28) : activeConversation.title;
+
     updateConversation(activeConversation.id, (c) => ({
       ...c,
-      title:
-        c.messages.filter((m) => m.role === "user").length === 0
-          ? trimmed.slice(0, 28)
-          : c.title,
+      title: nextTitle,
       updatedAt: now,
       messages: [...c.messages, userMsg],
     }));
 
+    if (shouldUpdateTitle && nextTitle !== activeConversation.title && sessionToken) {
+      void updateConversationTitle(sessionToken, activeConversation.id, nextTitle);
+    }
+
     try {
       const { reply } = await sendChatMessage({
-        chatId: activeConversation.id,
+        conversationId: activeConversation.id,
         sessionId: activeConversation.sessionId,
         message: trimmed,
         sessionToken,
@@ -227,19 +364,6 @@ export default function ChatShellPage() {
       }));
     } catch {
       setError("Serverfeil. Prøv igjen.");
-
-      updateConversation(activeConversation.id, (c) => ({
-        ...c,
-        messages: [
-          ...c.messages,
-          {
-            id: uid(),
-            role: "asho",
-            text: "Serverfeil. Prøv igjen.",
-            createdAt: Date.now(),
-          },
-        ],
-      }));
     } finally {
       setIsSending(false);
     }

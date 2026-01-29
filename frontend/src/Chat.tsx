@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { API_BASE_URL } from "./config";
+import { useAuth } from "./app/AuthProvider";
 
 type DebugMessage = {
   role: "user" | "assistant";
@@ -17,7 +18,9 @@ type ConsoleEntry = {
 };
 
 export default function Chat() {
+  const { sessionToken } = useAuth();
   const [sessionId] = useState(uuidv4());
+  const [conversationId] = useState(uuidv4());
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<DebugMessage[]>([]);
   const [consoleLog, setConsoleLog] = useState<ConsoleEntry[]>([]);
@@ -39,9 +42,14 @@ export default function Chat() {
 
   async function sendMessage() {
     if (!input.trim()) return;
+    if (!sessionToken) {
+      log("Missing session token; log in first");
+      return;
+    }
 
     const message_id = uuidv4();
     const payload = {
+      conversation_id: conversationId,
       session_id: sessionId,
       message_id,
       message: input,
@@ -64,9 +72,11 @@ export default function Chat() {
     setInput("");
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      headers.Authorization = `Bearer ${sessionToken}`;
       const res = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
 

@@ -4,12 +4,12 @@ import { v4 as uuidv4 } from "uuid";
 /**
  * Parameters required to send a chat message to the backend.
  *
- * chatId        → durable conversation identifier (maps to backend chat_id)
+ * conversationId → durable conversation identifier (maps to backend conversation_id)
  * sessionId     → ephemeral client/session identifier
  * message       → user message text
  */
 export type SendChatParams = {
-  chatId: string;
+  conversationId: string;
   sessionId: string;
   message: string;
   sessionToken?: string | null;
@@ -33,10 +33,10 @@ export type SendChatResponse = {
 export async function sendChatMessage(
   params: SendChatParams
 ): Promise<SendChatResponse> {
-  const { chatId, sessionId, message, sessionToken } = params;
+  const { conversationId, sessionId, message, sessionToken } = params;
 
-  if (!chatId) {
-    throw new Error("chatId is required");
+  if (!conversationId) {
+    throw new Error("conversationId is required");
   }
   if (!sessionId) {
     throw new Error("sessionId is required");
@@ -46,7 +46,7 @@ export async function sendChatMessage(
   }
 
   const payload = {
-    chat_id: chatId,
+    conversation_id: conversationId,
     session_id: sessionId,
     message_id: uuidv4(),
     message,
