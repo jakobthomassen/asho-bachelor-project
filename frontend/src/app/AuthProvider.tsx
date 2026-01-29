@@ -211,8 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           position: "fixed",
           left: -10000,
           top: -10000,
-          width: 1,
-          height: 1,
+          width: 240,
+          height: 44,
           overflow: "hidden",
         }}
         aria-hidden

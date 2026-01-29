@@ -74,9 +74,7 @@ export async function initGoogleIdentity(options: {
     auto_select: false,
     cancel_on_tap_outside: true,
     ux_mode: "redirect",
-    login_uri: `${API_BASE_URL}/api/auth/google/redirect?return_to=${encodeURIComponent(
-      window.location.origin
-    )}`,
+    login_uri: `${API_BASE_URL}/api/auth/google/redirect`,
   });
 
   return true;
