@@ -40,7 +40,7 @@ type ContextMenuState =
 type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
-  const { userId, sessionToken, isReady, error: authError, login, logout } = useAuth();
+  const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -415,13 +415,13 @@ export default function ChatShellPage() {
               </button>
             </>
           ) : (
-            <button
-              className="chatShell__authButton"
-              onClick={login}
-              disabled={!isReady}
-            >
-              Logg inn med Google
-            </button>
+            <div className="chatShell__authButton">
+              {isReady ? (
+                <div id="google-signin-button" />
+              ) : (
+                <span>Laster Google...</span>
+              )}
+            </div>
           )}
           {authError ? <div className="chatShell__authError">{authError}</div> : null}
         </div>
