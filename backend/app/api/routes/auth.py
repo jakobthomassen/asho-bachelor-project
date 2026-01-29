@@ -39,9 +39,12 @@ def _allowed_origins() -> list[str]:
 def _pick_redirect_url(request: Request, return_to: str | None) -> str:
     allowed = _allowed_origins()
     origin = request.headers.get("origin")
+    frontend = settings.FRONTEND_URL.strip() if settings.FRONTEND_URL else ""
 
     def is_allowed(url: str | None) -> bool:
         if not url:
+            return False
+        if url == "null":
             return False
         if allowed:
             return any(url.startswith(o) for o in allowed)
@@ -51,9 +54,11 @@ def _pick_redirect_url(request: Request, return_to: str | None) -> str:
     if is_allowed(return_to):
         return return_to  # type: ignore[return-value]
 
+    if frontend:
+        return frontend
     if allowed:
         return allowed[0]
-    if origin:
+    if origin and origin != "null":
         return origin
     return "/"
 

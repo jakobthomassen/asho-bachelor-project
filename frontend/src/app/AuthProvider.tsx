@@ -13,7 +13,6 @@ import { revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
-  promptGoogleSignIn,
   renderGoogleButton,
   clickRenderedButton,
 } from "../features/auth/google";
@@ -173,11 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.info("[auth] renderButton click", { clicked });
 
     if (!clicked) {
-      const ok = await promptGoogleSignIn();
-      console.info("[auth] prompt result", { ok });
-      if (!ok) {
-        setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
-      }
+      setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
     }
   }, []);
 
