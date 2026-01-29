@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializedRef = useRef(false);
   const handledRedirectRef = useRef(false);
+  const renderAttemptRef = useRef(0);
 
   useEffect(() => {
     if (handledRedirectRef.current) return;
@@ -125,16 +126,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }));
 
       if (ok) {
-        const target = document.getElementById("google-signin-button");
-        const rendered = target
-          ? await renderGoogleButton(target, {
-              theme: "outline",
-              size: "large",
-              text: "signin_with",
-              width: 240,
-            })
-          : false;
-        console.info("[auth] GIS button rendered", { rendered });
+        const tryRender = async () => {
+          const target = document.getElementById("google-signin-button");
+          if (!target) {
+            renderAttemptRef.current += 1;
+            if (renderAttemptRef.current <= 20) {
+              setTimeout(tryRender, 250);
+            } else {
+              console.info("[auth] GIS button render failed: no target");
+            }
+            return;
+          }
+
+          const rendered = await renderGoogleButton(target, {
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            width: 240,
+          });
+          console.info("[auth] GIS button rendered", { rendered });
+        };
+
+        void tryRender();
       }
     };
 
