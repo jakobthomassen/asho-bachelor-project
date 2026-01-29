@@ -83,23 +83,7 @@ export async function initGoogleIdentity(options: {
 export async function promptGoogleSignIn(): Promise<boolean> {
   const id = await waitForGoogleIdentity();
   if (!id) return false;
-  id.prompt((notification) => {
-    const notDisplayed = notification.isNotDisplayed?.() ?? false;
-    const skipped = notification.isSkippedMoment?.() ?? false;
-    const dismissed = notification.isDismissedMoment?.() ?? false;
-    const reason =
-      notification.getNotDisplayedReason?.() ??
-      notification.getSkippedReason?.() ??
-      notification.getDismissedReason?.() ??
-      null;
-
-    console.info("[auth] prompt moment", {
-      notDisplayed,
-      skipped,
-      dismissed,
-      reason,
-    });
-  });
+  id.prompt();
   return true;
 }
 
