@@ -131,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               theme: "outline",
               size: "large",
               text: "signin_with",
+              width: 240,
             })
           : false;
         console.info("[auth] GIS button rendered", { rendered });
