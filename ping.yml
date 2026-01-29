@@ -1,0 +1,15 @@
+name: Scheduled Ping
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend
+        env:
+          URL: ${{ secrets.URL }}
+        run: |
+          curl -fsS "$URL" > /dev/null
