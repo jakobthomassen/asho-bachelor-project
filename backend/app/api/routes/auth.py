@@ -2,6 +2,7 @@ from collections import deque
 import time
 
 from fastapi import APIRouter, HTTPException, Header, Response, Request
+from fastapi.responses import RedirectResponse
 import psycopg
 
 from app.core.config import settings
@@ -30,6 +31,31 @@ def _get_client_ip(request: Request) -> str:
         return request.client.host
     return "unknown"
 
+def _allowed_origins() -> list[str]:
+    raw = settings.ALLOWED_ORIGINS or ""
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return [o for o in origins if o != "*"]
+
+def _pick_redirect_url(request: Request, return_to: str | None) -> str:
+    allowed = _allowed_origins()
+    origin = request.headers.get("origin")
+
+    def is_allowed(url: str | None) -> bool:
+        if not url:
+            return False
+        if allowed:
+            return any(url.startswith(o) for o in allowed)
+        # If no allowlist configured, fall back to request origin
+        return origin is not None and url.startswith(origin)
+
+    if is_allowed(return_to):
+        return return_to  # type: ignore[return-value]
+
+    if allowed:
+        return allowed[0]
+    if origin:
+        return origin
+    return "/"
 
 def _check_rate_limit(client_ip: str) -> None:
     now = time.monotonic()
@@ -73,5 +99,35 @@ def auth_logout(authorization: str | None = Header(default=None)):
             ensure_auth_tables(conn)
             revoke_session(conn, session_token)
             return Response(status_code=204)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/auth/google/redirect")
+async def auth_google_redirect(request: Request, return_to: str | None = None):
+    _check_rate_limit(_get_client_ip(request))
+
+    form = await request.form()
+    credential = form.get("credential")
+    csrf_token = form.get("g_csrf_token")
+    csrf_cookie = request.cookies.get("g_csrf_token")
+
+    if csrf_cookie and csrf_token and csrf_cookie != csrf_token:
+        raise HTTPException(status_code=400, detail="Invalid CSRF token")
+
+    if not credential or not isinstance(credential, str):
+        raise HTTPException(status_code=400, detail="Missing credential")
+
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            ensure_auth_tables(conn)
+            result = exchange_google_credential(conn, credential)
+
+        redirect_base = _pick_redirect_url(request, return_to)
+        fragment = f"session_token={result.session_token}&user_id={result.user_id}"
+        redirect_url = f"{redirect_base.rstrip('/')}/#auth=google&{fragment}"
+        return RedirectResponse(url=redirect_url, status_code=303)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

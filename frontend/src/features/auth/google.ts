@@ -1,14 +1,17 @@
+import { API_BASE_URL } from "../../config";
+
 type GoogleCredentialResponse = {
   credential?: string;
   select_by?: string;
 };
-
 type GoogleAccountsId = {
   initialize: (options: {
     client_id: string;
     callback: (response: GoogleCredentialResponse) => void;
     auto_select?: boolean;
     cancel_on_tap_outside?: boolean;
+    ux_mode?: "popup" | "redirect";
+    login_uri?: string;
   }) => void;
   prompt: () => void;
   disableAutoSelect?: () => void;
@@ -49,6 +52,10 @@ export async function initGoogleIdentity(options: {
     callback: options.onCredential,
     auto_select: false,
     cancel_on_tap_outside: true,
+    ux_mode: "redirect",
+    login_uri: `${API_BASE_URL}/api/auth/google/redirect?return_to=${encodeURIComponent(
+      window.location.origin
+    )}`,
   });
 
   return true;

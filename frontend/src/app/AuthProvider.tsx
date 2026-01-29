@@ -65,6 +65,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const initializedRef = useRef(false);
+  const handledRedirectRef = useRef(false);
+
+  useEffect(() => {
+    if (handledRedirectRef.current) return;
+    handledRedirectRef.current = true;
+
+    const hash = window.location.hash || "";
+    if (!hash.startsWith("#auth=google")) return;
+
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const sessionToken = params.get("session_token");
+    const userId = params.get("user_id");
+
+    console.info("[auth] redirect detected", {
+      hasSessionToken: Boolean(sessionToken),
+      hasUserId: Boolean(userId),
+    });
+
+    if (sessionToken && userId) {
+      writeStoredAuth(userId, sessionToken);
+      setState((prev) => ({
+        ...prev,
+        userId,
+        sessionToken,
+        error: null,
+      }));
+    }
+
+    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, []);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
@@ -82,6 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const ok = await initGoogleIdentity({
         clientId: GOOGLE_CLIENT_ID,
         onCredential: async (response) => {
+          console.info("[auth] received GIS credential", {
+            hasCredential: Boolean(response.credential),
+            selectBy: response.select_by ?? null,
+          });
           if (!response.credential) {
             setState((prev) => ({ ...prev, error: "Google sign-in failed" }));
             return;
@@ -108,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
 
       initializedRef.current = ok;
+      console.info("[auth] GIS initialized", { ok });
       setState((prev) => ({
         ...prev,
         isReady: ok,
@@ -144,7 +180,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
       return;
     }
+    console.info("[auth] login requested");
     const ok = await promptGoogleSignIn();
+    console.info("[auth] prompt result", { ok });
     if (!ok) {
       setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
     }
