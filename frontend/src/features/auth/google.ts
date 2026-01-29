@@ -13,8 +13,17 @@ type GoogleAccountsId = {
     ux_mode?: "popup" | "redirect";
     login_uri?: string;
   }) => void;
-  prompt: () => void;
+  prompt: (momentListener?: (notification: PromptMomentNotification) => void) => void;
   disableAutoSelect?: () => void;
+};
+
+type PromptMomentNotification = {
+  isNotDisplayed?: () => boolean;
+  isSkippedMoment?: () => boolean;
+  isDismissedMoment?: () => boolean;
+  getNotDisplayedReason?: () => string;
+  getSkippedReason?: () => string;
+  getDismissedReason?: () => string;
 };
 
 declare global {
@@ -64,7 +73,23 @@ export async function initGoogleIdentity(options: {
 export async function promptGoogleSignIn(): Promise<boolean> {
   const id = await waitForGoogleIdentity();
   if (!id) return false;
-  id.prompt();
+  id.prompt((notification) => {
+    const notDisplayed = notification.isNotDisplayed?.() ?? false;
+    const skipped = notification.isSkippedMoment?.() ?? false;
+    const dismissed = notification.isDismissedMoment?.() ?? false;
+    const reason =
+      notification.getNotDisplayedReason?.() ??
+      notification.getSkippedReason?.() ??
+      notification.getDismissedReason?.() ??
+      null;
+
+    console.info("[auth] prompt moment", {
+      notDisplayed,
+      skipped,
+      dismissed,
+      reason,
+    });
+  });
   return true;
 }
 
