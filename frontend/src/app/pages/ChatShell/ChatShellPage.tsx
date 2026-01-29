@@ -415,7 +415,7 @@ export default function ChatShellPage() {
               </button>
             </>
           ) : (
-            <div className="chatShell__authButton">
+            <div className="chatShell__authGoogle">
               {isReady ? (
                 <div id="google-signin-button" />
               ) : (

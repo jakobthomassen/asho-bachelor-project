@@ -97,6 +97,7 @@ export async function renderGoogleButton(
     theme?: "outline" | "filled_blue" | "filled_black";
     size?: "large" | "medium" | "small";
     text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+    width?: number;
   }
 ): Promise<boolean> {
   const id = await waitForGoogleIdentity();
@@ -106,6 +107,7 @@ export async function renderGoogleButton(
     theme: options?.theme ?? "outline",
     size: options?.size ?? "large",
     text: options?.text ?? "signin_with",
+    width: options?.width,
   });
   return true;
 }
