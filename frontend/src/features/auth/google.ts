@@ -101,6 +101,7 @@ export async function renderGoogleButton(
 ): Promise<boolean> {
   const id = await waitForGoogleIdentity();
   if (!id || !id.renderButton) return false;
+  container.innerHTML = "";
   id.renderButton(container, {
     theme: options?.theme ?? "outline",
     size: options?.size ?? "large",

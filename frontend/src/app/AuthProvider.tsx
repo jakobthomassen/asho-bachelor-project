@@ -14,7 +14,6 @@ import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
   renderGoogleButton,
-  clickRenderedButton,
 } from "../features/auth/google";
 
 type AuthState = {
@@ -67,7 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializedRef = useRef(false);
   const handledRedirectRef = useRef(false);
-  const buttonContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (handledRedirectRef.current) return;
@@ -126,12 +124,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: ok ? prev.error : "Google sign-in unavailable",
       }));
 
-      if (ok && buttonContainerRef.current) {
-        const rendered = await renderGoogleButton(buttonContainerRef.current, {
-          theme: "outline",
-          size: "large",
-          text: "signin_with",
-        });
+      if (ok) {
+        const target = document.getElementById("google-signin-button");
+        const rendered = target
+          ? await renderGoogleButton(target, {
+              theme: "outline",
+              size: "large",
+              text: "signin_with",
+            })
+          : false;
         console.info("[auth] GIS button rendered", { rendered });
       }
     };
@@ -165,15 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
       return;
     }
-    console.info("[auth] login requested");
-    const clicked = buttonContainerRef.current
-      ? clickRenderedButton(buttonContainerRef.current)
-      : false;
-    console.info("[auth] renderButton click", { clicked });
-
-    if (!clicked) {
-      setState((prev) => ({ ...prev, error: "Google sign-in unavailable" }));
-    }
+    console.info("[auth] login requested (unused)");
   }, []);
 
   const logout = useCallback(() => {
@@ -197,23 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [state, login, logout]
   );
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-      <div
-        ref={buttonContainerRef}
-        style={{
-          position: "fixed",
-          left: -10000,
-          top: -10000,
-          width: 240,
-          height: 44,
-          overflow: "hidden",
-        }}
-        aria-hidden
-      />
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
