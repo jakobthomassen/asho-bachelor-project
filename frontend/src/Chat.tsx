@@ -58,11 +58,11 @@ export default function Chat() {
     while (i < fullText.length) {
       if (token.cancelled) return;
       const chunkSize =
-        fullText.length > 400 ? 6 : fullText.length > 200 ? 4 : 2;
+        fullText.length > 400 ? 12 : fullText.length > 200 ? 8 : 4;
       i = Math.min(fullText.length, i + chunkSize);
       updateMessageText(messageId, fullText.slice(0, i));
-      const jitter = Math.floor(Math.random() * 30);
-      await sleep(20 + jitter);
+      const jitter = Math.floor(Math.random() * 12);
+      await sleep(8 + jitter);
     }
   };
 
