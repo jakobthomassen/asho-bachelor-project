@@ -1,3 +1,4 @@
+import type React from "react";
 import type { Conversation } from "../../features/conversations/types";
 import "./Sidebar.css";
 
@@ -7,6 +8,8 @@ type Props = {
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
   onOpenContextMenu: (e: React.MouseEvent, convId: string) => void;
+  topSlot?: React.ReactNode;
+  bottomSlot?: React.ReactNode;
 };
 
 export default function Sidebar({
@@ -15,10 +18,13 @@ export default function Sidebar({
   onNewConversation,
   onSelectConversation,
   onOpenContextMenu,
+  topSlot,
+  bottomSlot,
 }: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar__top">
+        {topSlot ? <div className="sidebar__brand">{topSlot}</div> : null}
         <button onClick={onNewConversation} className="sidebar__newButton">
           Ny samtale
         </button>
@@ -42,6 +48,8 @@ export default function Sidebar({
           );
         })}
       </div>
+
+      {bottomSlot ? <div className="sidebar__bottom">{bottomSlot}</div> : null}
     </aside>
   );
 }

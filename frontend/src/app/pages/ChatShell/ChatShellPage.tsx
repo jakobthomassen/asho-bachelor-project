@@ -285,12 +285,12 @@ export default function ChatShellPage() {
       if (token.cancelled) return;
 
       const chunkSize =
-        fullText.length > 400 ? 6 : fullText.length > 200 ? 4 : 2;
+        fullText.length > 400 ? 12 : fullText.length > 200 ? 8 : 4;
       i = Math.min(fullText.length, i + chunkSize);
       updateMessageText(conversationId, messageId, fullText.slice(0, i));
 
-      const jitter = Math.floor(Math.random() * 30);
-      await sleep(20 + jitter);
+      const jitter = Math.floor(Math.random() * 12);
+      await sleep(8 + jitter);
     }
   };
 
@@ -427,53 +427,6 @@ export default function ChatShellPage() {
 
   return (
     <div className="chatShell">
-      <div className="chatShell__header">
-        <div className="chatShell__headerSpacer" />
-
-        <div className="chatShell__brand">
-            <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
-            <div className="chatShell__title">ASHO</div>
-            <div className="chatShell__subtitle">støtte gjennom vanskelige tider</div>
-
-            <div className="chatShell__nav">
-                <button className="chatShell__navButton" onClick={() => setShowChatInfo(true)}
-                >
-                Chat
-                </button>
-
-                <button className="chatShell__navButton" onClick={() => setShowSubscribe(true)}>
-                    Abonner
-                </button>
-                <button
-                    className="chatShell__navButton"
-                    onClick={() => setShowUroSkole(true)}
-                    >
-                    Uro-skolen
-                </button>
-            </div>
-
-            </div>
-        <div className="chatShell__auth">
-          {userId ? (
-            <>
-              <div className="chatShell__authUser">Innlogget</div>
-              <button className="chatShell__authButton" onClick={logout}>
-                Logg ut
-              </button>
-            </>
-          ) : (
-            <div className="chatShell__authGoogle">
-              {isReady ? (
-                <div id="google-signin-button" />
-              ) : (
-                <span>Laster Google...</span>
-              )}
-            </div>
-          )}
-          {authError ? <div className="chatShell__authError">{authError}</div> : null}
-        </div>
-      </div>
-
       <div className="chatShell__main">
         <Sidebar
           conversations={conversations}
@@ -481,6 +434,50 @@ export default function ChatShellPage() {
           onNewConversation={createConversation}
           onSelectConversation={selectConversation}
           onOpenContextMenu={openContextMenu}
+          topSlot={
+            <>
+              <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
+              <div className="chatShell__title">ASHO</div>
+              <div className="chatShell__subtitle">stotte gjennom vanskelige tider</div>
+            </>
+          }
+          bottomSlot={
+            <>
+              <div className="chatShell__nav">
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => setShowChatInfo(true)}
+                >
+                  Chat
+                </button>
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => setShowSubscribe(true)}
+                >
+                  Abonner
+                </button>
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => setShowUroSkole(true)}
+                >
+                  Uro-skolen
+                </button>
+              </div>
+
+              <div className="chatShell__auth chatShell__auth--sidebar">
+                {userId ? (
+                  <button className="chatShell__authButton" onClick={logout}>
+                    Logg ut
+                  </button>
+                ) : (
+                  <div className="chatShell__authGoogle">
+                    {isReady ? <div id="google-signin-button" /> : <span>Laster Google...</span>}
+                  </div>
+                )}
+                {authError ? <div className="chatShell__authError">{authError}</div> : null}
+              </div>
+            </>
+          }
         />
 
         <ChatPanel

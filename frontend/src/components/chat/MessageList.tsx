@@ -26,7 +26,13 @@ export default function MessageList({
   })();
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem" }}>
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "1.25rem 2rem",
+      }}
+    >
       {messages.map((m, idx) => {
         const isUser = m.role === "user";
         const showClarify = !isUser && idx === lastAshoIndex;
@@ -40,7 +46,7 @@ export default function MessageList({
               marginBottom: 12,
             }}
           >
-            <div style={{ maxWidth: "70%" }}>
+            <div style={{ maxWidth: "68%" }}>
               <div
                 style={{
                   padding: "0.7rem 0.9rem",
