@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { API_BASE_URL } from "./config";
 import { useAuth } from "./app/AuthProvider";
@@ -25,10 +25,46 @@ export default function Chat() {
   const [messages, setMessages] = useState<DebugMessage[]>([]);
   const [consoleLog, setConsoleLog] = useState<ConsoleEntry[]>([]);
   const [promptTraces, setPromptTraces] = useState<any[]>([]);
+  const streamRef = useRef<{ cancelled: boolean } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.cancelled = true;
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   function log(text: string) {
     setConsoleLog((prev) => [...prev, { timestamp: Date.now(), text }]);
   }
+
+  const updateMessageText = (messageId: string, text: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.message_id === messageId ? { ...m, text } : m))
+    );
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const streamAssistantReply = async (messageId: string, fullText: string) => {
+    if (!fullText) return;
+    const token = { cancelled: false };
+    if (streamRef.current) streamRef.current.cancelled = true;
+    streamRef.current = token;
+
+    let i = 0;
+    while (i < fullText.length) {
+      if (token.cancelled) return;
+      const chunkSize =
+        fullText.length > 400 ? 6 : fullText.length > 200 ? 4 : 2;
+      i = Math.min(fullText.length, i + chunkSize);
+      updateMessageText(messageId, fullText.slice(0, i));
+      const jitter = Math.floor(Math.random() * 30);
+      await sleep(20 + jitter);
+    }
+  };
 
   async function fetchPromptTraces() {
     try {
@@ -85,17 +121,22 @@ export default function Chat() {
       const data = await res.json();
       log(`Response body: ${JSON.stringify(data)}`);
 
+      const assistantId = uuidv4();
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          text: String(data.reply ?? ""),
+          text: "",
           session_id: sessionId,
-          message_id: uuidv4(),
+          message_id: assistantId,
           method: "POST /api/chat",
           timestamp: Date.now(),
         },
       ]);
+
+      const replyText = String(data.reply ?? "");
+      await streamAssistantReply(assistantId, replyText);
+      updateMessageText(assistantId, replyText);
 
       await fetchPromptTraces();
     } catch (err) {

@@ -56,6 +56,7 @@ export default function ChatShellPage() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedRef = useRef(false);
+  const streamRef = useRef<{ cancelled: boolean } | null>(null);
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
 
@@ -212,6 +213,15 @@ export default function ChatShellPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirm.open]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.cancelled = true;
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   const createConversation = async () => {
     setError(null);
     if (!sessionToken) {
@@ -249,6 +259,39 @@ export default function ChatShellPage() {
       next.sort((a, b) => b.updatedAt - a.updatedAt);
       return next;
     });
+  };
+
+  const updateMessageText = (conversationId: string, messageId: string, text: string) => {
+    updateConversation(conversationId, (c) => ({
+      ...c,
+      messages: c.messages.map((m) => (m.id === messageId ? { ...m, text } : m)),
+    }));
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const streamAssistantReply = async (
+    conversationId: string,
+    messageId: string,
+    fullText: string
+  ) => {
+    if (!fullText) return;
+    const token = { cancelled: false };
+    if (streamRef.current) streamRef.current.cancelled = true;
+    streamRef.current = token;
+
+    let i = 0;
+    while (i < fullText.length) {
+      if (token.cancelled) return;
+
+      const chunkSize =
+        fullText.length > 400 ? 6 : fullText.length > 200 ? 4 : 2;
+      i = Math.min(fullText.length, i + chunkSize);
+      updateMessageText(conversationId, messageId, fullText.slice(0, i));
+
+      const jitter = Math.floor(Math.random() * 30);
+      await sleep(20 + jitter);
+    }
   };
 
   const deleteConversation = async (id: string) => {
@@ -350,10 +393,11 @@ export default function ChatShellPage() {
         sessionToken,
       });
 
+      const botId = uid();
       const botMsg: Message = {
-        id: uid(),
+        id: botId,
         role: "asho",
-        text: reply,
+        text: "",
         createdAt: Date.now(),
       };
 
@@ -362,6 +406,9 @@ export default function ChatShellPage() {
         updatedAt: Date.now(),
         messages: [...c.messages, botMsg],
       }));
+
+      await streamAssistantReply(activeConversation.id, botId, reply);
+      updateMessageText(activeConversation.id, botId, reply);
     } catch {
       setError("Serverfeil. Prøv igjen.");
     } finally {
