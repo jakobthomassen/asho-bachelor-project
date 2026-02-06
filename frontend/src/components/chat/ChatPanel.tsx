@@ -36,41 +36,23 @@ export default function ChatPanel({
   const navigate = useNavigate();
 
   return (
-    <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          padding: "1rem 1.25rem",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
+    <main className="chatPanel">
+      <div className="chatPanel__header">
         <div>
-          <div style={{ fontWeight: 800, color: "#0f172a" }}>
+          <div className="chatPanel__title">
             {conversation?.title ?? "Samtale"}
           </div>
-          <div style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: 4 }}>
+          <div className="chatPanel__subtitle">
             Velg en samtale til venstre, eller start en ny.
           </div>
         </div>
 
         <button
           onClick={() => navigate("/soundtest")}
-          style={{
-            padding: "0.45rem 0.85rem",
-            borderRadius: 999,
-            border: "1px solid #0f766e",
-            background: "#ecfdf5",
-            color: "#0f766e",
-            fontWeight: 900,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-          title="Gå til lydøvelser"
+          className="chatPanel__soundButton"
+          title="Ga til lydovelser"
         >
-          Lydøvelser
+          Lydovelser
         </button>
       </div>
 

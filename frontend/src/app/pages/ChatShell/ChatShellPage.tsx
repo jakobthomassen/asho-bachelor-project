@@ -26,6 +26,7 @@ import ConfirmModal from "../../../components/overlays/ConfirmModal";
 import SubscribeModal from "../../../components/overlays/SubscribeModal";
 import ChatInfoModal from "../../../components/overlays/ChatInfoModal";
 import UroSkoleModal from "../../../components/overlays/UroSkoleModal";
+import SettingsModal from "../../../components/overlays/SettingsModal";
 
 
 import "./ChatShellPage.css";
@@ -53,6 +54,9 @@ export default function ChatShellPage() {
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [showUroSkole, setShowUroSkole] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
+  const [mode, setMode] = useState<"light" | "dark">("light");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedRef = useRef(false);
@@ -212,6 +216,27 @@ export default function ChatShellPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirm.open]);
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("asho_theme");
+    const storedMode = localStorage.getItem("asho_mode");
+
+    if (storedTheme === "green" || storedTheme === "purple" || storedTheme === "blue") {
+      setColorTheme(storedTheme);
+    }
+
+    if (storedMode === "light" || storedMode === "dark") {
+      setMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = colorTheme;
+    root.dataset.mode = mode;
+    localStorage.setItem("asho_theme", colorTheme);
+    localStorage.setItem("asho_mode", mode);
+  }, [colorTheme, mode]);
 
   useEffect(() => {
     return () => {
@@ -464,6 +489,13 @@ export default function ChatShellPage() {
                 </button>
               </div>
 
+              <button
+                className="chatShell__settingsButton"
+                onClick={() => setShowSettings(true)}
+              >
+                Innstillinger
+              </button>
+
               <div className="chatShell__auth chatShell__auth--sidebar">
                 {userId ? (
                   <button className="chatShell__authButton" onClick={logout}>
@@ -532,6 +564,15 @@ export default function ChatShellPage() {
         <UroSkoleModal
             open={showUroSkole}
             onClose={() => setShowUroSkole(false)}
+        />
+
+        <SettingsModal
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          theme={colorTheme}
+          mode={mode}
+          onThemeChange={setColorTheme}
+          onModeChange={setMode}
         />
 
       </div>

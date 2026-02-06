@@ -1,7 +1,7 @@
 .sidebar {
   width: 280px;
-  border-right: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 
   height: 100%;
   display: flex;
@@ -11,7 +11,7 @@
 
 .sidebar__top {
   padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
 }
 
@@ -27,9 +27,9 @@
   width: 100%;
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: #0f766e;
-  color: white;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 600;
   cursor: pointer;
 }
@@ -43,7 +43,7 @@
 
 .sidebar__bottom {
   padding: 0.9rem 1rem 1rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
   display: grid;
   gap: 0.65rem;
 }
@@ -60,18 +60,22 @@
 }
 
 .sidebar__item.is-active {
-  border: 1px solid #0f766e;
-  background: #ecfdf5;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
 }
 
 .sidebar__title {
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .sidebar__time {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-top: 2px;
+}
+
+.sidebar__bottom {
+  border-top: 1px solid var(--border);
 }
