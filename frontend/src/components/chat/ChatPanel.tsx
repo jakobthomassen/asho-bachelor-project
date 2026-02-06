@@ -1,5 +1,4 @@
 import type { Conversation } from "../../features/conversations/types";
-import { useNavigate } from "react-router-dom";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 import ErrorBanner from "./ErrorBanner";
@@ -33,8 +32,6 @@ export default function ChatPanel({
   onDismissError,
   endRef,
 }: Props) {
-  const navigate = useNavigate();
-
   return (
     <main className="chatPanel">
       <div className="chatPanel__header">
@@ -47,13 +44,7 @@ export default function ChatPanel({
           </div>
         </div>
 
-        <button
-          onClick={() => navigate("/soundtest")}
-          className="chatPanel__soundButton"
-          title="Ga til lydovelser"
-        >
-          Lydovelser
-        </button>
+        <span />
       </div>
 
       {error && <ErrorBanner message={error} onDismiss={onDismissError} />}

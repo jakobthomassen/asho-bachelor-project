@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Conversation, Message } from "../../../features/conversations/types";
 import { uid } from "../../../features/conversations/helpers";
 import {
@@ -41,6 +42,7 @@ type ContextMenuState =
 type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
+  const navigate = useNavigate();
   const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -486,6 +488,12 @@ export default function ChatShellPage() {
                   onClick={() => setShowUroSkole(true)}
                 >
                   Uro-skolen
+                </button>
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => navigate("/soundtest")}
+                >
+                  Lydovelser
                 </button>
               </div>
 

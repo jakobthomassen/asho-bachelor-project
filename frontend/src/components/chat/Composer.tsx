@@ -20,9 +20,9 @@ export default function Composer({
   return (
     <div
       style={{
-        padding: "0.65rem 1.25rem",
+        padding: "0.65rem 2rem",
         borderTop: "1px solid var(--border)",
-        background: "#ffffff",
+        background: "var(--surface)",
         display: "flex",
         gap: 10,
         alignItems: "center",
