@@ -21,7 +21,7 @@ export default function Composer({
     <div
       style={{
         padding: "0.65rem 1.25rem",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border)",
         background: "#ffffff",
         display: "flex",
         gap: 10,
@@ -38,11 +38,11 @@ export default function Composer({
           flex: 1,
           padding: "0.5rem 0.85rem",
           borderRadius: 12,
-          border: "1px solid #d1d5db",
+          border: "1px solid var(--border)",
           outline: "none",
           fontSize: "0.95rem",
-          color: "#111827",
-          background: disabled || isSending ? "#f9fafb" : "#ffffff",
+          color: "var(--text-primary)",
+          background: disabled || isSending ? "var(--surface-muted)" : "var(--surface)",
         }}
       />
       <button
@@ -53,13 +53,13 @@ export default function Composer({
           width: 36,
           height: 36,
           borderRadius: 999,
-          border: "1px solid #d1d5db",
-          background: "#ffffff",
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
           cursor: disabled || isSending ? "not-allowed" : "pointer",
-          color: "#0f172a",
+          color: "var(--text-primary)",
         }}
         title="Mikrofon"
         aria-label="Mikrofon"
@@ -88,8 +88,8 @@ export default function Composer({
           padding: "0.5rem 0.9rem",
           borderRadius: 10,
           border: "none",
-          background: sendDisabled ? "#e5e7eb" : "#0f766e",
-          color: sendDisabled ? "#9ca3af" : "#ffffff",
+          background: sendDisabled ? "var(--button-disabled)" : "var(--accent)",
+          color: sendDisabled ? "var(--text-muted)" : "var(--accent-contrast)",
           fontWeight: 800,
           cursor: sendDisabled ? "not-allowed" : "pointer",
         }}

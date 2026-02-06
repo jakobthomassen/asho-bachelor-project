@@ -3,7 +3,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f3f4f6;
+  background: var(--app-bg);
 }
 
 .chatShell__logo {
@@ -16,14 +16,14 @@
   margin-top: 6px;
   font-weight: 900;
   font-size: 1.25rem;
-  color: #0f172a;
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .chatShell__subtitle {
   margin-top: 4px;
   font-size: 0.85rem;
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 700;
 }
 
@@ -43,17 +43,17 @@
   padding: 6px 12px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--surface);
+  color: var(--text-primary);
   cursor: pointer;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
   text-align: left;
 }
 
 .chatShell__navButton:hover {
-  background: #f1f5f9;
-  border-color: #cbd5f5;
+  background: var(--surface-muted);
+  border-color: var(--accent-soft);
 }
 
 .chatShell__auth {
@@ -70,8 +70,8 @@
   padding: 6px 12px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--text-primary);
+  color: var(--surface);
   border-radius: 999px;
   justify-self: start;
 }
@@ -97,9 +97,64 @@
 
 .chatShell__authError {
   font-size: 0.7rem;
-  color: #b91c1c;
+  color: var(--danger);
   max-width: 220px;
   text-align: left;
+}
+
+.chatShell__settingsButton {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chatPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.chatPanel__header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+}
+
+.chatPanel__title {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.chatPanel__subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.chatPanel__soundButton {
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chatPanel__soundButton:hover {
+  opacity: 0.9;
 }
 
 .subscribeOverlay {
@@ -113,7 +168,7 @@
 }
 
 .subscribeModal {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 1.5rem;
   width: 90%;
@@ -125,13 +180,13 @@
 .subscribeTitle {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text-primary);
   margin-bottom: 0.75rem;
 }
 
 .subscribeText {
   font-size: 0.95rem;
-  color: #334155;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 1.25rem;
 }
@@ -139,9 +194,61 @@
 .subscribeClose {
   padding: 0.6rem 1.2rem;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #0f766e;
-  color: white;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 700;
   cursor: pointer;
+}
+
+.settingsModal {
+  text-align: left;
+}
+
+.settingsSection {
+  margin-top: 1rem;
+  display: grid;
+  gap: 8px;
+}
+
+.settingsLabel {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.settingsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.settingsThemeGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.settingsThemeButton {
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settingsThemeButton.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settingsActions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
 }

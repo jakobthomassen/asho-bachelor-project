@@ -15,9 +15,9 @@ export default function ClarifyChips({ options, disabled, onPick }: Props) {
           style={{
             padding: "0.4rem 0.65rem",
             borderRadius: 999,
-            border: "1px solid #d1d5db",
-            background: "#ffffff",
-            color: "#0f172a",
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text-primary)",
             fontSize: "0.85rem",
             cursor: disabled ? "not-allowed" : "pointer",
             fontWeight: 700,
