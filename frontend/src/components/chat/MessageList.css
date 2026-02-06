@@ -7,7 +7,7 @@
 }
 
 .messageBubble {
-  padding: 0.7rem 0.9rem;
+  padding: 0.85rem 1.1rem;
   color: var(--text-primary);
   box-shadow: 0 4px 8px rgba(15, 23, 42, 0.06);
 }
