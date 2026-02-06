@@ -65,6 +65,22 @@
   background: var(--accent-soft);
 }
 
+.sidebar__item.is-active .sidebar__title {
+  color: var(--accent);
+}
+
+.sidebar__item.is-active .sidebar__time {
+  color: var(--text-secondary);
+}
+
+:root[data-mode="dark"] .sidebar__item.is-active .sidebar__title {
+  color: var(--accent-contrast);
+}
+
+:root[data-mode="dark"] .sidebar__item.is-active .sidebar__time {
+  color: var(--accent-contrast);
+}
+
 .sidebar__title {
   font-weight: 600;
   color: var(--text-primary);
