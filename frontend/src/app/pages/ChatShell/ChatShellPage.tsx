@@ -465,7 +465,7 @@ export default function ChatShellPage() {
             <>
               <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
               <div className="chatShell__title">ASHO</div>
-              <div className="chatShell__subtitle">stotte gjennom vanskelige tider</div>
+              <div className="chatShell__subtitle">Støtte gjennom vanskelige tider</div>
             </>
           }
           bottomSlot={
