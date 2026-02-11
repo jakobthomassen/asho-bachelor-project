@@ -36,13 +36,8 @@ export default function MessageList({
           <div
             key={m.id}
             className={`messageRow ${isUser ? "is-user" : "is-asho"}`}
-            style={{
-              display: "flex",
-              justifyContent: isUser ? "flex-end" : "flex-start",
-              marginBottom: 12,
-            }}
           >
-            <div style={{ maxWidth: "68%" }}>
+            <div className="messageRow__content">
               <div
                 className={`messageBubble ${isUser ? "is-user" : "is-asho"}`}
               >

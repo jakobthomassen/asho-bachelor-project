@@ -1,0 +1,51 @@
+.composerShell {
+  padding: 0.65rem 2rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.composer {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.composer__input {
+  flex: 1;
+  padding: 0.5rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  outline: none;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.composer__mic {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.composer__mic:disabled {
+  cursor: not-allowed;
+}
+
+.composer__send {
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 800;
+}
+
+.composer__send:disabled {
+  cursor: not-allowed;
+}
