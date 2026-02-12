@@ -8,3 +8,9 @@ class GoogleAuthRequest(BaseModel):
 class GoogleAuthResponse(BaseModel):
     user_id: str
     session_token: str
+    is_admin: bool
+
+
+class AuthMeResponse(BaseModel):
+    user_id: str
+    is_admin: bool

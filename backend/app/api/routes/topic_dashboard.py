@@ -13,7 +13,7 @@ from app.schemas.topic_dashboard import (
     TopicDashboardTopic,
     TopicDashboardUpdateRequest,
 )
-from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
+from app.services.google_auth import ensure_auth_tables, get_session_principal, parse_bearer_token
 from app.services.token_usage_store import ensure_daily_token_usage_table
 
 router = APIRouter()
@@ -22,15 +22,17 @@ if not settings.DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required for topic dashboard")
 
 
-def _require_user(conn: psycopg.Connection, authorization: str | None) -> str:
+def _require_admin(conn: psycopg.Connection, authorization: str | None) -> str:
     ensure_auth_tables(conn)
     session_token = parse_bearer_token(authorization)
     if not session_token:
         raise HTTPException(status_code=401, detail="Missing session token")
-    user_id = get_user_id_for_session(conn, session_token)
-    if not user_id:
+    principal = get_session_principal(conn, session_token)
+    if not principal:
         raise HTTPException(status_code=401, detail="Invalid session token")
-    return user_id
+    if not principal.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return principal.user_id
 
 
 def _normalize_keywords(values: list[str]) -> list[str]:
@@ -70,7 +72,7 @@ def _row_to_topic(row: tuple[Any, ...]) -> TopicDashboardTopic:
 def list_topics(authorization: str | None = Header(default=None)):
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            _ = _require_user(conn, authorization)
+            _ = _require_admin(conn, authorization)
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -122,7 +124,7 @@ def topic_dashboard_stats(
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            _ = _require_user(conn, authorization)
+            _ = _require_admin(conn, authorization)
             ensure_daily_token_usage_table(conn)
 
             with conn.cursor() as cur:
@@ -241,7 +243,7 @@ def create_topic_version(
 ):
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            _ = _require_user(conn, authorization)
+            _ = _require_admin(conn, authorization)
 
             clean_topic_key = (topic_key or "").strip()
             if not clean_topic_key:
