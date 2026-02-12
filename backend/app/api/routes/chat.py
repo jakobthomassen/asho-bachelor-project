@@ -85,9 +85,9 @@ def _needs_reclassify_from_user_text(message: str) -> bool:
 def _build_topic_system_prompt(topic) -> str:
     sections = [
         SYSTEM_PROMPT.strip(),
-        f"Topic selected: {topic.topic_key}",
-        f"Topic title: {topic.title}",
-        "Topic-specific instructions (JSON):",
+        f"Valgt tema: {topic.topic_key}",
+        f"Tematittel: {topic.title}",
+        "Tema-instruksjoner (JSON):",
         json.dumps(
             {
                 "micro_instructions": topic.micro_instructions,
@@ -98,7 +98,7 @@ def _build_topic_system_prompt(topic) -> str:
             },
             ensure_ascii=False,
         ),
-        "Follow the topic-specific JSON instructions above exactly where applicable.",
+        "Behandle tema-instruksjonene som en utvidelse av grunnprompten. Ved konflikt gjelder trygghet og nøkternhet først.",
     ]
     return "\n\n".join(sections)
 

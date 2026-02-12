@@ -22,6 +22,8 @@ type PromptTrace = {
   prompt_tokens?: number | null;
   created_at?: number;
   messages: Array<{ role: string; content: string }>;
+  response_text?: string | null;
+  response_json?: unknown;
 };
 
 type DebugChatResponse = {
@@ -96,6 +98,8 @@ export default function Chat() {
             typeof t?.prompt_tokens === "number" ? t.prompt_tokens : null,
           created_at: typeof t?.created_at === "number" ? t.created_at : undefined,
           messages: Array.isArray(t?.messages) ? t.messages : [],
+          response_text: typeof t?.response_text === "string" ? t.response_text : null,
+          response_json: t?.response_json ?? null,
         };
       });
       setPromptTraces(mapped);
@@ -293,8 +297,15 @@ export default function Chat() {
                 #{i + 1} stage={t.stage ?? "chat"} prompt_tokens={t.prompt_tokens ?? "n/a"}
                 {t.created_at ? ` at ${new Date(t.created_at).toLocaleTimeString()}` : ""}
               </div>
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+              <div style={{ marginBottom: 6, color: "#38bdf8" }}>Prompt</div>
+              <pre style={{ whiteSpace: "pre-wrap", margin: 0, marginBottom: 8 }}>
                 {JSON.stringify(t.messages, null, 2)}
+              </pre>
+              <div style={{ marginBottom: 6, color: "#38bdf8" }}>Response</div>
+              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                {t.response_json
+                  ? JSON.stringify(t.response_json, null, 2)
+                  : String(t.response_text ?? "n/a")}
               </pre>
             </div>
           ))}
