@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import type { Conversation, Message } from "../../../features/conversations/types";
 import { uid } from "../../../features/conversations/helpers";
 import {
@@ -24,9 +23,7 @@ import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
 import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
-import SubscribeModal from "../../../components/overlays/SubscribeModal";
-import ChatInfoModal from "../../../components/overlays/ChatInfoModal";
-import UroSkoleModal from "../../../components/overlays/UroSkoleModal";
+import ResourcesModal from "../../../components/overlays/ResourcesModal";
 import SettingsModal from "../../../components/overlays/SettingsModal";
 
 
@@ -42,7 +39,6 @@ type ContextMenuState =
 type ConfirmState = { open: true; convId: string } | { open: false };
 
 export default function ChatShellPage() {
-  const navigate = useNavigate();
   const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -53,9 +49,7 @@ export default function ChatShellPage() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
-  const [showSubscribe, setShowSubscribe] = useState(false);
-  const [showChatInfo, setShowChatInfo] = useState(false);
-  const [showUroSkole, setShowUroSkole] = useState(false);
+  const [showResources, setShowResources] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
@@ -478,48 +472,29 @@ export default function ChatShellPage() {
               <div className="chatShell__nav">
                 <button
                   className="chatShell__navButton"
-                  onClick={() => setShowChatInfo(true)}
+                  onClick={() => setShowResources(true)}
                 >
-                  Chat
+                  Ressurser
                 </button>
                 <button
                   className="chatShell__navButton"
-                  onClick={() => setShowSubscribe(true)}
+                  onClick={() => setShowSettings(true)}
                 >
-                  Abonner
+                  Innstillinger
                 </button>
-                <button
-                  className="chatShell__navButton"
-                  onClick={() => setShowUroSkole(true)}
-                >
-                  Uro-skolen
-                </button>
-                <button
-                  className="chatShell__navButton"
-                  onClick={() => navigate("/soundtest")}
-                >
-                  Lydovelser
-                </button>
-              </div>
 
-              <button
-                className="chatShell__settingsButton"
-                onClick={() => setShowSettings(true)}
-              >
-                Innstillinger
-              </button>
-
-              <div className="chatShell__auth chatShell__auth--sidebar">
-                {userId ? (
-                  <button className="chatShell__authButton" onClick={logout}>
-                    Logg ut
-                  </button>
-                ) : (
-                  <div className="chatShell__authGoogle">
-                    {isReady ? <div id="google-signin-button" /> : <span>Laster Google...</span>}
-                  </div>
-                )}
-                {authError ? <div className="chatShell__authError">{authError}</div> : null}
+                <div className="chatShell__auth chatShell__auth--sidebar">
+                  {userId ? (
+                    <button className="chatShell__authButton" onClick={logout}>
+                      Logg ut
+                    </button>
+                  ) : (
+                    <div className="chatShell__authGoogle">
+                      {isReady ? <div id="google-signin-button" /> : <span>Laster Google...</span>}
+                    </div>
+                  )}
+                  {authError ? <div className="chatShell__authError">{authError}</div> : null}
+                </div>
               </div>
             </>
           }
@@ -564,19 +539,9 @@ export default function ChatShellPage() {
 
         />
 
-        <SubscribeModal
-            open={showSubscribe}
-            onClose={() => setShowSubscribe(false)}
-        />
-
-        <ChatInfoModal
-            open={showChatInfo}
-            onClose={() => setShowChatInfo(false)}
-        />
-
-        <UroSkoleModal
-            open={showUroSkole}
-            onClose={() => setShowUroSkole(false)}
+        <ResourcesModal
+            open={showResources}
+            onClose={() => setShowResources(false)}
         />
 
         <SettingsModal

@@ -101,11 +101,11 @@
 }
 
 :root[data-mode="dark"] .sidebar__item.is-active .sidebar__title {
-  color: var(--accent-contrast);
+  color: var(--text-primary);
 }
 
 :root[data-mode="dark"] .sidebar__item.is-active .sidebar__time {
-  color: var(--accent-contrast);
+  color: var(--text-secondary);
 }
 
 .sidebar__title {
