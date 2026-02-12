@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message } from "../../../features/conversations/types";
 import { uid } from "../../../features/conversations/helpers";
 import {
@@ -17,6 +17,7 @@ import {
   saveConversations as saveCachedConversations,
 } from "../../../features/conversations/storage";
 import { sendChatMessage } from "../../../features/chat/api";
+import { API_BASE_URL } from "../../../config";
 import { useAuth } from "../../AuthProvider";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
@@ -37,6 +38,7 @@ type ContextMenuState =
   | { open: false };
 
 type ConfirmState = { open: true; convId: string } | { open: false };
+type BackendStatus = "idle" | "checking" | "ok" | "error";
 
 export default function ChatShellPage() {
   const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
@@ -51,6 +53,7 @@ export default function ChatShellPage() {
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [showResources, setShowResources] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("idle");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
   const [mode, setMode] = useState<"light" | "dark">("light");
@@ -447,6 +450,32 @@ export default function ChatShellPage() {
     }
   };
 
+  const pingBackend = useCallback(async () => {
+    setBackendStatus("checking");
+    try {
+      const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+      setBackendStatus(res.ok ? "ok" : "error");
+    } catch {
+      setBackendStatus("error");
+    }
+  }, []);
+
+  const backendDotClass =
+    backendStatus === "ok"
+      ? "is-green"
+      : backendStatus === "error"
+        ? "is-red"
+        : "is-yellow";
+
+  const backendLabel =
+    backendStatus === "ok"
+      ? "OK"
+      : backendStatus === "error"
+        ? "Feil"
+        : backendStatus === "checking"
+          ? "Sjekker"
+          : "Ikke sjekket";
+
   return (
     <div className="chatShell">
       <div
@@ -470,6 +499,13 @@ export default function ChatShellPage() {
           bottomSlot={
             <>
               <div className="chatShell__nav">
+                <button className="chatShell__navButton chatShell__statusButton" onClick={pingBackend}>
+                  <span>Backend status</span>
+                  <span className={`chatShell__statusMeta ${backendDotClass}`}>
+                    <span className="chatShell__statusDot" aria-hidden="true" />
+                    <span>{backendLabel}</span>
+                  </span>
+                </button>
                 <button
                   className="chatShell__navButton"
                   onClick={() => setShowResources(true)}
