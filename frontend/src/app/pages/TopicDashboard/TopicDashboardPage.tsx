@@ -295,7 +295,7 @@ export default function TopicDashboardPage() {
         </button>
       </div>
 
-      <div className="topicDashboard__panel">
+      <div className={`topicDashboard__panel ${activeTab === "stats" ? "topicDashboard__panel--stats" : ""}`}>
         {activeTab === "stats" ? (
           <section className="topicDashboard__statsPane">
             <div className="topicDashboard__statsHeader">
@@ -340,23 +340,31 @@ export default function TopicDashboardPage() {
 
                 <div className="topicDashboard__chartCard">
                   <div className="topicDashboard__chartTitle">Daglig tokenbruk</div>
-                  <div className="topicDashboard__chartBars">
+                  <div className="topicDashboard__chartViewport">
+                    <div className="topicDashboard__chartBars">
                     {(() => {
                       const maxTokens = Math.max(1, ...stats.daily_tokens.map((item) => item.total_tokens));
-                      return stats.daily_tokens.map((item) => {
-                        const pct = Math.max(0.06, item.total_tokens / maxTokens);
+                      const labelStep = stats.daily_tokens.length > 20 ? 3 : stats.daily_tokens.length > 10 ? 2 : 1;
+                      return stats.daily_tokens.map((item, index) => {
+                        const hasTokens = item.total_tokens > 0;
+                        const pct = hasTokens ? Math.max(0.08, item.total_tokens / maxTokens) : 0;
                         const label = item.day.slice(5);
+                        const showLabel = index % labelStep === 0 || index === stats.daily_tokens.length - 1;
                         return (
                           <div className="topicDashboard__barItem" key={item.day}>
                             <div className="topicDashboard__barValue">{item.total_tokens.toLocaleString("nb-NO")}</div>
                             <div className="topicDashboard__barTrack">
-                              <div className="topicDashboard__barFill" style={{ height: `${pct * 100}%` }} />
+                              <div
+                                className={`topicDashboard__barFill ${hasTokens ? "" : "is-zero"}`}
+                                style={{ height: `${pct * 100}%` }}
+                              />
                             </div>
-                            <div className="topicDashboard__barLabel">{label}</div>
+                            <div className={`topicDashboard__barLabel ${showLabel ? "" : "is-hidden"}`}>{label}</div>
                           </div>
                         );
                       });
                     })()}
+                    </div>
                   </div>
                 </div>
               </>
