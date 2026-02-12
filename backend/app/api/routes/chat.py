@@ -33,6 +33,10 @@ from app.services.topic_routing_store import (
     upsert_conversation_topic_state,
     insert_topic_routing_event,
 )
+from app.services.token_usage_store import (
+    ensure_daily_token_usage_table,
+    insert_daily_token_usage,
+)
 
 router = APIRouter()
 
@@ -542,6 +546,23 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     conversation_tokens = budget_res.tokens_used_after
             except RuntimeError:
                 raise HTTPException(status_code=429, detail="Session token budget exceeded")
+
+            # 9b) Persist daily token usage for dashboard stats.
+            try:
+                with conn.transaction():
+                    ensure_daily_token_usage_table(conn)
+                    insert_daily_token_usage(
+                        conn,
+                        user_id=str(user_id),
+                        conversation_id=payload.conversation_id,
+                        message_id=payload.message_id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        classifier_tokens=classifier_tokens,
+                        title_tokens=title_tokens,
+                    )
+            except Exception:
+                pass
 
             response = {
                 "reply": reply,

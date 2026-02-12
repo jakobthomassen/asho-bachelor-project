@@ -1,17 +1,19 @@
 from __future__ import annotations
-
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 import psycopg
 
 from app.core.config import settings
 from app.schemas.topic_dashboard import (
+    TopicDashboardDailyTokens,
     TopicDashboardListResponse,
+    TopicDashboardStatsResponse,
     TopicDashboardTopic,
     TopicDashboardUpdateRequest,
 )
 from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
+from app.services.token_usage_store import ensure_daily_token_usage_table
 
 router = APIRouter()
 
@@ -104,6 +106,93 @@ def list_topics(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.get("/topic-dashboard/stats", response_model=TopicDashboardStatsResponse)
+def topic_dashboard_stats(
+    days: int = Query(default=7, ge=1, le=90),
+    authorization: str | None = Header(default=None),
+):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _ = _require_user(conn, authorization)
+            ensure_daily_token_usage_table(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                      COUNT(DISTINCT user_id) AS total_unique_users,
+                      COUNT(*) AS total_conversations
+                    FROM conversations
+                    """
+                )
+                row = cur.fetchone() or (0, 0)
+                total_unique_users = int(row[0] or 0)
+                total_conversations = int(row[1] or 0)
+                avg_conversations_per_user = (
+                    (float(total_conversations) / float(total_unique_users))
+                    if total_unique_users > 0
+                    else 0.0
+                )
+
+                cur.execute(
+                    """
+                    WITH per_conversation AS (
+                      SELECT
+                        c.id,
+                        COUNT(m.id) AS message_count
+                      FROM conversations c
+                      LEFT JOIN chat_messages m ON m.conversation_id = c.id
+                      GROUP BY c.id
+                    )
+                    SELECT COALESCE(AVG(message_count::float), 0)
+                    FROM per_conversation
+                    """
+                )
+                avg_len_row = cur.fetchone() or (0.0,)
+                avg_conversation_length_messages = float(avg_len_row[0] or 0.0)
+
+                cur.execute(
+                    """
+                    WITH days AS (
+                      SELECT generate_series(
+                        CURRENT_DATE - (%s::int - 1),
+                        CURRENT_DATE,
+                        INTERVAL '1 day'
+                      )::date AS day
+                    ),
+                    totals AS (
+                      SELECT event_date::date AS day, SUM(total_tokens)::bigint AS total_tokens
+                      FROM daily_token_usage
+                      WHERE event_date >= CURRENT_DATE - (%s::int - 1)
+                      GROUP BY event_date::date
+                    )
+                    SELECT d.day, COALESCE(t.total_tokens, 0) AS total_tokens
+                    FROM days d
+                    LEFT JOIN totals t ON t.day = d.day
+                    ORDER BY d.day ASC
+                    """,
+                    (days, days),
+                )
+                token_rows = cur.fetchall() or []
+
+            daily_tokens = [
+                TopicDashboardDailyTokens(day=str(day), total_tokens=int(total_tokens or 0))
+                for day, total_tokens in token_rows
+            ]
+
+            return TopicDashboardStatsResponse(
+                total_unique_users=total_unique_users,
+                total_conversations=total_conversations,
+                avg_conversations_per_user=round(avg_conversations_per_user, 2),
+                avg_conversation_length_messages=round(avg_conversation_length_messages, 2),
+                daily_tokens=daily_tokens,
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("/topic-dashboard/topics/{topic_key}/versions", response_model=TopicDashboardTopic)
 def create_topic_version(
     topic_key: str,
@@ -122,7 +211,6 @@ def create_topic_version(
             clean_classifier_description = payload.classifier_description.strip()
             clean_system_prompt = payload.system_prompt.strip()
             clean_created_by = (payload.created_by or "dashboard").strip()[:120] or "dashboard"
-
             if not clean_title or not clean_classifier_description or not clean_system_prompt:
                 raise HTTPException(status_code=400, detail="Missing required fields")
 

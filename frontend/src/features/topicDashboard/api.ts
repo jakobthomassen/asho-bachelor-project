@@ -20,6 +20,19 @@ export type TopicDashboardTopic = {
   examples: unknown[];
 };
 
+export type TopicDashboardDailyTokens = {
+  day: string;
+  total_tokens: number;
+};
+
+export type TopicDashboardStats = {
+  total_unique_users: number;
+  total_conversations: number;
+  avg_conversations_per_user: number;
+  avg_conversation_length_messages: number;
+  daily_tokens: TopicDashboardDailyTokens[];
+};
+
 type TopicDashboardListResponse = {
   topics: TopicDashboardTopic[];
 };
@@ -99,4 +112,24 @@ export async function saveTopicVersion(
   }
 
   return (await res.json()) as TopicDashboardTopic;
+}
+
+export async function getTopicDashboardStats(sessionToken: string, days = 7): Promise<TopicDashboardStats> {
+  const safeDays = Number.isFinite(days) ? Math.min(90, Math.max(1, Math.round(days))) : 7;
+  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/stats?days=${safeDays}`, {
+    method: "GET",
+    headers: authHeaders(sessionToken),
+  });
+
+  if (!res.ok) {
+    let detail = "Failed to load dashboard stats";
+    try {
+      detail = extractErrorDetail(await res.json(), detail);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  return (await res.json()) as TopicDashboardStats;
 }
