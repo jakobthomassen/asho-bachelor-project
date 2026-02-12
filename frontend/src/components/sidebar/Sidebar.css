@@ -2,6 +2,7 @@
   width: 280px;
   border-right: 1px solid var(--border);
   background: var(--surface);
+  transition: width 180ms ease;
 
   height: 100%;
   display: flex;
@@ -9,10 +10,31 @@
   min-height: 0;
 }
 
+.sidebar.is-collapsed {
+  width: 72px;
+}
+
 .sidebar__top {
   padding: 1rem;
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
+  display: grid;
+  gap: 10px;
+}
+
+.sidebar__toggleButton {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sidebar__toggleButton:hover {
+  background: var(--surface);
 }
 
 .sidebar__brand {
@@ -24,7 +46,6 @@
 }
 
 .sidebar__newButton {
-  margin-top: 12px;
   width: 100%;
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
@@ -33,6 +54,12 @@
   color: var(--accent-contrast);
   font-weight: 600;
   cursor: pointer;
+}
+
+.sidebar.is-collapsed .sidebar__newButton {
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.4rem 0.2rem;
 }
 
 .sidebar__list {

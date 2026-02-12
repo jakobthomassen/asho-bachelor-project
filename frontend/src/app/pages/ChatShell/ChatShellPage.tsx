@@ -57,6 +57,7 @@ export default function ChatShellPage() {
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [showUroSkole, setShowUroSkole] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
   const [mode, setMode] = useState<"light" | "dark">("light");
 
@@ -454,10 +455,14 @@ export default function ChatShellPage() {
 
   return (
     <div className="chatShell">
-      <div className="chatShell__main">
+      <div
+        className={`chatShell__main ${isSidebarCollapsed ? "chatShell__main--sidebarCollapsed" : ""}`}
+      >
         <Sidebar
           conversations={conversations}
           activeId={activeId}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
           onNewConversation={createConversation}
           onSelectConversation={selectConversation}
           onOpenContextMenu={openContextMenu}
