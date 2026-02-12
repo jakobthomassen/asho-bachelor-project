@@ -68,7 +68,7 @@
 .chatShell__auth {
   display: grid;
   gap: 6px;
-  justify-items: start;
+  justify-items: stretch;
 }
 
 .chatShell__auth--sidebar {
@@ -79,10 +79,13 @@
   padding: 6px 12px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: var(--text-primary);
-  color: var(--surface);
-  border-radius: 999px;
-  justify-self: start;
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  justify-self: stretch;
+  text-align: left;
+  cursor: pointer;
 }
 
 .chatShell__authButton:disabled {
@@ -91,11 +94,12 @@
 }
 
 .chatShell__authGoogle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: flex-start;
   background: transparent;
   padding: 0;
+  min-height: 40px;
 }
 
 #google-signin-button {
@@ -109,18 +113,6 @@
   color: var(--danger);
   max-width: 220px;
   text-align: left;
-}
-
-.chatShell__settingsButton {
-  padding: 7px 12px;
-  font-size: 0.85rem;
-  font-weight: 800;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
 }
 
 .chatPanel {
@@ -186,6 +178,11 @@
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
+.resourcesModal__actions {
+  display: grid;
+  gap: 10px;
+}
+
 .subscribeTitle {
   font-size: 1.25rem;
   font-weight: 800;
@@ -212,6 +209,43 @@
 
 .settingsModal {
   text-align: left;
+  max-width: 760px;
+}
+
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 14px;
+  margin-top: 1rem;
+}
+
+.settingsTabs {
+  display: grid;
+  gap: 8px;
+}
+
+.settingsTabButton {
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settingsTabButton.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settingsPanel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem;
+  min-height: 240px;
 }
 
 .settingsSection {
@@ -260,4 +294,31 @@
   margin-top: 1.25rem;
   display: flex;
   justify-content: flex-end;
+}
+
+.settingsInput {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.settingsProfileActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settingsSaved {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .settingsLayout {
+    grid-template-columns: 1fr;
+  }
 }
