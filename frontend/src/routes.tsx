@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ChatShellPage from "./app/pages/ChatShell/ChatShellPage";
 import SoundTestPage from "./app/pages/Soundtest/SoundtestPage";
@@ -7,7 +8,7 @@ import UroSkolenPage from "./app/pages/UroSkole/UroSkolePage";
 import TopicDashboardPage from "./app/pages/TopicDashboard/TopicDashboardPage";
 import { useAuth } from "./app/AuthProvider";
 
-function AdminRoute({ children }: { children: JSX.Element }) {
+function AdminRoute({ children }: { children: ReactElement }) {
   const { sessionToken, isAdmin } = useAuth();
   if (!sessionToken) return <Navigate to="/" replace />;
   if (!isAdmin) return <Navigate to="/" replace />;
