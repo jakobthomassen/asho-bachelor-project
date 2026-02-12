@@ -38,6 +38,10 @@
   min-height: calc(100vh - 180px);
 }
 
+.topicDashboard__panel--stats {
+  padding-inline: clamp(14px, 2.8vw, 44px);
+}
+
 .topicDashboard__placeholder,
 .topicDashboard__empty {
   border: 1px solid var(--border);
@@ -61,10 +65,12 @@
 
 .topicDashboard__statsPane {
   height: 100%;
+  width: min(100%, 1480px);
+  margin: 0 auto;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
-  padding: 1rem;
+  padding: 1.15rem 1.2rem;
   display: grid;
   gap: 12px;
   align-content: start;
@@ -135,7 +141,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-muted);
-  padding: 0.85rem;
+  padding: 0.95rem;
   display: grid;
   gap: 10px;
 }
@@ -146,17 +152,24 @@
   color: var(--text-secondary);
 }
 
+.topicDashboard__chartViewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
 .topicDashboard__chartBars {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
-  gap: 8px;
+  display: flex;
+  gap: 10px;
   align-items: end;
+  min-width: max-content;
 }
 
 .topicDashboard__barItem {
   display: grid;
   gap: 4px;
   justify-items: center;
+  min-width: 48px;
 }
 
 .topicDashboard__barValue {
@@ -167,12 +180,20 @@
 
 .topicDashboard__barTrack {
   width: 100%;
-  max-width: 44px;
-  height: 150px;
+  max-width: 28px;
+  height: 158px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--surface);
-  padding: 4px;
+  background:
+    linear-gradient(var(--surface), var(--surface)),
+    repeating-linear-gradient(
+      to top,
+      transparent 0,
+      transparent 23%,
+      rgba(20, 34, 61, 0.08) 24%,
+      transparent 25%
+    );
+  padding: 3px;
   display: flex;
   align-items: flex-end;
 }
@@ -183,10 +204,20 @@
   background: linear-gradient(180deg, var(--accent), #16a34a);
 }
 
+.topicDashboard__barFill.is-zero {
+  height: 0 !important;
+}
+
 .topicDashboard__barLabel {
   font-size: 0.72rem;
   color: var(--text-secondary);
   font-weight: 700;
+  min-height: 14px;
+}
+
+.topicDashboard__barLabel.is-hidden {
+  color: transparent;
+  user-select: none;
 }
 
 .topicDashboard__sidebar,
@@ -352,6 +383,10 @@
 @media (max-width: 980px) {
   .topicDashboard__panel {
     min-height: 0;
+  }
+
+  .topicDashboard__panel--stats {
+    padding-inline: 0;
   }
 
   .topicDashboard__content {
