@@ -17,6 +17,19 @@ type ConsoleEntry = {
   text: string;
 };
 
+type PromptTrace = {
+  stage?: string;
+  prompt_tokens?: number | null;
+  created_at?: number;
+  messages: Array<{ role: string; content: string }>;
+};
+
+type DebugChatResponse = {
+  reply?: string;
+  last_prompt_tokens?: number | null;
+  conversation_tokens?: number | null;
+};
+
 export default function Chat() {
   const { sessionToken } = useAuth();
   const [sessionId] = useState(uuidv4());
@@ -24,7 +37,9 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<DebugMessage[]>([]);
   const [consoleLog, setConsoleLog] = useState<ConsoleEntry[]>([]);
-  const [promptTraces, setPromptTraces] = useState<any[]>([]);
+  const [promptTraces, setPromptTraces] = useState<PromptTrace[]>([]);
+  const [lastPromptTokens, setLastPromptTokens] = useState<number | null>(null);
+  const [conversationTokens, setConversationTokens] = useState<number | null>(null);
   const streamRef = useRef<{ cancelled: boolean } | null>(null);
 
   useEffect(() => {
@@ -70,7 +85,20 @@ export default function Chat() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/prompt-trace/${sessionId}`);
       const data = await res.json();
-      setPromptTraces(data.traces || []);
+      const raw = Array.isArray(data.traces) ? data.traces : [];
+      const mapped: PromptTrace[] = raw.map((t: any) => {
+        if (Array.isArray(t)) {
+          return { stage: "chat", prompt_tokens: null, created_at: undefined, messages: t };
+        }
+        return {
+          stage: typeof t?.stage === "string" ? t.stage : "chat",
+          prompt_tokens:
+            typeof t?.prompt_tokens === "number" ? t.prompt_tokens : null,
+          created_at: typeof t?.created_at === "number" ? t.created_at : undefined,
+          messages: Array.isArray(t?.messages) ? t.messages : [],
+        };
+      });
+      setPromptTraces(mapped);
     } catch {
       log("Failed to fetch prompt traces");
     }
@@ -118,8 +146,14 @@ export default function Chat() {
 
       log(`Response status: ${res.status}`);
 
-      const data = await res.json();
+      const data = (await res.json()) as DebugChatResponse;
       log(`Response body: ${JSON.stringify(data)}`);
+      setLastPromptTokens(
+        typeof data.last_prompt_tokens === "number" ? data.last_prompt_tokens : null
+      );
+      setConversationTokens(
+        typeof data.conversation_tokens === "number" ? data.conversation_tokens : null
+      );
 
       const assistantId = uuidv4();
       setMessages((prev) => [
@@ -204,7 +238,7 @@ export default function Chat() {
       {/* Console */}
       <div
         style={{
-          flex: 1,
+          flex: 1.1,
           border: "1px solid #111827",
           borderRadius: 12,
           padding: 12,
@@ -215,6 +249,20 @@ export default function Chat() {
         }}
       >
         <h3 style={{ color: "#93c5fd" }}>Console</h3>
+        <div
+          style={{
+            marginBottom: 10,
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #334155",
+            background: "#0b1220",
+            color: "#cbd5e1",
+          }}
+        >
+          <div>last prompt tokens: {lastPromptTokens ?? "n/a"}</div>
+          <div>conversation tokens: {conversationTokens ?? "n/a"}</div>
+          <div>pipeline prompts: {promptTraces.length}</div>
+        </div>
         <div style={{ overflowY: "auto", height: "85%" }}>
           {consoleLog.map((c, i) => (
             <div key={i}>
@@ -240,9 +288,15 @@ export default function Chat() {
         <h3 style={{ color: "#38bdf8" }}>LLM Prompt Payloads</h3>
         <div style={{ overflowY: "auto", height: "85%" }}>
           {promptTraces.map((t, i) => (
-            <pre key={i} style={{ whiteSpace: "pre-wrap", marginBottom: 12 }}>
-              {JSON.stringify(t, null, 2)}
-            </pre>
+            <div key={i} style={{ marginBottom: 12, borderBottom: "1px solid #1e293b", paddingBottom: 8 }}>
+              <div style={{ marginBottom: 4, color: "#93c5fd" }}>
+                #{i + 1} stage={t.stage ?? "chat"} prompt_tokens={t.prompt_tokens ?? "n/a"}
+                {t.created_at ? ` at ${new Date(t.created_at).toLocaleTimeString()}` : ""}
+              </div>
+              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                {JSON.stringify(t.messages, null, 2)}
+              </pre>
+            </div>
           ))}
         </div>
       </div>
