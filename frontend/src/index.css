@@ -25,6 +25,7 @@
 
   --scroll-thumb: #cbd5f5;
   --scroll-track: transparent;
+  --chat-container-width: 9000px;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

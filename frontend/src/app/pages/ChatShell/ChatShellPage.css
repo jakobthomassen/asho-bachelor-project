@@ -34,6 +34,15 @@
   min-height: 0;
 }
 
+.chatShell__main .chatPanel {
+  transition: width 180ms ease;
+  min-width: 0;
+}
+
+.chatShell__main--sidebarCollapsed .chatPanel {
+  width: calc(100% - 72px);
+}
+
 .chatShell__nav {
   display: grid;
   gap: 8px;
