@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -216,6 +217,12 @@ def create_topic_version(
 
             keywords = _normalize_keywords(payload.classifier_keywords)
             exclude_keywords = _normalize_keywords(payload.classifier_exclude_keywords)
+            micro_instructions_json = json.dumps(payload.micro_instructions or {})
+            constraints_json = json.dumps(payload.constraints or {})
+            pacing_rules_json = json.dumps(payload.pacing_rules or {})
+            reclassify_rules_json = json.dumps(payload.reclassify_rules or {})
+            safety_rules_json = json.dumps(payload.safety_rules or {})
+            examples_json = json.dumps(payload.examples or [])
 
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -297,15 +304,15 @@ def create_topic_version(
                           keywords,
                           exclude_keywords,
                           clean_system_prompt,
-                          payload.micro_instructions,
-                          payload.constraints,
-                          payload.pacing_rules,
-                          payload.reclassify_rules,
-                          payload.safety_rules,
+                          micro_instructions_json,
+                          constraints_json,
+                          pacing_rules_json,
+                          reclassify_rules_json,
+                          safety_rules_json,
                           payload.min_confidence,
                           payload.reclassify_turn_threshold,
                           payload.max_clarifying_questions,
-                          payload.examples,
+                          examples_json,
                           clean_created_by,
                         ),
                     )
