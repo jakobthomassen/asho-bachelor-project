@@ -6,10 +6,11 @@ from fastapi.responses import RedirectResponse
 import psycopg
 
 from app.core.config import settings
-from app.schemas.auth import GoogleAuthRequest, GoogleAuthResponse
+from app.schemas.auth import AuthMeResponse, GoogleAuthRequest, GoogleAuthResponse
 from app.services.google_auth import (
     ensure_auth_tables,
     exchange_google_credential,
+    get_session_principal,
     parse_bearer_token,
     revoke_session,
 )
@@ -86,9 +87,32 @@ def auth_google(payload: GoogleAuthRequest, request: Request):
             return {
                 "user_id": result.user_id,
                 "session_token": result.session_token,
+                "is_admin": result.is_admin,
             }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/auth/me", response_model=AuthMeResponse)
+def auth_me(authorization: str | None = Header(default=None)):
+    session_token = parse_bearer_token(authorization)
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            ensure_auth_tables(conn)
+            principal = get_session_principal(conn, session_token)
+            if not principal:
+                raise HTTPException(status_code=401, detail="Invalid session token")
+            return {
+                "user_id": principal.user_id,
+                "is_admin": principal.is_admin,
+            }
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -129,7 +153,12 @@ async def auth_google_redirect(request: Request, return_to: str | None = None):
             result = exchange_google_credential(conn, credential)
 
         redirect_base = _pick_redirect_url(request, return_to)
-        fragment = f"session_token={result.session_token}&user_id={result.user_id}"
+        admin_flag = "1" if result.is_admin else "0"
+        fragment = (
+            f"session_token={result.session_token}"
+            f"&user_id={result.user_id}"
+            f"&is_admin={admin_flag}"
+        )
         redirect_url = f"{redirect_base.rstrip('/')}/#auth=google&{fragment}"
         return RedirectResponse(url=redirect_url, status_code=303)
     except ValueError as exc:
