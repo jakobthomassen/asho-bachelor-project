@@ -29,6 +29,19 @@ class TopicDashboardListResponse(BaseModel):
     topics: list[TopicDashboardTopic]
 
 
+class TopicDashboardDailyTokens(BaseModel):
+    day: str
+    total_tokens: int
+
+
+class TopicDashboardStatsResponse(BaseModel):
+    total_unique_users: int
+    total_conversations: int
+    avg_conversations_per_user: float
+    avg_conversation_length_messages: float
+    daily_tokens: list[TopicDashboardDailyTokens]
+
+
 class TopicDashboardUpdateRequest(BaseModel):
     title: str = Field(..., min_length=1)
     classifier_description: str = Field(..., min_length=1)

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../AuthProvider";
 import {
+  getTopicDashboardStats,
   listTopicDashboardTopics,
   saveTopicVersion,
+  type TopicDashboardStats,
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
 import "./TopicDashboardPage.css";
 
-type TabKey = "temaer" | "later";
+type TabKey = "stats" | "temaer";
 
 type TopicForm = {
   title: string;
@@ -30,6 +32,10 @@ function toPrettyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+function toPrettyJsonArray(value: unknown): string {
+  return JSON.stringify(value ?? [], null, 2);
+}
+
 function toKeywordText(values: string[]): string {
   return (values ?? []).join(", ");
 }
@@ -49,7 +55,7 @@ function formFromTopic(topic: TopicDashboardTopic): TopicForm {
     min_confidence: String(topic.min_confidence),
     reclassify_turn_threshold: String(topic.reclassify_turn_threshold),
     max_clarifying_questions: String(topic.max_clarifying_questions),
-    examples: toPrettyJson(topic.examples ?? []),
+    examples: toPrettyJsonArray(topic.examples ?? []),
   };
 }
 
@@ -86,12 +92,17 @@ function parseJsonArray(raw: string, fieldName: string): unknown[] {
 
 export default function TopicDashboardPage() {
   const { sessionToken } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("temaer");
+  const [activeTab, setActiveTab] = useState<TabKey>("stats");
   const [topics, setTopics] = useState<TopicDashboardTopic[]>([]);
+  const [stats, setStats] = useState<TopicDashboardStats | null>(null);
+  const [statsDays, setStatsDays] = useState<number>(7);
   const [selectedTopicKey, setSelectedTopicKey] = useState<string>("");
   const [form, setForm] = useState<TopicForm | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -123,6 +134,31 @@ export default function TopicDashboardPage() {
     };
   }, [sessionToken]);
 
+  useEffect(() => {
+    if (!sessionToken) return;
+    let cancelled = false;
+
+    const loadStats = async () => {
+      setIsStatsLoading(true);
+      setStatsError(null);
+      try {
+        const data = await getTopicDashboardStats(sessionToken, statsDays);
+        if (cancelled) return;
+        setStats(data);
+      } catch (err) {
+        if (cancelled) return;
+        setStatsError(err instanceof Error ? err.message : "Kunne ikke laste statistikk.");
+      } finally {
+        if (!cancelled) setIsStatsLoading(false);
+      }
+    };
+
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, statsDays]);
+
   const selectedTopic = useMemo(
     () => topics.find((t) => t.topic_key === selectedTopicKey),
     [topics, selectedTopicKey]
@@ -134,6 +170,7 @@ export default function TopicDashboardPage() {
       return;
     }
     setForm(formFromTopic(selectedTopic));
+    setShowAdvanced(false);
     setSuccess(null);
     setError(null);
   }, [selectedTopicKey, selectedTopic]);
@@ -204,6 +241,27 @@ export default function TopicDashboardPage() {
     }
   };
 
+  const objectFieldSummary = (raw: string): string => {
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Invalid format";
+      const count = Object.keys(parsed).length;
+      return `${count} felt`;
+    } catch {
+      return "Ugyldig JSON";
+    }
+  };
+
+  const arrayFieldSummary = (raw: string): string => {
+    try {
+      const parsed = JSON.parse(raw || "[]");
+      if (!Array.isArray(parsed)) return "Invalid format";
+      return `${parsed.length} elementer`;
+    } catch {
+      return "Ugyldig JSON";
+    }
+  };
+
   if (!sessionToken) {
     return (
       <div className="topicDashboard">
@@ -220,6 +278,14 @@ export default function TopicDashboardPage() {
 
       <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
         <button
+          className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("stats")}
+          role="tab"
+          aria-selected={activeTab === "stats"}
+        >
+          Statistikk
+        </button>
+        <button
           className={`topicDashboard__tab ${activeTab === "temaer" ? "is-active" : ""}`}
           onClick={() => setActiveTab("temaer")}
           role="tab"
@@ -227,20 +293,77 @@ export default function TopicDashboardPage() {
         >
           Temaer
         </button>
-        <button
-          className={`topicDashboard__tab ${activeTab === "later" ? "is-active" : ""}`}
-          onClick={() => setActiveTab("later")}
-          role="tab"
-          aria-selected={activeTab === "later"}
-        >
-          Kommer senere
-        </button>
       </div>
 
-      {activeTab === "later" ? (
-        <div className="topicDashboard__placeholder">Innhold kommer senere.</div>
-      ) : (
-        <div className="topicDashboard__content">
+      <div className="topicDashboard__panel">
+        {activeTab === "stats" ? (
+          <section className="topicDashboard__statsPane">
+            <div className="topicDashboard__statsHeader">
+              <h2>Nokkelstatistikk</h2>
+              <div className="topicDashboard__rangeButtons" role="group" aria-label="Valg av tidsperiode">
+                {[7, 14, 30].map((days) => (
+                  <button
+                    key={days}
+                    className={`topicDashboard__rangeBtn ${statsDays === days ? "is-active" : ""}`}
+                    onClick={() => setStatsDays(days)}
+                    type="button"
+                  >
+                    {days}d
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isStatsLoading ? <div className="topicDashboard__hint">Laster statistikk...</div> : null}
+            {statsError ? <div className="topicDashboard__error">{statsError}</div> : null}
+
+            {!isStatsLoading && !statsError && stats ? (
+              <>
+                <div className="topicDashboard__statCards">
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">Totale unike brukere</div>
+                    <div className="topicDashboard__statValue">{stats.total_unique_users.toLocaleString("nb-NO")}</div>
+                  </article>
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">Totale samtaler</div>
+                    <div className="topicDashboard__statValue">{stats.total_conversations.toLocaleString("nb-NO")}</div>
+                  </article>
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">Snitt samtaler per bruker</div>
+                    <div className="topicDashboard__statValue">{stats.avg_conversations_per_user.toFixed(2)}</div>
+                  </article>
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">Snitt meldinger per samtale</div>
+                    <div className="topicDashboard__statValue">{stats.avg_conversation_length_messages.toFixed(2)}</div>
+                  </article>
+                </div>
+
+                <div className="topicDashboard__chartCard">
+                  <div className="topicDashboard__chartTitle">Daglig tokenbruk</div>
+                  <div className="topicDashboard__chartBars">
+                    {(() => {
+                      const maxTokens = Math.max(1, ...stats.daily_tokens.map((item) => item.total_tokens));
+                      return stats.daily_tokens.map((item) => {
+                        const pct = Math.max(0.06, item.total_tokens / maxTokens);
+                        const label = item.day.slice(5);
+                        return (
+                          <div className="topicDashboard__barItem" key={item.day}>
+                            <div className="topicDashboard__barValue">{item.total_tokens.toLocaleString("nb-NO")}</div>
+                            <div className="topicDashboard__barTrack">
+                              <div className="topicDashboard__barFill" style={{ height: `${pct * 100}%` }} />
+                            </div>
+                            <div className="topicDashboard__barLabel">{label}</div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </section>
+        ) : (
+          <div className="topicDashboard__content">
           <aside className="topicDashboard__sidebar">
             {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
             {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
@@ -310,51 +433,6 @@ export default function TopicDashboardPage() {
                   </label>
 
                   <label>
-                    Micro instructions (JSON-objekt)
-                    <textarea
-                      rows={6}
-                      value={form.micro_instructions}
-                      onChange={(e) => updateField("micro_instructions", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Constraints (JSON-objekt)
-                    <textarea
-                      rows={6}
-                      value={form.constraints}
-                      onChange={(e) => updateField("constraints", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Pacing rules (JSON-objekt)
-                    <textarea
-                      rows={6}
-                      value={form.pacing_rules}
-                      onChange={(e) => updateField("pacing_rules", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Reclassify rules (JSON-objekt)
-                    <textarea
-                      rows={6}
-                      value={form.reclassify_rules}
-                      onChange={(e) => updateField("reclassify_rules", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Safety rules (JSON-objekt)
-                    <textarea
-                      rows={6}
-                      value={form.safety_rules}
-                      onChange={(e) => updateField("safety_rules", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
                     Min confidence
                     <input
                       type="number"
@@ -389,14 +467,99 @@ export default function TopicDashboardPage() {
                   </label>
 
                   <label>
-                    Examples (JSON-liste)
-                    <textarea
-                      rows={6}
-                      value={form.examples}
-                      onChange={(e) => updateField("examples", e.target.value)}
-                    />
+                    Eksempler
+                    <div className="topicDashboard__summaryField">{arrayFieldSummary(form.examples)}</div>
                   </label>
                 </div>
+
+                <details className="topicDashboard__advanced" open={showAdvanced}>
+                  <summary onClick={(e) => e.preventDefault()}>
+                    <button
+                      type="button"
+                      className="topicDashboard__advancedToggle"
+                      onClick={() => setShowAdvanced((prev) => !prev)}
+                    >
+                      {showAdvanced ? "Skjul avanserte JSON-felt" : "Vis avanserte JSON-felt"}
+                    </button>
+                  </summary>
+
+                  {showAdvanced ? (
+                    <div className="topicDashboard__advancedBody">
+                      <div className="topicDashboard__jsonSummaryGrid">
+                        <div className="topicDashboard__summaryField">
+                          Micro instructions: {objectFieldSummary(form.micro_instructions)}
+                        </div>
+                        <div className="topicDashboard__summaryField">
+                          Constraints: {objectFieldSummary(form.constraints)}
+                        </div>
+                        <div className="topicDashboard__summaryField">
+                          Pacing rules: {objectFieldSummary(form.pacing_rules)}
+                        </div>
+                        <div className="topicDashboard__summaryField">
+                          Reclassify rules: {objectFieldSummary(form.reclassify_rules)}
+                        </div>
+                        <div className="topicDashboard__summaryField">
+                          Safety rules: {objectFieldSummary(form.safety_rules)}
+                        </div>
+                        <div className="topicDashboard__summaryField">
+                          Examples: {arrayFieldSummary(form.examples)}
+                        </div>
+                      </div>
+
+                      <div className="topicDashboard__formGrid">
+                        <label>
+                          Micro instructions (JSON object)
+                          <textarea
+                            rows={6}
+                            value={form.micro_instructions}
+                            onChange={(e) => updateField("micro_instructions", e.target.value)}
+                          />
+                        </label>
+
+                        <label>
+                          Constraints (JSON object)
+                          <textarea
+                            rows={6}
+                            value={form.constraints}
+                            onChange={(e) => updateField("constraints", e.target.value)}
+                          />
+                        </label>
+
+                        <label>
+                          Pacing rules (JSON object)
+                          <textarea
+                            rows={6}
+                            value={form.pacing_rules}
+                            onChange={(e) => updateField("pacing_rules", e.target.value)}
+                          />
+                        </label>
+
+                        <label>
+                          Reclassify rules (JSON object)
+                          <textarea
+                            rows={6}
+                            value={form.reclassify_rules}
+                            onChange={(e) => updateField("reclassify_rules", e.target.value)}
+                          />
+                        </label>
+
+                        <label>
+                          Safety rules (JSON object)
+                          <textarea
+                            rows={6}
+                            value={form.safety_rules}
+                            onChange={(e) => updateField("safety_rules", e.target.value)}
+                          />
+                        </label>
+
+                        <label>
+                          Examples (JSON array)
+                          <textarea rows={6} value={form.examples} onChange={(e) => updateField("examples", e.target.value)} />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+                </details>
 
                 <div className="topicDashboard__actions">
                   <button disabled={isSaving} onClick={handleSave}>
@@ -406,8 +569,9 @@ export default function TopicDashboardPage() {
               </>
             )}
           </section>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
