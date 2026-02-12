@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { revokeSession } from "../features/auth/api";
+import { fetchAuthMe, revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
@@ -19,6 +19,7 @@ import {
 type AuthState = {
   userId: string | null;
   sessionToken: string | null;
+  isAdmin: boolean;
   isReady: boolean;
   error: string | null;
 };
@@ -32,21 +33,29 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "asho.auth.session";
 
-function readStoredAuth(): { userId: string; sessionToken: string } | null {
+function readStoredAuth(): { userId: string; sessionToken: string; isAdmin: boolean } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { userId?: string; sessionToken?: string };
+    const parsed = JSON.parse(raw) as {
+      userId?: string;
+      sessionToken?: string;
+      isAdmin?: boolean;
+    };
     if (typeof parsed.userId !== "string") return null;
     if (typeof parsed.sessionToken !== "string") return null;
-    return { userId: parsed.userId, sessionToken: parsed.sessionToken };
+    return {
+      userId: parsed.userId,
+      sessionToken: parsed.sessionToken,
+      isAdmin: parsed.isAdmin === true,
+    };
   } catch {
     return null;
   }
 }
 
-function writeStoredAuth(userId: string, sessionToken: string) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken }));
+function writeStoredAuth(userId: string, sessionToken: string, isAdmin: boolean) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken, isAdmin }));
 }
 
 function clearStoredAuth() {
@@ -59,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       userId: stored?.userId ?? null,
       sessionToken: stored?.sessionToken ?? null,
+      isAdmin: stored?.isAdmin ?? false,
       isReady: false,
       error: null,
     };
@@ -78,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const params = new URLSearchParams(hash.replace(/^#/, ""));
     const sessionToken = params.get("session_token");
     const userId = params.get("user_id");
+    const isAdminParam = params.get("is_admin");
+    const isAdmin = isAdminParam === "1" || isAdminParam === "true";
 
     console.info("[auth] redirect detected", {
       hasSessionToken: Boolean(sessionToken),
@@ -85,11 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (sessionToken && userId) {
-      writeStoredAuth(userId, sessionToken);
+      writeStoredAuth(userId, sessionToken, isAdmin);
       setState((prev) => ({
         ...prev,
         userId,
         sessionToken,
+        isAdmin,
         error: null,
       }));
     }
@@ -166,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...prev,
         userId: stored?.userId ?? null,
         sessionToken: stored?.sessionToken ?? null,
+        isAdmin: stored?.isAdmin ?? false,
         error: null,
       }));
     };
@@ -173,6 +187,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  useEffect(() => {
+    if (!state.sessionToken) return;
+
+    let cancelled = false;
+
+    const syncAuthProfile = async () => {
+      try {
+        const me = await fetchAuthMe(state.sessionToken as string);
+        if (cancelled) return;
+        writeStoredAuth(me.userId, state.sessionToken as string, me.isAdmin);
+        setState((prev) => ({
+          ...prev,
+          userId: me.userId,
+          isAdmin: me.isAdmin,
+          error: null,
+        }));
+      } catch {
+        if (cancelled) return;
+        clearStoredAuth();
+        setState((prev) => ({
+          ...prev,
+          userId: null,
+          sessionToken: null,
+          isAdmin: false,
+          error: null,
+        }));
+      }
+    };
+
+    void syncAuthProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.sessionToken]);
 
   const login = useCallback(async () => {
     setState((prev) => ({ ...prev, error: null }));
@@ -191,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...prev,
       userId: null,
       sessionToken: null,
+      isAdmin: false,
       error: null,
     }));
   }, [state.sessionToken]);
