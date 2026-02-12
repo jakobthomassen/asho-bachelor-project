@@ -1,3 +1,5 @@
+[![Better Stack Badge](https://uptime.betterstack.com/status-badges/v3/monitor/2f2j6.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
+
 # ASHO Bachelor Project
 
 A simple AI chat application with a FastAPI backend and a React (Vite) frontend. The backend calls OpenAI chat completions, enforces basic security and token budgets, and stores chat history plus idempotency state in Postgres. The frontend provides a conversation UI with local persistence.
