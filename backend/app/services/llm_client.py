@@ -1,3 +1,5 @@
+import json
+import re
 from functools import lru_cache
 from typing import Any, List, Dict, Tuple
 from openai import OpenAI, OpenAIError
@@ -153,6 +155,24 @@ Fokuser på: brukerens mål, viktige fakta, preferanser, beslutninger og åpne s
 Hold det kort, i ren tekst, og unngå ordrette sitater. Ikke legg til ny informasjon.
 """
 
+CLASSIFIER_SYSTEM_PROMPT = """
+You classify a user message into one topic from a provided catalog.
+Return ONLY valid JSON with this exact shape:
+{"topic_key": string|null, "confidence": number, "reason": string}
+Rules:
+- confidence must be between 0 and 1
+- choose null if no topic confidently matches
+- be conservative when uncertain
+"""
+
+DEFAULT_DIALOGUE_APPENDIX = """
+Default handling mode:
+- Follow the overall Urometoden philosophy.
+- Avoid rigid scripts and avoid repetitive somatic loops.
+- Ask one clear, non-leading question at a time.
+- Prefer stabilization and clarity over deep interpretation.
+"""
+
 
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
@@ -162,38 +182,40 @@ def get_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def chat_with_history(
+def _run_chat_completion(
+    *,
     session_id: str,
-    history: List[Dict[str, Any]],
-    user_message: str,
+    messages: List[Dict[str, Any]],
+    stage: str,
+    temperature: float,
+    max_tokens: int,
 ) -> Tuple[str, int]:
-    """
-    Returns (assistant_text, assistant_output_tokens_estimate_or_reported)
-    """
     client = get_client()
-
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.extend(history)
-    if not (
-        history
-        and history[-1].get("role") == "user"
-        and history[-1].get("content") == user_message
-    ):
-        messages.append({"role": "user", "content": user_message})
-
-    store_prompt(session_id, messages)
+    prompt_tokens_estimate = 0
+    for msg in messages:
+        prompt_tokens_estimate += count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
 
     try:
         response = client.chat.completions.create(
             model=settings.MODEL_NAME,
             messages=messages,
-            temperature=0.7,
-            max_tokens=settings.MAX_OUTPUT_TOKENS,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
     except OpenAIError as e:
         raise RuntimeError(f"OpenAI request failed: {e}") from e
 
     content = response.choices[0].message.content or ""
+
+    # Prefer provider prompt token usage when available; else keep estimate.
+    prompt_tokens = prompt_tokens_estimate
+    try:
+        if getattr(response, "usage", None) and getattr(response.usage, "prompt_tokens", None) is not None:
+            prompt_tokens = int(response.usage.prompt_tokens)
+    except Exception:
+        prompt_tokens = prompt_tokens_estimate
+
+    store_prompt(session_id, messages, stage=stage, prompt_tokens=prompt_tokens)
 
     # Prefer reported usage when available; otherwise estimate.
     usage_tokens = 0
@@ -208,8 +230,104 @@ def chat_with_history(
     return content, usage_tokens
 
 
+def chat_with_history(
+    session_id: str,
+    history: List[Dict[str, Any]],
+    user_message: str,
+) -> Tuple[str, int]:
+    """
+    Returns (assistant_text, assistant_output_tokens_estimate_or_reported)
+    """
+    return chat_with_history_with_system(
+        session_id=session_id,
+        history=history,
+        user_message=user_message,
+        system_prompt=SYSTEM_PROMPT,
+    )
+
+
+def chat_with_history_with_system(
+    *,
+    session_id: str,
+    history: List[Dict[str, Any]],
+    user_message: str,
+    system_prompt: str,
+    temperature: float = 0.7,
+) -> Tuple[str, int]:
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)
+    if not (
+        history
+        and history[-1].get("role") == "user"
+        and history[-1].get("content") == user_message
+    ):
+        messages.append({"role": "user", "content": user_message})
+
+    return _run_chat_completion(
+        session_id=session_id,
+        messages=messages,
+        stage="chat",
+        temperature=temperature,
+        max_tokens=settings.MAX_OUTPUT_TOKENS,
+    )
+
+
+def classify_topic(
+    *,
+    session_id: str,
+    user_message: str,
+    recent_history: List[Dict[str, Any]],
+    topics: List[Dict[str, Any]],
+) -> Tuple[str | None, float, str, int]:
+    """
+    Returns:
+      (topic_key_or_none, confidence_0_to_1, reason, output_tokens)
+    """
+    payload = {
+        "topics": topics,
+        "recent_history": recent_history[-6:],
+        "user_message": user_message,
+    }
+    messages = [
+        {"role": "system", "content": CLASSIFIER_SYSTEM_PROMPT},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    raw, output_tokens = _run_chat_completion(
+        session_id=session_id,
+        messages=messages,
+        stage="classifier",
+        temperature=0.0,
+        max_tokens=220,
+    )
+
+    parsed: Dict[str, Any] = {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        m = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        if m:
+            try:
+                parsed = json.loads(m.group(0))
+            except Exception:
+                parsed = {}
+
+    topic_key = parsed.get("topic_key")
+    if topic_key is not None:
+        topic_key = str(topic_key).strip() or None
+
+    try:
+        confidence = float(parsed.get("confidence", 0.0))
+    except Exception:
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    reason = str(parsed.get("reason", "")).strip()
+    return topic_key, confidence, reason, output_tokens
+
+
 def summarize_history(
     *,
+    session_id: str,
     existing_summary: str | None,
     messages: List[Dict[str, Any]],
 ) -> Tuple[str, int]:
@@ -256,6 +374,19 @@ def summarize_history(
         raise RuntimeError(f"OpenAI summarization failed: {e}") from e
 
     content = response.choices[0].message.content or ""
+
+    prompt_tokens_estimate = 0
+    for msg in summary_messages:
+        prompt_tokens_estimate += count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
+
+    prompt_tokens = prompt_tokens_estimate
+    try:
+        if getattr(response, "usage", None) and getattr(response.usage, "prompt_tokens", None) is not None:
+            prompt_tokens = int(response.usage.prompt_tokens)
+    except Exception:
+        prompt_tokens = prompt_tokens_estimate
+
+    store_prompt(session_id, summary_messages, stage="summary", prompt_tokens=prompt_tokens)
 
     usage_tokens = 0
     try:
