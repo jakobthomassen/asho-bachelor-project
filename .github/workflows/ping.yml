@@ -3,7 +3,7 @@ name: Scheduled Ping
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/14 * * * *'
+    - cron: "*/5 * * * *"
 
 jobs:
   ping:
@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Ping backend
         env:
-          URL: ${{ secrets.URL }}
+          URL: ${{ secrets.URL2 }}
         run: |
-          curl -fsS "$URL" > /dev/null
+          curl -fsS -A "gh-actions-ping" "${URL%/}/health?source=github" > /dev/null
+
