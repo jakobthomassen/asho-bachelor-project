@@ -4,6 +4,7 @@ import SoundTestPage from "./app/pages/Soundtest/SoundtestPage";
 import Chat from "./Chat";
 import SubscribePage from "./app/pages/Subscribe/SubscribePage";
 import UroSkolenPage from "./app/pages/UroSkole/UroSkolePage";
+import TopicDashboardPage from "./app/pages/TopicDashboard/TopicDashboardPage";
 
 export default function AppRoutes() {
   return (
@@ -14,6 +15,7 @@ export default function AppRoutes() {
         <Route path="/soundtest" element={<SoundTestPage />} />
         <Route path="/subscribe" element={<SubscribePage />} />
         <Route path="/uro-skolen" element={<UroSkolenPage />} />
+        <Route path="/dashboard" element={<TopicDashboardPage />} />
       </Routes>
     </BrowserRouter>
   );

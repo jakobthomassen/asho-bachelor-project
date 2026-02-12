@@ -48,6 +48,8 @@ Returner KUN gyldig JSON i formen:
 {"topic_key": string|null, "confidence": number, "reason": string}
 Kort regel:
 - Hvis usikker: bruk null og lav confidence.
+- Ikke gjett eller inferer skjulte tema.
+- Velg topic kun ved tydelig, eksplisitt evidens i `message` eller `recent_user`.
 """
 
 TITLE_SYSTEM_PROMPT = """
@@ -193,11 +195,17 @@ def classify_topic(
       (topic_key_or_none, confidence_0_to_1, reason, output_tokens)
     """
     compact_topics: List[Dict[str, Any]] = []
+    topics_by_key: Dict[str, Dict[str, Any]] = {}
     for t in topics:
+        key = str(t.get("topic_key") or "").strip()
+        if key:
+            topics_by_key[key] = t
         compact_topics.append(
             {
-                "k": t.get("topic_key"),
+                "k": key or t.get("topic_key"),
                 "d": t.get("description"),
+                "kw": t.get("keywords"),
+                "ex": t.get("exclude_keywords"),
                 "min": t.get("min_confidence"),
             }
         )
@@ -246,6 +254,42 @@ def classify_topic(
     confidence = max(0.0, min(1.0, confidence))
 
     reason = str(parsed.get("reason", "")).strip()
+
+    # Deterministic guardrail: do not allow inferred topic matches without
+    # explicit lexical evidence from the current/very recent user text.
+    if topic_key:
+        selected = topics_by_key.get(topic_key)
+        if not selected:
+            topic_key = None
+            confidence = min(confidence, 0.2)
+            reason = "Ugyldig topic_key fra classifier; fallback til null."
+        else:
+            evidence_text = " ".join(
+                [user_message] + [str(x or "") for x in recent_user_snippets]
+            ).lower()
+            keywords = [str(k).strip().lower() for k in (selected.get("keywords") or []) if str(k).strip()]
+            exclude_keywords = [
+                str(k).strip().lower()
+                for k in (selected.get("exclude_keywords") or [])
+                if str(k).strip()
+            ]
+
+            has_excluded = any(k in evidence_text for k in exclude_keywords)
+            has_keyword_evidence = any(k in evidence_text for k in keywords) if keywords else False
+
+            if has_excluded or not has_keyword_evidence:
+                topic_key = None
+                confidence = min(confidence, 0.2)
+                reason = (
+                    (
+                        "Ingen eksplisitt topic-evidens i meldingen."
+                        if keywords
+                        else "Topic mangler classifier_keywords; avvist for å unngå inferens."
+                    )
+                    if not has_excluded
+                    else "Ekskluderende nøkkelord funnet; topic avvist."
+                )
+
     return topic_key, confidence, reason, output_tokens
 
 
