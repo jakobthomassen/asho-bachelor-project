@@ -7,6 +7,7 @@ from app.api.routes import (
     conversations_router,
     debug_router,
     prompt_trace_router,
+    topic_dashboard_router,
 )
 from app.core.config import settings
 
@@ -25,6 +26,7 @@ app.include_router(conversations_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(debug_router, prefix="/api")
 app.include_router(prompt_trace_router, prefix="/api")
+app.include_router(topic_dashboard_router, prefix="/api")
 
 @app.get("/")
 def root():

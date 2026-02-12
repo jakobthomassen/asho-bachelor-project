@@ -93,19 +93,11 @@
 }
 
 .sidebar__item.is-active .sidebar__title {
-  color: var(--accent);
+  color: var(--sidebar-active-text);
 }
 
 .sidebar__item.is-active .sidebar__time {
-  color: var(--text-secondary);
-}
-
-:root[data-mode="dark"] .sidebar__item.is-active .sidebar__title {
-  color: var(--text-primary);
-}
-
-:root[data-mode="dark"] .sidebar__item.is-active .sidebar__time {
-  color: var(--text-secondary);
+  color: var(--sidebar-active-time);
 }
 
 .sidebar__title {
