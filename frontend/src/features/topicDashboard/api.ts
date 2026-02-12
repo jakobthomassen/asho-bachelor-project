@@ -30,6 +30,8 @@ export type TopicDashboardStats = {
   total_conversations: number;
   avg_conversations_per_user: number;
   avg_conversation_length_messages: number;
+  monthly_estimated_token_cost_usd: number;
+  total_estimated_token_cost_usd: number;
   daily_tokens: TopicDashboardDailyTokens[];
 };
 

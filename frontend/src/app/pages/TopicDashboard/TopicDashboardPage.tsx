@@ -90,6 +90,15 @@ function parseJsonArray(raw: string, fieldName: string): unknown[] {
   }
 }
 
+function formatUsd(value: number): string {
+  return new Intl.NumberFormat("nb-NO", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(value || 0);
+}
+
 export default function TopicDashboardPage() {
   const { sessionToken } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("stats");
@@ -335,6 +344,32 @@ export default function TopicDashboardPage() {
                   <article className="topicDashboard__statCard">
                     <div className="topicDashboard__statLabel">Snitt meldinger per samtale</div>
                     <div className="topicDashboard__statValue">{stats.avg_conversation_length_messages.toFixed(2)}</div>
+                  </article>
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">
+                      Månedlig tokenkostnad (Estimert)
+                      <span
+                        className="topicDashboard__helpTip"
+                        title="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
+                        aria-label="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
+                      >
+                        ?
+                      </span>
+                    </div>
+                    <div className="topicDashboard__statValue">{formatUsd(stats.monthly_estimated_token_cost_usd)}</div>
+                  </article>
+                  <article className="topicDashboard__statCard">
+                    <div className="topicDashboard__statLabel">
+                      Total tokenkostnad (Estimert)
+                      <span
+                        className="topicDashboard__helpTip"
+                        title="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
+                        aria-label="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
+                      >
+                        ?
+                      </span>
+                    </div>
+                    <div className="topicDashboard__statValue">{formatUsd(stats.total_estimated_token_cost_usd)}</div>
                   </article>
                 </div>
 

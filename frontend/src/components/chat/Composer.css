@@ -49,3 +49,11 @@
 .composer__send:disabled {
   cursor: not-allowed;
 }
+
+.composer__disclaimer {
+  width: min(100%, var(--chat-container-width));
+  margin: 0.35rem auto 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

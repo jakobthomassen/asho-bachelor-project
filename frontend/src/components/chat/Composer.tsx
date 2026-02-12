@@ -72,6 +72,9 @@ export default function Composer({
           {isSending ? "Sender…" : "Send"}
         </button>
       </div>
+      <div className="composer__disclaimer">
+        ASHO er en AI og kan gjøre feil. Vennligst dobbeltsjekk viktig informasjon.
+      </div>
     </div>
   );
 }
