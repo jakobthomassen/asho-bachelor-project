@@ -6,7 +6,6 @@ import {
   deleteConversation as deleteConversationApi,
   fetchConversationMessages,
   listConversations,
-  updateConversationTitle,
 } from "../../../features/conversations/api";
 import {
   getSessionIdForConversation,
@@ -22,6 +21,7 @@ import { useAuth } from "../../AuthProvider";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
+import type { ChatUiError } from "../../../components/chat/ErrorBanner";
 import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
 import ResourcesModal from "../../../components/overlays/ResourcesModal";
@@ -47,7 +47,7 @@ export default function ChatShellPage() {
   const [activeId, setActiveId] = useState<string>("");
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatUiError | null>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
@@ -63,6 +63,20 @@ export default function ChatShellPage() {
   const streamRef = useRef<{ cancelled: boolean } | null>(null);
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
+
+  const makeErrorId = () => {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `ASHO-${ts}-${rnd}`;
+  };
+
+  const setUiError = (explanation: string, technical?: string) => {
+    setError({
+      id: makeErrorId(),
+      explanation,
+      technical,
+    });
+  };
 
   useEffect(() => {
     if (!sessionToken) {
@@ -118,7 +132,7 @@ export default function ChatShellPage() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Kunne ikke laste samtaler";
-        setError(message);
+        setUiError("Kunne ikke laste samtaler.", message);
       }
     };
 
@@ -164,7 +178,7 @@ export default function ChatShellPage() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Kunne ikke laste meldinger";
-        setError(message);
+        setUiError("Kunne ikke laste meldinger.", message);
       }
     };
 
@@ -250,7 +264,7 @@ export default function ChatShellPage() {
   const createConversation = async () => {
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å starte en ny samtale.");
+      setUiError("Du må logge inn for å starte en ny samtale.");
       return;
     }
 
@@ -269,7 +283,7 @@ export default function ChatShellPage() {
       setActiveId(created.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Kunne ikke opprette samtale";
-      setError(message);
+      setUiError("Kunne ikke opprette samtale.", message);
     }
   };
 
@@ -322,7 +336,7 @@ export default function ChatShellPage() {
   const deleteConversation = async (id: string) => {
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å slette samtaler.");
+      setUiError("Du må logge inn for å slette samtaler.");
       return;
     }
 
@@ -338,7 +352,7 @@ export default function ChatShellPage() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Kunne ikke slette samtale";
-      setError(message);
+      setUiError("Kunne ikke slette samtale.", message);
     }
   };
 
@@ -381,7 +395,7 @@ export default function ChatShellPage() {
 
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å sende meldinger.");
+      setUiError("Du må logge inn for å sende meldinger.");
       return;
     }
     setIsSending(true);
@@ -395,23 +409,14 @@ export default function ChatShellPage() {
       createdAt: now,
     };
 
-    const shouldUpdateTitle =
-      activeConversation.messages.filter((m) => m.role === "user").length === 0;
-    const nextTitle = shouldUpdateTitle ? trimmed.slice(0, 28) : activeConversation.title;
-
     updateConversation(activeConversation.id, (c) => ({
       ...c,
-      title: nextTitle,
       updatedAt: now,
       messages: [...c.messages, userMsg],
     }));
 
-    if (shouldUpdateTitle && nextTitle !== activeConversation.title && sessionToken) {
-      void updateConversationTitle(sessionToken, activeConversation.id, nextTitle);
-    }
-
     try {
-      const { reply } = await sendChatMessage({
+      const { reply, conversation_title } = await sendChatMessage({
         conversationId: activeConversation.id,
         sessionId: activeConversation.sessionId,
         message: trimmed,
@@ -428,14 +433,16 @@ export default function ChatShellPage() {
 
       updateConversation(activeConversation.id, (c) => ({
         ...c,
+        title: conversation_title?.trim() ? conversation_title : c.title,
         updatedAt: Date.now(),
         messages: [...c.messages, botMsg],
       }));
 
       await streamAssistantReply(activeConversation.id, botId, reply);
       updateMessageText(activeConversation.id, botId, reply);
-    } catch {
-      setError("Serverfeil. Prøv igjen.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ukjent feil";
+      setUiError("Serverfeil. Prøv igjen.", message);
     } finally {
       setIsSending(false);
     }

@@ -2,6 +2,7 @@ import type { Conversation } from "../../features/conversations/types";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 import ErrorBanner from "./ErrorBanner";
+import type { ChatUiError } from "./ErrorBanner";
 
 type Props = {
   conversation: Conversation | undefined;
@@ -13,7 +14,7 @@ type Props = {
   onSend: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 
-  error: string | null;
+  error: ChatUiError | null;
   onDismissError: () => void;
 
   endRef: React.RefObject<HTMLDivElement | null>;
@@ -47,7 +48,7 @@ export default function ChatPanel({
         <span />
       </div>
 
-      {error && <ErrorBanner message={error} onDismiss={onDismissError} />}
+      {error && <ErrorBanner error={error} onDismiss={onDismissError} />}
 
       <MessageList
         conversation={conversation}

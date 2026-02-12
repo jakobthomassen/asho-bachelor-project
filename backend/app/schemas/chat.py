@@ -10,3 +10,4 @@ class SimpleChatResponse(BaseModel):
     reply: str
     last_prompt_tokens: int | None = None
     conversation_tokens: int | None = None
+    conversation_title: str | None = None

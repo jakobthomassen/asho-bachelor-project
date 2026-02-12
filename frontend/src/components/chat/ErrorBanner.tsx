@@ -1,9 +1,15 @@
+export type ChatUiError = {
+  id: string;
+  explanation: string;
+  technical?: string;
+};
+
 type Props = {
-  message: string;
+  error: ChatUiError;
   onDismiss: () => void;
 };
 
-export default function ErrorBanner({ message, onDismiss }: Props) {
+export default function ErrorBanner({ error, onDismiss }: Props) {
   return (
     <div
       style={{
@@ -16,10 +22,20 @@ export default function ErrorBanner({ message, onDismiss }: Props) {
         justifyContent: "space-between",
         gap: 12,
         fontWeight: 600,
-      }}
+        }}
       role="alert"
     >
-      <span>{message}</span>
+      <div style={{ display: "grid", gap: 2 }}>
+        <span>{error.explanation}</span>
+        <span style={{ fontSize: 12, fontWeight: 700 }}>
+          Feil-ID: {error.id}
+        </span>
+        {error.technical ? (
+          <span style={{ fontSize: 12, color: "#7f1d1d", fontWeight: 500 }}>
+            Detaljer: {error.technical}
+          </span>
+        ) : null}
+      </div>
 
       <button
         onClick={onDismiss}
