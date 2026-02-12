@@ -112,6 +112,14 @@ def topic_dashboard_stats(
     days: int = Query(default=7, ge=1, le=90),
     authorization: str | None = Header(default=None),
 ):
+    input_price_per_million = 4.0
+    output_price_per_million = 16.0
+
+    def _estimated_cost_usd(input_tokens: int, output_tokens: int) -> float:
+        return (float(input_tokens) / 1_000_000.0) * input_price_per_million + (
+            float(output_tokens) / 1_000_000.0
+        ) * output_price_per_million
+
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
             _ = _require_user(conn, authorization)
@@ -176,6 +184,31 @@ def topic_dashboard_stats(
                 )
                 token_rows = cur.fetchall() or []
 
+                cur.execute(
+                    """
+                    SELECT
+                      COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                      COALESCE(SUM(output_tokens + classifier_tokens + title_tokens), 0) AS output_tokens
+                    FROM daily_token_usage
+                    WHERE event_date >= date_trunc('month', CURRENT_DATE)::date
+                    """
+                )
+                month_row = cur.fetchone() or (0, 0)
+                monthly_input_tokens = int(month_row[0] or 0)
+                monthly_output_tokens = int(month_row[1] or 0)
+
+                cur.execute(
+                    """
+                    SELECT
+                      COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                      COALESCE(SUM(output_tokens + classifier_tokens + title_tokens), 0) AS output_tokens
+                    FROM daily_token_usage
+                    """
+                )
+                total_row = cur.fetchone() or (0, 0)
+                total_input_tokens = int(total_row[0] or 0)
+                total_output_tokens = int(total_row[1] or 0)
+
             daily_tokens = [
                 TopicDashboardDailyTokens(day=str(day), total_tokens=int(total_tokens or 0))
                 for day, total_tokens in token_rows
@@ -186,6 +219,12 @@ def topic_dashboard_stats(
                 total_conversations=total_conversations,
                 avg_conversations_per_user=round(avg_conversations_per_user, 2),
                 avg_conversation_length_messages=round(avg_conversation_length_messages, 2),
+                monthly_estimated_token_cost_usd=round(
+                    _estimated_cost_usd(monthly_input_tokens, monthly_output_tokens), 6
+                ),
+                total_estimated_token_cost_usd=round(
+                    _estimated_cost_usd(total_input_tokens, total_output_tokens), 6
+                ),
                 daily_tokens=daily_tokens,
             )
     except HTTPException:

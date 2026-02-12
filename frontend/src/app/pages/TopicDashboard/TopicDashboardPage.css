@@ -128,6 +128,10 @@
   color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .topicDashboard__statValue {
@@ -135,6 +139,21 @@
   font-size: 1.45rem;
   font-weight: 900;
   line-height: 1.1;
+}
+
+.topicDashboard__helpTip {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: help;
 }
 
 .topicDashboard__chartCard {

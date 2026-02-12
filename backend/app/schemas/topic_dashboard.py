@@ -39,6 +39,8 @@ class TopicDashboardStatsResponse(BaseModel):
     total_conversations: int
     avg_conversations_per_user: float
     avg_conversation_length_messages: float
+    monthly_estimated_token_cost_usd: float
+    total_estimated_token_cost_usd: float
     daily_tokens: list[TopicDashboardDailyTokens]
 
 
