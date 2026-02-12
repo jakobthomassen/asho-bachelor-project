@@ -50,6 +50,16 @@ Kort regel:
 - Hvis usikker: bruk null og lav confidence.
 """
 
+TITLE_SYSTEM_PROMPT = """
+Lag en kort samtaletittel basert på brukermeldinger.
+Returner KUN gyldig JSON i formen:
+{"title": string|null, "confidence": number, "reason": string}
+Regler:
+- Hvis innholdet er for generelt (f.eks. kun hilsen/småprat), bruk title=null.
+- Title skal være kort (2-6 ord), konkret og uten punktum.
+- confidence må være mellom 0 og 1.
+"""
+
 DEFAULT_DIALOGUE_APPENDIX = """
 Standardmodus:
 - Følg den overordnede Urometoden-forståelsen.
@@ -237,6 +247,51 @@ def classify_topic(
 
     reason = str(parsed.get("reason", "")).strip()
     return topic_key, confidence, reason, output_tokens
+
+
+def generate_conversation_title(
+    *,
+    session_id: str,
+    user_messages: List[str],
+) -> Tuple[str | None, float, str, int]:
+    payload = {
+        "user_messages": user_messages[-8:],
+    }
+    messages = [
+        {"role": "system", "content": TITLE_SYSTEM_PROMPT},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    raw, output_tokens = _run_chat_completion(
+        session_id=session_id,
+        messages=messages,
+        stage="title",
+        temperature=0.1,
+        max_tokens=80,
+    )
+
+    parsed: Dict[str, Any] = {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        m = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        if m:
+            try:
+                parsed = json.loads(m.group(0))
+            except Exception:
+                parsed = {}
+
+    title = parsed.get("title")
+    if title is not None:
+        title = str(title).strip() or None
+
+    try:
+        confidence = float(parsed.get("confidence", 0.0))
+    except Exception:
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    reason = str(parsed.get("reason", "")).strip()
+    return title, confidence, reason, output_tokens
 
 
 def summarize_history(

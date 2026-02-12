@@ -9,6 +9,7 @@ from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
 from app.services.llm_client import (
     chat_with_history_with_system,
     classify_topic,
+    generate_conversation_title,
     summarize_history,
     SYSTEM_PROMPT,
     DEFAULT_DIALOGUE_APPENDIX,
@@ -37,6 +38,11 @@ router = APIRouter()
 
 if not settings.DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required for idempotency protection")
+
+EARLY_CLASSIFY_TURNS = 4
+DEFAULT_RECLASSIFY_TURN_THRESHOLD = 12
+TITLE_MIN_CONFIDENCE = 0.60
+GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 
 
 @router.options("/chat")
@@ -126,7 +132,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 raise HTTPException(status_code=401, detail="Invalid session token")
 
             # 2) Ensure conversation exists and is owned by user
-            title_seed = normalized_message[:28] or "Samtale"
+            conversation_title = "Ny samtale"
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -144,22 +150,13 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         INSERT INTO conversations (id, user_id, title)
                         VALUES (%s, %s, %s)
                         """,
-                        (payload.conversation_id, user_id, title_seed),
+                        (payload.conversation_id, user_id, "Ny samtale"),
                     )
                 else:
                     owner_id, current_title = row
                     if str(owner_id) != str(user_id):
                         raise HTTPException(status_code=403, detail="Conversation not owned by user")
-
-                    if current_title in {"Samtale", "Ny samtale"}:
-                        cur.execute(
-                            """
-                            UPDATE conversations
-                            SET title = %s, updated_at = NOW()
-                            WHERE id = %s AND user_id = %s
-                            """,
-                            (title_seed, payload.conversation_id, user_id),
-                        )
+                    conversation_title = str(current_title or "Ny samtale")
                 conn.commit()
 
             # 3) Idempotency claim (conversation_id + message_id)
@@ -343,8 +340,13 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         needs_classify = True
                     elif force_reclassify:
                         needs_classify = True
-                    elif state.route_mode == "default" and state.turns_in_default >= 12:
-                        needs_classify = True
+                    elif state.route_mode == "default":
+                        # Keep classifying in early turns so greetings/small talk
+                        # do not lock the conversation into default too early.
+                        if state.turns_in_default < EARLY_CLASSIFY_TURNS:
+                            needs_classify = True
+                        elif state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
+                            needs_classify = True
 
                 selected_topic_key = None
                 route_mode = "default"
@@ -380,6 +382,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             route_mode = "topic"
 
                     event_type = "reclassify" if force_reclassify and state is not None else "classify"
+                    next_turns_in_default = 0 if route_mode == "topic" else ((state.turns_in_default + 1) if state else 1)
                     with conn.transaction():
                         upsert_conversation_topic_state(
                             conn,
@@ -388,7 +391,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             route_mode=route_mode,
                             last_confidence=last_confidence,
                             turns_since_classify=0,
-                            turns_in_default=1 if route_mode == "default" else 0,
+                            turns_in_default=next_turns_in_default,
                             clarifying_questions_asked=0,
                         )
                         insert_topic_routing_event(
@@ -477,6 +480,34 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 system_prompt=runtime_system_prompt,
             )
 
+            title_tokens = 0
+            if (conversation_title or "") in GENERIC_TITLES:
+                user_msgs_for_title = [
+                    str(m.get("content") or "")
+                    for m in history
+                    if str(m.get("role")) == "user"
+                ]
+                if user_msgs_for_title:
+                    suggested_title, title_conf, title_reason, gen_title_tokens = generate_conversation_title(
+                        session_id=payload.session_id,
+                        user_messages=user_msgs_for_title,
+                    )
+                    title_tokens = gen_title_tokens
+                    if suggested_title and suggested_title.strip() and title_conf >= TITLE_MIN_CONFIDENCE:
+                        conversation_title = suggested_title.strip()[:80]
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                UPDATE conversations
+                                SET title = %s, updated_at = NOW()
+                                WHERE id = %s AND user_id = %s
+                                """,
+                                (conversation_title, payload.conversation_id, user_id),
+                            )
+                            conn.commit()
+                    else:
+                        _ = title_reason
+
             # 8) Persist assistant message
             with conn.transaction():
                 insert_message(
@@ -505,7 +536,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     budget_res = add_tokens_and_check_budget(
                         conn=conn,
                         session_id=payload.session_id,
-                        add_tokens=output_tokens + classifier_tokens,
+                        add_tokens=output_tokens + classifier_tokens + title_tokens,
                         max_session_tokens=settings.MAX_SESSION_TOKENS,
                     )
                     conversation_tokens = budget_res.tokens_used_after
@@ -516,6 +547,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 "reply": reply,
                 "last_prompt_tokens": last_prompt_tokens,
                 "conversation_tokens": conversation_tokens,
+                "conversation_title": conversation_title,
             }
 
             # 10) Store idempotent result

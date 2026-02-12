@@ -40,6 +40,13 @@ def _require_user(conn: psycopg.Connection, authorization: str | None) -> str:
     return user_id
 
 
+def _table_exists(conn: psycopg.Connection, table_name: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass(%s)", (table_name,))
+        row = cur.fetchone()
+    return bool(row and row[0])
+
+
 @router.get("/conversations", response_model=ConversationListResponse)
 def list_conversations(authorization: str | None = Header(default=None)):
     try:
@@ -166,13 +173,38 @@ def delete_conversation(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    DELETE FROM conversations
+                    SELECT 1
+                    FROM conversations
                     WHERE id = %s AND user_id = %s
                     """,
                     (conversation_id, user_id),
                 )
-                deleted = cur.rowcount
-                conn.commit()
+                if cur.fetchone() is None:
+                    raise HTTPException(status_code=404, detail="Conversation not found")
+
+            tables_to_delete = [
+                ("topic_routing_events", "DELETE FROM topic_routing_events WHERE conversation_id = %s"),
+                ("conversation_topic_state", "DELETE FROM conversation_topic_state WHERE conversation_id = %s"),
+                ("chat_summaries", "DELETE FROM chat_summaries WHERE conversation_id = %s"),
+                ("llm_idempotency", "DELETE FROM llm_idempotency WHERE conversation_id = %s"),
+                ("chat_messages", "DELETE FROM chat_messages WHERE conversation_id = %s"),
+            ]
+
+            with conn.transaction():
+                for table_name, stmt in tables_to_delete:
+                    if _table_exists(conn, table_name):
+                        with conn.cursor() as cur:
+                            cur.execute(stmt, (conversation_id,))
+
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        DELETE FROM conversations
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (conversation_id, user_id),
+                    )
+                    deleted = cur.rowcount
 
             if not deleted:
                 raise HTTPException(status_code=404, detail="Conversation not found")

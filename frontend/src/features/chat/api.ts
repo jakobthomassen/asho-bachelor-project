@@ -20,6 +20,7 @@ export type SendChatParams = {
  */
 export type SendChatResponse = {
   reply: string;
+  conversation_title?: string | null;
 };
 
 /**
