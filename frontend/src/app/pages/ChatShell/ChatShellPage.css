@@ -60,6 +60,39 @@
   text-align: left;
 }
 
+.chatShell__statusButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chatShell__statusMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.chatShell__statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.chatShell__statusMeta.is-green .chatShell__statusDot {
+  background: #22c55e;
+}
+
+.chatShell__statusMeta.is-yellow .chatShell__statusDot {
+  background: #eab308;
+}
+
+.chatShell__statusMeta.is-red .chatShell__statusDot {
+  background: #ef4444;
+}
+
 .chatShell__navButton:hover {
   background: var(--surface-muted);
   border-color: var(--accent-soft);
