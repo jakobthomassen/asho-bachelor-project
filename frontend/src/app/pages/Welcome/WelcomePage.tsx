@@ -37,13 +37,13 @@ export default function WelcomePage() {
   return (
     <main className="authFlow">
       <section className="authFlow__card authFlow__card--hero">
-        {step === "trial" ? (
-          <button type="button" className="authFlow__back" onClick={() => setStep("intro")}>
-            Tilbake
-          </button>
-        ) : null}
-
         <div className="authFlow__contentCard">
+          {step === "trial" ? (
+            <button type="button" className="authFlow__back" onClick={() => setStep("intro")}>
+              ← Tilbake
+            </button>
+          ) : null}
+
           {step === "intro" ? (
             <>
               <h1 className="authFlow__title authFlow__title--hero">Velkommen til ASHO</h1>
