@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 type ThemeOption = "green" | "purple" | "blue";
 type ModeOption = "light" | "dark";
-type TabOption = "utseende" | "profil";
+type TabOption = "utseende" | "profil" | "personvern";
 
 type Props = {
   open: boolean;
@@ -30,6 +30,7 @@ export default function SettingsModal({
   const [activeTab, setActiveTab] = useState<TabOption>("utseende");
   const [profileName, setProfileName] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
+  const showWip = () => window.alert("WIP");
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +71,15 @@ export default function SettingsModal({
               onClick={() => setActiveTab("profil")}
             >
               Profil
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "personvern"}
+              className={`settingsTabButton ${activeTab === "personvern" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("personvern")}
+            >
+              Personvern
             </button>
           </div>
 
@@ -130,6 +140,19 @@ export default function SettingsModal({
                     Lagre
                   </button>
                   {profileSaved && <span className="settingsSaved">Lagret</span>}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "personvern" && (
+              <div className="settingsSection">
+                <div className="settingsActionList">
+                  <button type="button" className="settingsActionItem" onClick={showWip}>
+                    Slett mine data
+                  </button>
+                  <button type="button" className="settingsActionItem settingsActionItem--danger" onClick={showWip}>
+                    Slett konto
+                  </button>
                 </div>
               </div>
             )}
