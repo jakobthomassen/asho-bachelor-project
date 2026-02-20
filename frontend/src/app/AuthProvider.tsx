@@ -19,6 +19,7 @@ type AuthState = {
   userId: string | null;
   sessionToken: string | null;
   isAdmin: boolean;
+  isBootstrapped: boolean;
   isReady: boolean;
   error: string | null;
 };
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: stored?.userId ?? null,
       sessionToken: stored?.sessionToken ?? null,
       isAdmin: stored?.isAdmin ?? false,
+      isBootstrapped: false,
       isReady: false,
       error: null,
     };
@@ -81,8 +83,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (handledRedirectRef.current) return;
     handledRedirectRef.current = true;
 
+    const markBootstrapped = () => {
+      setState((prev) => (prev.isBootstrapped ? prev : { ...prev, isBootstrapped: true }));
+    };
+
     const hash = window.location.hash || "";
-    if (!hash.startsWith("#auth=google")) return;
+    if (!hash.startsWith("#auth=google")) {
+      markBootstrapped();
+      return;
+    }
 
     const params = new URLSearchParams(hash.replace(/^#/, ""));
     const sessionToken = params.get("session_token");
@@ -102,8 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId,
         sessionToken,
         isAdmin,
+        isBootstrapped: true,
         error: null,
       }));
+    } else {
+      markBootstrapped();
     }
 
     const storedNextPath = sessionStorage.getItem(AUTH_NEXT_PATH_KEY);
@@ -119,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     window.history.replaceState({}, document.title, cleanUrl);
+    markBootstrapped();
   }, []);
 
   useEffect(() => {

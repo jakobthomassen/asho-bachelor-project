@@ -16,9 +16,10 @@ function hasProfileName() {
 }
 
 function ChatRoute({ children }: { children: ReactElement }) {
-  const { sessionToken } = useAuth();
+  const { sessionToken, isBootstrapped } = useAuth();
   const location = useLocation();
 
+  if (!isBootstrapped) return null;
   if (!sessionToken) {
     const next = `${location.pathname}${location.search}`;
     return <Navigate to={`/welcome?next=${encodeURIComponent(next)}`} replace />;
@@ -28,16 +29,18 @@ function ChatRoute({ children }: { children: ReactElement }) {
 }
 
 function LoginRoute({ children }: { children: ReactElement }) {
-  const { sessionToken } = useAuth();
+  const { sessionToken, isBootstrapped } = useAuth();
 
+  if (!isBootstrapped) return null;
   if (sessionToken && hasProfileName()) return <Navigate to="/" replace />;
   if (sessionToken) return <Navigate to="/onboarding" replace />;
   return children;
 }
 
 function OnboardingRoute({ children }: { children: ReactElement }) {
-  const { sessionToken } = useAuth();
+  const { sessionToken, isBootstrapped } = useAuth();
 
+  if (!isBootstrapped) return null;
   if (!sessionToken) return <Navigate to="/login?next=%2Fonboarding" replace />;
   if (hasProfileName()) return <Navigate to="/" replace />;
   return children;
