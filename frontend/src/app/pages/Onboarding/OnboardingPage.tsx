@@ -19,26 +19,28 @@ export default function OnboardingPage() {
 
   return (
     <main className="authFlow">
-      <section className="authFlow__card">
-        <h1 className="authFlow__title">Velkommen!</h1>
-        <p className="authFlow__text">Hva skal ASHO kalle deg?</p>
+      <section className="authFlow__card authFlow__card--hero">
+        <div className="authFlow__contentCard">
+          <h1 className="authFlow__title">Velkommen!</h1>
+          <p className="authFlow__text">Hva skal ASHO kalle deg?</p>
 
-        <input
-          className="authFlow__input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Skriv navn"
-          maxLength={60}
-        />
+          <input
+            className="authFlow__input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Skriv navn"
+            maxLength={60}
+          />
 
-        {touched && !canContinue ? (
-          <p className="authFlow__error">Skriv inn et navn for a fortsette.</p>
-        ) : null}
+          {touched && !canContinue ? (
+            <p className="authFlow__error">Skriv inn et navn for a fortsette.</p>
+          ) : null}
 
-        <div className="authFlow__actions">
-          <button type="button" className="authFlow__button authFlow__button--primary" onClick={handleContinue}>
-            Fortsett til chat
-          </button>
+          <div className="authFlow__actions">
+            <button type="button" className="authFlow__button authFlow__button--primary" onClick={handleContinue}>
+              Fortsett til chat
+            </button>
+          </div>
         </div>
       </section>
     </main>
