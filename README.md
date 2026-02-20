@@ -77,8 +77,9 @@ Apple Sign-In:
 - `APPLE_ISSUER` (default: `https://appleid.apple.com`)
 
 Custom Email/Password Auth:
-- `AUTH_CREDENTIAL_STORE_MASTER_KEY` (required for encrypted credential file)
-- `AUTH_CREDENTIAL_STORE_PATH` (default: `backend/.auth_credentials.enc`)
+- `AUTH_CUSTOM_STORE_BACKEND` (`postgres` default, `memory` for local self-test only)
+- `AUTH_POSTGRES_DSN` (Postgres DSN for custom auth data)
+- `AUTH_POSTGRES_AUTO_INIT` (`false` default; set `true` only when ready to create `auth_identities` table/indexes)
 - `AUTH_SUB_HASH_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
 - `AUTH_TOKEN_HASH_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
 - `AUTH_STATE_SIGNING_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
@@ -174,7 +175,7 @@ Then open `http://localhost:5173`.
 - Chat input is normalized and restricted by a character allowlist, token limits, and prompt-injection heuristics.
 - Prompt traces are stored in memory only and reset on server restart.
 - Conversations are persisted in the browser via localStorage.
-- Because DB schema changes are disallowed, email/password credentials are stored in an encrypted server-side file (`AUTH_CREDENTIAL_STORE_PATH`) instead of Postgres. This is a compromise and has deployment/scaling limitations (single-file consistency and key management).
+- Custom email/password auth is Postgres-first via a repository adapter. The expected schema SQL is defined in `backend/app/services/custom_auth.py` as `POSTGRES_AUTH_SCHEMA_SQL`.
 
 ## Apple Developer Setup
 
