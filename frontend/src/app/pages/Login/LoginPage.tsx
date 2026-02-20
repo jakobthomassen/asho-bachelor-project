@@ -36,11 +36,11 @@ export default function LoginPage() {
   return (
     <main className="authFlow">
       <section className="authFlow__card authFlow__card--hero">
-        <button type="button" className="authFlow__back" onClick={() => navigate(`/welcome?next=${encodeURIComponent(next)}`)}>
-          Tilbake
-        </button>
-
         <div className="authFlow__contentCard">
+          <button type="button" className="authFlow__back" onClick={() => navigate(`/welcome?next=${encodeURIComponent(next)}`)}>
+            ← Tilbake
+          </button>
+
           <h1 className="authFlow__title authFlow__title--hero">Logg inn for a fortsette</h1>
 
           <div className="authFlow__form">

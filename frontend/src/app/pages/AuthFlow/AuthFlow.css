@@ -55,8 +55,8 @@
   max-width: 340px;
   display: grid;
   justify-items: center;
-  gap: 8px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .authFlow__actions {
@@ -87,7 +87,7 @@
 }
 
 .authFlow__button--primary {
-  background: #c7dcf8;
+  background: #b8cdec;
 }
 
 .authFlow__button--secondary {
@@ -95,12 +95,15 @@
 }
 
 .authFlow__button--wide {
-  width: 190px;
+  width: 240px;
+  min-height: 44px;
 }
 
 .authFlow__button--small {
-  min-width: 120px;
-  padding: 0.5rem 0.9rem;
+  min-width: 92px;
+  min-height: 40px;
+  padding: 0.45rem 0.85rem;
+  background: #b8cdec;
 }
 
 .authFlow__hint {
@@ -116,8 +119,8 @@
 
 .authFlow__back {
   position: absolute;
-  top: clamp(14px, 3vh, 28px);
-  left: var(--auth-side-pad);
+  top: clamp(16px, 3vh, 28px);
+  left: clamp(18px, 3vw, 28px);
   border: 0;
   background: transparent;
   color: #222532;
@@ -126,7 +129,10 @@
 }
 
 .authFlow__contentCard {
-  width: min(100%, 820px);
+  position: relative;
+  width: min(100%, 860px);
+  min-height: clamp(520px, 70vh, 660px);
+  padding: clamp(56px, 9vh, 96px) clamp(20px, 5vw, 92px) clamp(40px, 8vh, 72px);
   display: grid;
   justify-items: center;
   gap: 22px;
@@ -142,7 +148,7 @@
 
 .authFlow__form {
   width: 100%;
-  max-width: 430px;
+  max-width: 380px;
   display: grid;
   gap: 10px;
 }
@@ -166,9 +172,9 @@
 }
 
 .authFlow__divider {
-  width: min(100%, 1100px);
+  width: min(100%, 700px);
   border-top: 1px solid #d3d4d8;
-  margin: 18px 0;
+  margin: 14px 0;
 }
 
 .authFlow__socials {
@@ -183,11 +189,13 @@
   width: min(100%, 320px);
   border: 0;
   border-radius: 999px;
-  padding: 0.75rem 1rem;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
   color: #fff;
   background: #191b20;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
 }
 
@@ -229,5 +237,7 @@
 
   .authFlow__contentCard {
     width: 100%;
+    min-height: auto;
+    padding: 56px 0 0;
   }
 }
