@@ -1,13 +1,19 @@
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../AuthProvider";
 import { renderGoogleButton } from "../../../features/auth/google";
 import "../AuthFlow/AuthFlow.css";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isReady, error } = useAuth();
   const buttonHostRef = useRef<HTMLDivElement | null>(null);
+  const next = searchParams.get("next") || "/";
+
+  useEffect(() => {
+    sessionStorage.setItem("asho_auth_next_path", next);
+  }, [next]);
 
   useEffect(() => {
     if (!isReady || !buttonHostRef.current) return;
@@ -27,7 +33,7 @@ export default function LoginPage() {
 
         <div className="authFlow__actions">
           <div ref={buttonHostRef} />
-          <button type="button" className="authFlow__button" onClick={() => navigate("/welcome")}>
+          <button type="button" className="authFlow__button" onClick={() => navigate(`/welcome?next=${encodeURIComponent(next)}`)}>
             Tilbake
           </button>
         </div>

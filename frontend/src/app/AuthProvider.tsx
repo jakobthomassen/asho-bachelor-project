@@ -31,6 +31,7 @@ type AuthContextValue = AuthState & {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "asho.auth.session";
+const AUTH_NEXT_PATH_KEY = "asho_auth_next_path";
 
 function readStoredAuth(): { userId: string; sessionToken: string; isAdmin: boolean } | null {
   try {
@@ -105,7 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }));
     }
 
-    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    const storedNextPath = sessionStorage.getItem(AUTH_NEXT_PATH_KEY);
+    if (storedNextPath) {
+      sessionStorage.removeItem(AUTH_NEXT_PATH_KEY);
+    }
+    const cleanUrl = storedNextPath && storedNextPath.startsWith("/")
+      ? storedNextPath
+      : `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, cleanUrl);
   }, []);
 
