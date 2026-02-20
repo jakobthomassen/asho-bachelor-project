@@ -13,7 +13,6 @@ import { fetchAuthMe, revokeSession } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
-  renderGoogleButton,
 } from "../features/auth/google";
 
 type AuthState = {
@@ -76,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializedRef = useRef(false);
   const handledRedirectRef = useRef(false);
-  const renderAttemptRef = useRef(0);
 
   useEffect(() => {
     if (handledRedirectRef.current) return;
@@ -137,31 +135,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isReady: ok,
         error: ok ? prev.error : "Google sign-in unavailable",
       }));
-
-      if (ok) {
-        const tryRender = async () => {
-          const target = document.getElementById("google-signin-button");
-          if (!target) {
-            renderAttemptRef.current += 1;
-            if (renderAttemptRef.current <= 20) {
-              setTimeout(tryRender, 250);
-            } else {
-              console.info("[auth] GIS button render failed: no target");
-            }
-            return;
-          }
-
-          const rendered = await renderGoogleButton(target, {
-            theme: "outline",
-            size: "large",
-            text: "signin_with",
-            width: 240,
-          });
-          console.info("[auth] GIS button rendered", { rendered });
-        };
-
-        void tryRender();
-      }
     };
 
     setup();

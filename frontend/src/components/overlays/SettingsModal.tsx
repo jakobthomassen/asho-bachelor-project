@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getProfileName, saveProfileName } from "../../features/profile/storage";
 
 type ThemeOption = "green" | "purple" | "blue";
 type ModeOption = "light" | "dark";
@@ -34,14 +35,13 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (!open) return;
-    const stored = localStorage.getItem("asho_profile_name");
-    setProfileName(stored ?? "");
+    setProfileName(getProfileName());
     setProfileSaved(false);
     setActiveTab("utseende");
   }, [open]);
 
   const saveProfile = () => {
-    localStorage.setItem("asho_profile_name", profileName.trim());
+    saveProfileName(profileName);
     setProfileSaved(true);
   };
 

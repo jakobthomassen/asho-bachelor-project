@@ -1,0 +1,97 @@
+.authFlow {
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--text-primary);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.authFlow__card {
+  width: min(760px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.authFlow__title {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.authFlow__text {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.authFlow__plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.authFlow__plan {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface-muted);
+}
+
+.authFlow__planTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.authFlow__planText {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.authFlow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.authFlow__button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+
+.authFlow__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.authFlow__input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 0.62rem 0.8rem;
+}
+
+.authFlow__error {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0;
+}
+
+@media (max-width: 680px) {
+  .authFlow__plans {
+    grid-template-columns: 1fr;
+  }
+}
