@@ -32,6 +32,22 @@ A simple AI chat application with a FastAPI backend and a React (Vite) frontend.
   - Only enabled if `ENABLE_DEBUG_ENDPOINTS=true`. Returns a simple OpenAI status reply.
 - `GET /health`
   - Health check.
+- `GET /api/auth/apple/start`
+  - Starts Apple OIDC auth (state + nonce) and redirects to Apple.
+- `POST /api/auth/apple/callback`
+  - Apple return endpoint (`response_mode=form_post`), validates state/nonce and signs in user.
+- `POST /api/auth/register`
+  - Body: `email`, `password`
+- `POST /api/auth/login`
+  - Body: `email`, `password`
+- `POST /api/auth/logout`
+  - Revokes bearer session token.
+- `POST /api/auth/forgot-password`
+  - Body: `email`
+- `POST /api/auth/reset-password`
+  - Body: `token`, `new_password`
+- `POST /api/auth/verify-email`
+  - Body: `token`
 
 ## Environment Variables
 
@@ -49,6 +65,36 @@ Backend (`backend/.env` or system env):
 - `SUMMARY_KEEP_LAST_MESSAGES` (default: `6`)
 - `SUMMARY_WINDOW_MESSAGES` (default: `30`)
 - `ENABLE_DEBUG_ENDPOINTS` (`true` or `false`, default: `false`)
+- `GOOGLE_CLIENT_ID` (required for Google auth)
+- `GOOGLE_SUB_HASH_SECRET` (required for Google auth and default hash secret fallback)
+
+Apple Sign-In:
+- `APPLE_TEAM_ID`
+- `APPLE_CLIENT_ID`
+- `APPLE_KEY_ID`
+- `APPLE_PRIVATE_KEY` (PEM; can be single-line with `\n`)
+- `APPLE_REDIRECT_URI` (must match Apple Return URL; usually `https://<api>/api/auth/apple/callback`)
+- `APPLE_ISSUER` (default: `https://appleid.apple.com`)
+
+Custom Email/Password Auth:
+- `AUTH_CREDENTIAL_STORE_MASTER_KEY` (required for encrypted credential file)
+- `AUTH_CREDENTIAL_STORE_PATH` (default: `backend/.auth_credentials.enc`)
+- `AUTH_SUB_HASH_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
+- `AUTH_TOKEN_HASH_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
+- `AUTH_STATE_SIGNING_SECRET` (optional, falls back to `GOOGLE_SUB_HASH_SECRET`)
+- `AUTH_REQUIRE_EMAIL_VERIFICATION` (default: `true`)
+- `AUTH_DEBUG_RETURN_TOKENS` (default: `false`, if true API returns verify/reset tokens for local testing)
+- `AUTH_MIN_PASSWORD_LENGTH` (default: `8`)
+- `AUTH_EMAIL_VERIFY_TOKEN_TTL_MINUTES` (default: `30`)
+- `AUTH_RESET_TOKEN_TTL_MINUTES` (default: `30`)
+- `AUTH_OAUTH_COOKIE_TTL_SECONDS` (default: `900`)
+- `AUTH_COOKIE_SECURE` (default: `true`)
+- `AUTH_COOKIE_SAMESITE` (default: `lax`)
+- `AUTH_COOKIE_DOMAIN` (optional)
+- `AUTH_RATE_IP_CAPACITY` (default: `20`)
+- `AUTH_RATE_IP_REFILL_PER_SEC` (default: `0.33`)
+- `AUTH_RATE_IDENTIFIER_CAPACITY` (default: `8`)
+- `AUTH_RATE_IDENTIFIER_REFILL_PER_SEC` (default: `0.1`)
 
 Frontend (`frontend/.env`):
 - `VITE_API_BASE_URL` (example: `http://127.0.0.1:8000`)
@@ -128,6 +174,47 @@ Then open `http://localhost:5173`.
 - Chat input is normalized and restricted by a character allowlist, token limits, and prompt-injection heuristics.
 - Prompt traces are stored in memory only and reset on server restart.
 - Conversations are persisted in the browser via localStorage.
+- Because DB schema changes are disallowed, email/password credentials are stored in an encrypted server-side file (`AUTH_CREDENTIAL_STORE_PATH`) instead of Postgres. This is a compromise and has deployment/scaling limitations (single-file consistency and key management).
+
+## Apple Developer Setup
+
+1. In Apple Developer, create a **Service ID** and enable **Sign in with Apple**.
+2. Configure the **Return URL** to match your backend callback exactly, e.g. `https://your-api.example.com/api/auth/apple/callback`.
+3. Create a **Sign in with Apple key**, note `Key ID`, and download the `.p8` private key.
+4. Set env vars: `APPLE_TEAM_ID`, `APPLE_CLIENT_ID` (Service ID), `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, and `APPLE_REDIRECT_URI`.
+5. Ensure frontend origin and `return_to` values are allowed by backend CORS/origin settings.
+
+## Auth Curl Examples
+
+```bash
+# Register
+curl -X POST http://127.0.0.1:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"StrongPassword123"}'
+
+# Verify email (token is only returned when AUTH_DEBUG_RETURN_TOKENS=true)
+curl -X POST http://127.0.0.1:8000/api/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<verification-token>"}'
+
+# Login
+curl -X POST http://127.0.0.1:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"StrongPassword123"}'
+
+# Forgot password
+curl -X POST http://127.0.0.1:8000/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+
+# Reset password
+curl -X POST http://127.0.0.1:8000/api/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<reset-token>","new_password":"NewStrongPassword123"}'
+
+# Start Apple login (follow redirects in browser)
+curl -i "http://127.0.0.1:8000/api/auth/apple/start?return_to=http://localhost:5173"
+```
 
 ## Scripts
 
