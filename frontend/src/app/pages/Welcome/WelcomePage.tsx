@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../AuthProvider";
 import { getProfileName } from "../../../features/profile/storage";
@@ -8,6 +8,7 @@ export default function WelcomePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { sessionToken } = useAuth();
+  const [step, setStep] = useState<"intro" | "trial">("intro");
 
   const next = searchParams.get("next") || "/";
   const hasName = getProfileName().trim().length > 0;
@@ -21,7 +22,7 @@ export default function WelcomePage() {
     navigate(next, { replace: true });
   }, [sessionToken, hasName, navigate, next]);
 
-  const handleStart = () => {
+  const handleCreateAccount = () => {
     if (!sessionToken) {
       navigate(`/login?next=${encodeURIComponent(next)}`);
       return;
@@ -35,26 +36,54 @@ export default function WelcomePage() {
 
   return (
     <main className="authFlow">
-      <section className="authFlow__card">
-        <h1 className="authFlow__title">Velkommen til ASHO</h1>
-        <p className="authFlow__text">
-          ASHO er en trygg samtalepartner for struktur, refleksjon og støtte gjennom vanskelige perioder.
-        </p>
+      <section className="authFlow__card authFlow__card--hero">
+        {step === "intro" ? (
+          <>
+            <h1 className="authFlow__title authFlow__title--hero">Velkommen til ASHO</h1>
+            <p className="authFlow__text authFlow__text--hero">
+              ASHO er en trygg samtalepartner for struktur, refleksjon og stotte gjennom vanskelige perioder.
+            </p>
 
-        <div className="authFlow__plans">
-          <article className="authFlow__plan">
-            <h2 className="authFlow__planTitle">Gratis prøve</h2>
-            <p className="authFlow__planText">Prøv samtaleopplevelsen og bli kjent med hvordan ASHO hjelper deg.</p>
-          </article>
-          <article className="authFlow__plan">
-            <h2 className="authFlow__planTitle">Plan-info</h2>
-            <p className="authFlow__planText">Betaling er deaktivert i denne versjonen. Fokus er innlogging og chat-flyt.</p>
-          </article>
-        </div>
+            <div className="authFlow__stack">
+              <button
+                type="button"
+                className="authFlow__button authFlow__button--primary authFlow__button--wide"
+                onClick={() => setStep("trial")}
+              >
+                Fortsett
+              </button>
+              <p className="authFlow__hint">Eksisterende bruker?</p>
+              <button
+                type="button"
+                className="authFlow__button authFlow__button--secondary authFlow__button--wide"
+                onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`)}
+              >
+                Logg inn
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="authFlow__title authFlow__title--hero">Gratis proveperiode</h1>
+            <p className="authFlow__text authFlow__text--hero">
+              Opprett en konto med Google for a starte proveperioden og komme rett inn i chatten.
+            </p>
 
-        <div className="authFlow__actions">
-          <button type="button" className="authFlow__button authFlow__button--primary" onClick={handleStart}>
-            Start gratis prove
+            <div className="authFlow__stack">
+              <button
+                type="button"
+                className="authFlow__button authFlow__button--primary authFlow__button--wide"
+                onClick={handleCreateAccount}
+              >
+                Opprett konto
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="authFlow__footer">
+          <button type="button" className="authFlow__link" onClick={() => navigate("/uro-skolen")}>
+            Om Urometoden
           </button>
         </div>
       </section>
