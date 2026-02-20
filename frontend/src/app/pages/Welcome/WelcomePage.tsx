@@ -64,6 +64,10 @@ export default function WelcomePage() {
           </>
         ) : (
           <>
+            <button type="button" className="authFlow__back" onClick={() => setStep("intro")}>
+              Tilbake
+            </button>
+
             <h1 className="authFlow__title authFlow__title--hero">Gratis proveperiode</h1>
             <p className="authFlow__text authFlow__text--hero">
               Opprett en konto med Google for a starte proveperioden og komme rett inn i chatten.

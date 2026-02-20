@@ -12,12 +12,13 @@
   background: #eef1f4;
   border: 0;
   border-radius: 0;
-  padding: clamp(24px, 4vw, 72px) clamp(20px, 4vw, 56px);
+  padding: clamp(64px, 9vh, 120px) clamp(20px, 4vw, 56px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 22px;
+  position: relative;
 }
 
 .authFlow__card--hero {
@@ -97,7 +98,7 @@
 }
 
 .authFlow__button--small {
-  min-width: 84px;
+  min-width: 120px;
   padding: 0.5rem 0.9rem;
 }
 
@@ -110,6 +111,17 @@
 .authFlow__footer {
   margin-top: auto;
   padding-top: 20px;
+}
+
+.authFlow__back {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  border: 0;
+  background: transparent;
+  color: #222532;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .authFlow__link {
@@ -129,13 +141,6 @@
 
 .authFlow__fieldLabel {
   font-size: 1rem;
-}
-
-.authFlow__formRow {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
 }
 
 .authFlow__input {
@@ -160,7 +165,7 @@
 
 .authFlow__socials {
   width: 100%;
-  max-width: 430px;
+  max-width: 440px;
   display: grid;
   gap: 12px;
   justify-items: center;
@@ -188,11 +193,9 @@
 }
 
 .authFlow__googleHost {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  width: min(100%, 320px);
 }
 
 .authFlow__error {
@@ -204,18 +207,19 @@
 @media (max-width: 680px) {
   .authFlow__card {
     min-height: 100vh;
-    padding: 20px 16px;
+    padding: 64px 16px 28px;
   }
 
   .authFlow__title {
     font-size: 2rem;
   }
 
-  .authFlow__formRow {
-    grid-template-columns: 1fr;
-  }
-
   .authFlow__button--small {
     justify-self: start;
+  }
+
+  .authFlow__back {
+    top: 14px;
+    left: 12px;
   }
 }
