@@ -41,7 +41,7 @@ type ConfirmState = { open: true; convId: string } | { open: false };
 type BackendStatus = "idle" | "checking" | "ok" | "error";
 
 export default function ChatShellPage() {
-  const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
+  const { userId, sessionToken, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -527,16 +527,9 @@ export default function ChatShellPage() {
                 </button>
 
                 <div className="chatShell__auth chatShell__auth--sidebar">
-                  {userId ? (
-                    <button className="chatShell__authButton" onClick={logout}>
-                      Logg ut
-                    </button>
-                  ) : (
-                    <div className="chatShell__authGoogle">
-                      {isReady ? <div id="google-signin-button" /> : <span>Laster Google...</span>}
-                    </div>
-                  )}
-                  {authError ? <div className="chatShell__authError">{authError}</div> : null}
+                  <button className="chatShell__authButton" onClick={logout}>
+                    Logg ut
+                  </button>
                 </div>
               </div>
             </>
