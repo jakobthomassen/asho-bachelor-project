@@ -40,54 +40,56 @@ export default function LoginPage() {
           Tilbake
         </button>
 
-        <h1 className="authFlow__title authFlow__title--hero">Logg inn for a fortsette</h1>
+        <div className="authFlow__contentCard">
+          <h1 className="authFlow__title authFlow__title--hero">Logg inn for a fortsette</h1>
 
-        <div className="authFlow__form">
-          <label className="authFlow__fieldLabel" htmlFor="login-email">
-            E-post
-          </label>
-          <input
-            id="login-email"
-            className="authFlow__input authFlow__input--compact"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
+          <div className="authFlow__form">
+            <label className="authFlow__fieldLabel" htmlFor="login-email">
+              E-post
+            </label>
+            <input
+              id="login-email"
+              className="authFlow__input authFlow__input--compact"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
 
-          <label className="authFlow__fieldLabel" htmlFor="login-password">
-            Passord
-          </label>
-          <input
-            id="login-password"
-            className="authFlow__input authFlow__input--compact"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-          <button
-            type="button"
-            className="authFlow__button authFlow__button--primary authFlow__button--small"
-            onClick={handleEmailPasswordContinue}
-            disabled={!email.trim() || !password.trim()}
-          >
-            Fortsett
-          </button>
+            <label className="authFlow__fieldLabel" htmlFor="login-password">
+              Passord
+            </label>
+            <input
+              id="login-password"
+              className="authFlow__input authFlow__input--compact"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              className="authFlow__button authFlow__button--primary authFlow__button--small"
+              onClick={handleEmailPasswordContinue}
+              disabled={!email.trim() || !password.trim()}
+            >
+              Fortsett
+            </button>
+          </div>
+
+          <div className="authFlow__divider" />
+
+          <div className="authFlow__socials">
+            <button type="button" className="authFlow__social authFlow__social--apple" disabled>
+              Sign in with Apple
+            </button>
+
+            <div ref={buttonHostRef} className="authFlow__googleHost" />
+          </div>
+
+          {!isReady && <p className="authFlow__text">Laster Google innlogging...</p>}
+          {formNotice ? <p className="authFlow__text">{formNotice}</p> : null}
+          {error ? <p className="authFlow__error">{error}</p> : null}
         </div>
-
-        <div className="authFlow__divider" />
-
-        <div className="authFlow__socials">
-          <button type="button" className="authFlow__social authFlow__social--apple" disabled>
-            Sign in with Apple
-          </button>
-
-          <div ref={buttonHostRef} className="authFlow__googleHost" />
-        </div>
-
-        {!isReady && <p className="authFlow__text">Laster Google innlogging...</p>}
-        {formNotice ? <p className="authFlow__text">{formNotice}</p> : null}
-        {error ? <p className="authFlow__error">{error}</p> : null}
       </section>
     </main>
   );

@@ -37,53 +37,57 @@ export default function WelcomePage() {
   return (
     <main className="authFlow">
       <section className="authFlow__card authFlow__card--hero">
-        {step === "intro" ? (
-          <>
-            <h1 className="authFlow__title authFlow__title--hero">Velkommen til ASHO</h1>
-            <p className="authFlow__text authFlow__text--hero">
-              ASHO er en trygg samtalepartner for struktur, refleksjon og stotte gjennom vanskelige perioder.
-            </p>
+        {step === "trial" ? (
+          <button type="button" className="authFlow__back" onClick={() => setStep("intro")}>
+            Tilbake
+          </button>
+        ) : null}
 
-            <div className="authFlow__stack">
-              <button
-                type="button"
-                className="authFlow__button authFlow__button--primary authFlow__button--wide"
-                onClick={() => setStep("trial")}
-              >
-                Fortsett
-              </button>
-              <p className="authFlow__hint">Eksisterende bruker?</p>
-              <button
-                type="button"
-                className="authFlow__button authFlow__button--secondary authFlow__button--wide"
-                onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`)}
-              >
-                Logg inn
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <button type="button" className="authFlow__back" onClick={() => setStep("intro")}>
-              Tilbake
-            </button>
+        <div className="authFlow__contentCard">
+          {step === "intro" ? (
+            <>
+              <h1 className="authFlow__title authFlow__title--hero">Velkommen til ASHO</h1>
+              <p className="authFlow__text authFlow__text--hero">
+                ASHO er en trygg samtalepartner for struktur, refleksjon og stotte gjennom vanskelige perioder.
+              </p>
 
-            <h1 className="authFlow__title authFlow__title--hero">Gratis proveperiode</h1>
-            <p className="authFlow__text authFlow__text--hero">
-              Opprett en konto med Google for a starte proveperioden og komme rett inn i chatten.
-            </p>
+              <div className="authFlow__stack">
+                <button
+                  type="button"
+                  className="authFlow__button authFlow__button--primary authFlow__button--wide"
+                  onClick={() => setStep("trial")}
+                >
+                  Fortsett
+                </button>
+                <p className="authFlow__hint">Eksisterende bruker?</p>
+                <button
+                  type="button"
+                  className="authFlow__button authFlow__button--secondary authFlow__button--wide"
+                  onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`)}
+                >
+                  Logg inn
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="authFlow__title authFlow__title--hero">Gratis proveperiode</h1>
+              <p className="authFlow__text authFlow__text--hero">
+                Opprett en konto med Google for a starte proveperioden og komme rett inn i chatten.
+              </p>
 
-            <div className="authFlow__stack">
-              <button
-                type="button"
-                className="authFlow__button authFlow__button--primary authFlow__button--wide"
-                onClick={handleCreateAccount}
-              >
-                Opprett konto
-              </button>
-            </div>
-          </>
-        )}
+              <div className="authFlow__stack">
+                <button
+                  type="button"
+                  className="authFlow__button authFlow__button--primary authFlow__button--wide"
+                  onClick={handleCreateAccount}
+                >
+                  Opprett konto
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="authFlow__footer">
           <button type="button" className="authFlow__link" onClick={() => navigate("/uro-skolen")}>

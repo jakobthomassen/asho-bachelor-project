@@ -7,12 +7,13 @@
 }
 
 .authFlow__card {
+  --auth-side-pad: clamp(32px, 7vw, 120px);
   width: 100%;
   min-height: 100vh;
   background: #eef1f4;
   border: 0;
   border-radius: 0;
-  padding: clamp(64px, 9vh, 120px) clamp(20px, 4vw, 56px);
+  padding: clamp(64px, 9vh, 120px) var(--auth-side-pad);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -115,13 +116,20 @@
 
 .authFlow__back {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: clamp(14px, 3vh, 28px);
+  left: var(--auth-side-pad);
   border: 0;
   background: transparent;
   color: #222532;
   font-size: 1rem;
   cursor: pointer;
+}
+
+.authFlow__contentCard {
+  width: min(100%, 820px);
+  display: grid;
+  justify-items: center;
+  gap: 22px;
 }
 
 .authFlow__link {
@@ -207,7 +215,8 @@
 @media (max-width: 680px) {
   .authFlow__card {
     min-height: 100vh;
-    padding: 64px 16px 28px;
+    --auth-side-pad: 20px;
+    padding: 72px var(--auth-side-pad) 28px;
   }
 
   .authFlow__title {
@@ -218,8 +227,7 @@
     justify-self: start;
   }
 
-  .authFlow__back {
-    top: 14px;
-    left: 12px;
+  .authFlow__contentCard {
+    width: 100%;
   }
 }
