@@ -255,15 +255,19 @@
 .settingsTabs {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .settingsTabButton {
-  padding: 0.6rem 0.75rem;
+  padding: 0 0.75rem;
+  min-height: 56px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-primary);
   font-weight: 700;
+  display: flex;
+  align-items: center;
   text-align: left;
   cursor: pointer;
 }
@@ -285,6 +289,10 @@
   margin-top: 1rem;
   display: grid;
   gap: 8px;
+}
+
+.settingsSection:first-child {
+  margin-top: 0;
 }
 
 .settingsLabel {
@@ -327,6 +335,27 @@
   margin-top: 1.25rem;
   display: flex;
   justify-content: flex-end;
+}
+
+.settingsActionList {
+  display: grid;
+  gap: 8px;
+}
+
+.settingsActionItem {
+  min-height: 56px;
+  padding: 0 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settingsActionItem--danger {
+  color: var(--danger);
 }
 
 .settingsInput {

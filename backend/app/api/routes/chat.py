@@ -46,6 +46,7 @@ if not settings.DATABASE_URL:
 EARLY_CLASSIFY_TURNS = 4
 DEFAULT_RECLASSIFY_TURN_THRESHOLD = 12
 TITLE_MIN_CONFIDENCE = 0.60
+TITLE_CHECK_MIN_USER_MESSAGES = 3
 GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 
 
@@ -491,7 +492,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     for m in history
                     if str(m.get("role")) == "user"
                 ]
-                if user_msgs_for_title:
+                # Keep the default title until the 3rd user message is sent.
+                if len(user_msgs_for_title) >= TITLE_CHECK_MIN_USER_MESSAGES:
                     suggested_title, title_conf, title_reason, gen_title_tokens = generate_conversation_title(
                         session_id=payload.session_id,
                         user_messages=user_msgs_for_title,
