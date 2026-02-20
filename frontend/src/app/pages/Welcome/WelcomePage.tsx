@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../AuthProvider";
 import { getProfileName } from "../../../features/profile/storage";
@@ -10,6 +11,15 @@ export default function WelcomePage() {
 
   const next = searchParams.get("next") || "/";
   const hasName = getProfileName().trim().length > 0;
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    if (!hasName) {
+      navigate("/onboarding", { replace: true });
+      return;
+    }
+    navigate(next, { replace: true });
+  }, [sessionToken, hasName, navigate, next]);
 
   const handleStart = () => {
     if (!sessionToken) {
