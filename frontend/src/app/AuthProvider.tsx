@@ -113,6 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanUrl = storedNextPath && storedNextPath.startsWith("/")
       ? storedNextPath
       : `${window.location.pathname}${window.location.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (cleanUrl !== currentUrl) {
+      window.location.replace(cleanUrl);
+      return;
+    }
     window.history.replaceState({}, document.title, cleanUrl);
   }, []);
 
