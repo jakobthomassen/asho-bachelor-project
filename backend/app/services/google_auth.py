@@ -27,35 +27,6 @@ class SessionPrincipal:
     is_admin: bool
 
 
-def ensure_auth_tables(conn: psycopg.Connection) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS google_users (
-                user_id TEXT PRIMARY KEY,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS google_sessions (
-                session_token TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES google_users(user_id),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                expires_at TIMESTAMPTZ NOT NULL
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS google_sessions_expires_at_idx
-            ON google_sessions (expires_at)
-            """
-        )
-    conn.commit()
-
-
 def extract_google_user_id(credential: str) -> str:
     if not settings.GOOGLE_CLIENT_ID:
         raise ValueError("GOOGLE_CLIENT_ID is required")
