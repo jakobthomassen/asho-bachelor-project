@@ -31,7 +31,7 @@ export default function UroSkolenModal({ open, onClose }: Props) {
 
           <button
             className="subscribeClose"
-            style={{ background: "#ffffff", color: "#0f172a" }}
+            style={{ background: "var(--surface)", color: "var(--text-primary)" }}
             onClick={onClose}
           >
             Lukk

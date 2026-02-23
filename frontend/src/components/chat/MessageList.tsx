@@ -1,5 +1,6 @@
 import type { Conversation } from "../../features/conversations/types";
 import ClarifyChips from "./ClarifyChips";
+import "./MessageList.css";
 
 type Props = {
   conversation: Conversation | undefined;
@@ -26,7 +27,7 @@ export default function MessageList({
   })();
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem" }}>
+    <div className="messageList">
       {messages.map((m, idx) => {
         const isUser = m.role === "user";
         const showClarify = !isUser && idx === lastAshoIndex;
@@ -34,28 +35,16 @@ export default function MessageList({
         return (
           <div
             key={m.id}
-            style={{
-              display: "flex",
-              justifyContent: isUser ? "flex-end" : "flex-start",
-              marginBottom: 12,
-            }}
+            className={`messageRow ${isUser ? "is-user" : "is-asho"}`}
           >
-            <div style={{ maxWidth: "70%" }}>
+            <div className="messageRow__content">
               <div
-                style={{
-                  padding: "0.7rem 0.9rem",
-                  borderRadius: isUser
-                    ? "18px 18px 4px 18px"
-                    : "18px 18px 18px 4px",
-                  background: isUser ? "#e5e7eb" : "#e0f2fe",
-                  color: "#111827",
-                  boxShadow: "0 4px 8px rgba(15,23,42,0.06)",
-                }}
+                className={`messageBubble ${isUser ? "is-user" : "is-asho"}`}
               >
-                <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>
+                <div className="messageMeta">
                   {isUser ? "Meg" : "ASHO"}
                 </div>
-                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                <div className="messageText">{m.text}</div>
               </div>
 
               {showClarify && (
@@ -70,7 +59,7 @@ export default function MessageList({
         );
       })}
 
-      {isSending && <div style={{ color: "#6b7280", marginTop: 6 }}>ASHO skriver…</div>}
+      {isSending && <div className="messageTyping">ASHO skriver...</div>}
 
       <div ref={endRef} />
     </div>

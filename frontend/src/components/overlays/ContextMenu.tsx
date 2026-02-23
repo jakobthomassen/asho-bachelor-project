@@ -18,8 +18,8 @@ export default function ContextMenu({ open, x, y, title, onDelete, onClose }: Pr
         left: x,
         top: y,
         width: 220,
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
         borderRadius: 12,
         boxShadow: "0 18px 40px rgba(15,23,42,0.14)",
         padding: 6,
@@ -27,7 +27,7 @@ export default function ContextMenu({ open, x, y, title, onDelete, onClose }: Pr
       }}
       onMouseLeave={onClose}
     >
-      <div style={{ padding: "8px 10px", fontSize: 12, color: "#6b7280", fontWeight: 800 }}>
+      <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--text-muted)", fontWeight: 800 }}>
         {title}
       </div>
 
@@ -42,7 +42,7 @@ export default function ContextMenu({ open, x, y, title, onDelete, onClose }: Pr
           padding: "10px 10px",
           borderRadius: 10,
           fontWeight: 900,
-          color: "#b91c1c",
+          color: "var(--danger)",
         }}
       >
         Slett samtale

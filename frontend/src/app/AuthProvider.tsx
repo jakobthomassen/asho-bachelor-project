@@ -9,16 +9,17 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { revokeSession } from "../features/auth/api";
+import { fetchAuthMe, revokeSession, type AuthResponse } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
-  renderGoogleButton,
 } from "../features/auth/google";
 
 type AuthState = {
   userId: string | null;
   sessionToken: string | null;
+  isAdmin: boolean;
+  isBootstrapped: boolean;
   isReady: boolean;
   error: string | null;
 };
@@ -26,27 +27,37 @@ type AuthState = {
 type AuthContextValue = AuthState & {
   login: () => void;
   logout: () => void;
+  completeLogin: (auth: AuthResponse) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "asho.auth.session";
+const AUTH_NEXT_PATH_KEY = "asho_auth_next_path";
 
-function readStoredAuth(): { userId: string; sessionToken: string } | null {
+function readStoredAuth(): { userId: string; sessionToken: string; isAdmin: boolean } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { userId?: string; sessionToken?: string };
+    const parsed = JSON.parse(raw) as {
+      userId?: string;
+      sessionToken?: string;
+      isAdmin?: boolean;
+    };
     if (typeof parsed.userId !== "string") return null;
     if (typeof parsed.sessionToken !== "string") return null;
-    return { userId: parsed.userId, sessionToken: parsed.sessionToken };
+    return {
+      userId: parsed.userId,
+      sessionToken: parsed.sessionToken,
+      isAdmin: parsed.isAdmin === true,
+    };
   } catch {
     return null;
   }
 }
 
-function writeStoredAuth(userId: string, sessionToken: string) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken }));
+function writeStoredAuth(userId: string, sessionToken: string, isAdmin: boolean) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, sessionToken, isAdmin }));
 }
 
 function clearStoredAuth() {
@@ -59,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       userId: stored?.userId ?? null,
       sessionToken: stored?.sessionToken ?? null,
+      isAdmin: stored?.isAdmin ?? false,
+      isBootstrapped: false,
       isReady: false,
       error: null,
     };
@@ -66,18 +79,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializedRef = useRef(false);
   const handledRedirectRef = useRef(false);
-  const renderAttemptRef = useRef(0);
 
   useEffect(() => {
     if (handledRedirectRef.current) return;
     handledRedirectRef.current = true;
 
+    const markBootstrapped = () => {
+      setState((prev) => (prev.isBootstrapped ? prev : { ...prev, isBootstrapped: true }));
+    };
+
     const hash = window.location.hash || "";
-    if (!hash.startsWith("#auth=google")) return;
+    if (!hash.startsWith("#auth=google")) {
+      markBootstrapped();
+      return;
+    }
 
     const params = new URLSearchParams(hash.replace(/^#/, ""));
     const sessionToken = params.get("session_token");
     const userId = params.get("user_id");
+    const isAdminParam = params.get("is_admin");
+    const isAdmin = isAdminParam === "1" || isAdminParam === "true";
 
     console.info("[auth] redirect detected", {
       hasSessionToken: Boolean(sessionToken),
@@ -85,17 +106,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (sessionToken && userId) {
-      writeStoredAuth(userId, sessionToken);
+      writeStoredAuth(userId, sessionToken, isAdmin);
       setState((prev) => ({
         ...prev,
         userId,
         sessionToken,
+        isAdmin,
+        isBootstrapped: true,
         error: null,
       }));
+    } else {
+      markBootstrapped();
     }
 
-    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    const storedNextPath = sessionStorage.getItem(AUTH_NEXT_PATH_KEY);
+    if (storedNextPath) {
+      sessionStorage.removeItem(AUTH_NEXT_PATH_KEY);
+    }
+    const cleanUrl = storedNextPath && storedNextPath.startsWith("/")
+      ? storedNextPath
+      : `${window.location.pathname}${window.location.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (cleanUrl !== currentUrl) {
+      window.location.replace(cleanUrl);
+      return;
+    }
     window.history.replaceState({}, document.title, cleanUrl);
+    markBootstrapped();
   }, []);
 
   useEffect(() => {
@@ -103,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({
         ...prev,
         isReady: false,
-        error: "Missing Google client id",
+        error: null,
       }));
       return;
     }
@@ -124,31 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isReady: ok,
         error: ok ? prev.error : "Google sign-in unavailable",
       }));
-
-      if (ok) {
-        const tryRender = async () => {
-          const target = document.getElementById("google-signin-button");
-          if (!target) {
-            renderAttemptRef.current += 1;
-            if (renderAttemptRef.current <= 20) {
-              setTimeout(tryRender, 250);
-            } else {
-              console.info("[auth] GIS button render failed: no target");
-            }
-            return;
-          }
-
-          const rendered = await renderGoogleButton(target, {
-            theme: "outline",
-            size: "large",
-            text: "signin_with",
-            width: 240,
-          });
-          console.info("[auth] GIS button rendered", { rendered });
-        };
-
-        void tryRender();
-      }
     };
 
     setup();
@@ -166,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...prev,
         userId: stored?.userId ?? null,
         sessionToken: stored?.sessionToken ?? null,
+        isAdmin: stored?.isAdmin ?? false,
         error: null,
       }));
     };
@@ -173,6 +186,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  useEffect(() => {
+    if (!state.sessionToken) return;
+
+    let cancelled = false;
+
+    const syncAuthProfile = async () => {
+      try {
+        const me = await fetchAuthMe(state.sessionToken as string);
+        if (cancelled) return;
+        writeStoredAuth(me.userId, state.sessionToken as string, me.isAdmin);
+        setState((prev) => ({
+          ...prev,
+          userId: me.userId,
+          isAdmin: me.isAdmin,
+          error: null,
+        }));
+      } catch {
+        if (cancelled) return;
+        clearStoredAuth();
+        setState((prev) => ({
+          ...prev,
+          userId: null,
+          sessionToken: null,
+          isAdmin: false,
+          error: null,
+        }));
+      }
+    };
+
+    void syncAuthProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.sessionToken]);
 
   const login = useCallback(async () => {
     setState((prev) => ({ ...prev, error: null }));
@@ -191,17 +240,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...prev,
       userId: null,
       sessionToken: null,
+      isAdmin: false,
       error: null,
     }));
   }, [state.sessionToken]);
+
+  const completeLogin = useCallback((auth: AuthResponse) => {
+    writeStoredAuth(auth.userId, auth.sessionToken, auth.isAdmin);
+    setState((prev) => ({
+      ...prev,
+      userId: auth.userId,
+      sessionToken: auth.sessionToken,
+      isAdmin: auth.isAdmin,
+      isBootstrapped: true,
+      error: null,
+    }));
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       login,
       logout,
+      completeLogin,
     }),
-    [state, login, logout]
+    [state, login, logout, completeLogin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

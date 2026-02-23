@@ -3,13 +3,21 @@ import hashlib
 from fastapi import APIRouter, HTTPException, Response, Header
 import psycopg
 import time
+from typing import Dict, List
 
 from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
-from app.services.llm_client import chat_with_history, summarize_history, SYSTEM_PROMPT
+from app.services.llm_client import (
+    chat_with_history_with_system,
+    classify_topic,
+    generate_conversation_title,
+    summarize_history,
+    SYSTEM_PROMPT,
+    DEFAULT_DIALOGUE_APPENDIX,
+)
 from app.core.config import settings
 from app.services.security import validate_and_count
 from app.services.session_budget import add_tokens_and_check_budget
-from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
+from app.services.google_auth import get_user_id_for_session, parse_bearer_token
 
 from app.services.token_count import count_tokens
 
@@ -19,11 +27,26 @@ from app.services.chat_history_store import (
     fetch_messages_after,
 )
 from app.services.chat_summary_store import get_summary, upsert_summary
+from app.services.topic_routing_store import (
+    fetch_active_topic_configs,
+    get_conversation_topic_state,
+    upsert_conversation_topic_state,
+    insert_topic_routing_event,
+)
+from app.services.token_usage_store import (
+    insert_daily_token_usage,
+)
 
 router = APIRouter()
 
 if not settings.DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required for idempotency protection")
+
+EARLY_CLASSIFY_TURNS = 4
+DEFAULT_RECLASSIFY_TURN_THRESHOLD = 12
+TITLE_MIN_CONFIDENCE = 0.60
+TITLE_CHECK_MIN_USER_MESSAGES = 3
+GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 
 
 @router.options("/chat")
@@ -49,6 +72,47 @@ def _estimate_prompt_tokens(summary_text: str | None, history) -> int:
     return total
 
 
+def _estimate_messages_prompt_tokens(messages: List[Dict[str, str]]) -> int:
+    total = 0
+    for msg in messages:
+        total += count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
+    return total
+
+
+def _needs_reclassify_from_user_text(message: str) -> bool:
+    msg = (message or "").lower()
+    triggers = [
+        "dette hjelper ikke",
+        "ikke nyttig",
+        "ikke relevant",
+        "misforstår",
+        "for generelt",
+        "passer ikke",
+    ]
+    return any(t in msg for t in triggers)
+
+
+def _build_topic_system_prompt(topic) -> str:
+    sections = [
+        SYSTEM_PROMPT.strip(),
+        f"Valgt tema: {topic.topic_key}",
+        f"Tematittel: {topic.title}",
+        "Tema-instruksjoner (JSON):",
+        json.dumps(
+            {
+                "micro_instructions": topic.micro_instructions,
+                "constraints": topic.constraints,
+                "pacing_rules": topic.pacing_rules,
+                "reclassify_rules": topic.reclassify_rules,
+                "safety_rules": topic.safety_rules,
+            },
+            ensure_ascii=False,
+        ),
+        "Behandle tema-instruksjonene som en utvidelse av grunnprompten. Ved konflikt gjelder trygghet og nøkternhet først.",
+    ]
+    return "\n\n".join(sections)
+
+
 @router.post("/chat", response_model=SimpleChatResponse)
 def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=None)):
     # 1) Security: normalize + per-message token cap
@@ -63,7 +127,6 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             session_token = parse_bearer_token(authorization)
             if not session_token:
                 raise HTTPException(status_code=401, detail="Missing session token")
@@ -72,7 +135,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 raise HTTPException(status_code=401, detail="Invalid session token")
 
             # 2) Ensure conversation exists and is owned by user
-            title_seed = normalized_message[:28] or "Samtale"
+            conversation_title = "Ny samtale"
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -90,22 +153,13 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         INSERT INTO conversations (id, user_id, title)
                         VALUES (%s, %s, %s)
                         """,
-                        (payload.conversation_id, user_id, title_seed),
+                        (payload.conversation_id, user_id, "Ny samtale"),
                     )
                 else:
                     owner_id, current_title = row
                     if str(owner_id) != str(user_id):
                         raise HTTPException(status_code=403, detail="Conversation not owned by user")
-
-                    if current_title in {"Samtale", "Ny samtale"}:
-                        cur.execute(
-                            """
-                            UPDATE conversations
-                            SET title = %s, updated_at = NOW()
-                            WHERE id = %s AND user_id = %s
-                            """,
-                            (title_seed, payload.conversation_id, user_id),
-                        )
+                    conversation_title = str(current_title or "Ny samtale")
                 conn.commit()
 
             # 3) Idempotency claim (conversation_id + message_id)
@@ -242,6 +296,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             {"role": row.role, "content": row.content} for row in to_summarize
                         ]
                         new_summary, _ = summarize_history(
+                            session_id=payload.session_id,
                             existing_summary=summary_text,
                             messages=summary_input,
                         )
@@ -273,12 +328,189 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             if summary_message:
                 history = [{"role": "system", "content": summary_message}] + history
 
-            # 7) Call LLM
-            reply, output_tokens = chat_with_history(
-                payload.session_id,
-                history,
-                normalized_message,
+            # 7) Route + call LLM (topic-specific or default handling)
+            classifier_tokens = 0
+            runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+            try:
+                active_topics = fetch_active_topic_configs(conn)
+                topic_by_key = {t.topic_key: t for t in active_topics}
+                state = get_conversation_topic_state(conn, conversation_id=payload.conversation_id)
+                force_reclassify = _needs_reclassify_from_user_text(normalized_message)
+
+                needs_classify = False
+                if active_topics:
+                    if state is None:
+                        needs_classify = True
+                    elif force_reclassify:
+                        needs_classify = True
+                    elif state.route_mode == "default":
+                        # Keep classifying in early turns so greetings/small talk
+                        # do not lock the conversation into default too early.
+                        if state.turns_in_default < EARLY_CLASSIFY_TURNS:
+                            needs_classify = True
+                        elif state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
+                            needs_classify = True
+
+                selected_topic_key = None
+                route_mode = "default"
+                last_confidence = state.last_confidence if state else None
+
+                if needs_classify and active_topics:
+                    classifier_topics: List[Dict[str, object]] = []
+                    for t in active_topics:
+                        classifier_topics.append(
+                            {
+                                "topic_key": t.topic_key,
+                                "title": t.title,
+                                "description": t.classifier_description,
+                                "keywords": t.classifier_keywords,
+                                "exclude_keywords": t.classifier_exclude_keywords,
+                                "min_confidence": t.min_confidence,
+                            }
+                        )
+
+                    cls_topic_key, cls_conf, cls_reason, cls_tokens = classify_topic(
+                        session_id=payload.session_id,
+                        user_message=normalized_message,
+                        recent_history=history,
+                        topics=classifier_topics,
+                    )
+                    classifier_tokens = cls_tokens
+                    last_confidence = cls_conf
+
+                    if cls_topic_key and cls_topic_key in topic_by_key:
+                        threshold = float(topic_by_key[cls_topic_key].min_confidence)
+                        if cls_conf >= threshold:
+                            selected_topic_key = cls_topic_key
+                            route_mode = "topic"
+
+                    event_type = "reclassify" if force_reclassify and state is not None else "classify"
+                    next_turns_in_default = 0 if route_mode == "topic" else ((state.turns_in_default + 1) if state else 1)
+                    with conn.transaction():
+                        upsert_conversation_topic_state(
+                            conn,
+                            conversation_id=payload.conversation_id,
+                            current_topic_key=selected_topic_key,
+                            route_mode=route_mode,
+                            last_confidence=last_confidence,
+                            turns_since_classify=0,
+                            turns_in_default=next_turns_in_default,
+                            clarifying_questions_asked=0,
+                        )
+                        insert_topic_routing_event(
+                            conn,
+                            conversation_id=payload.conversation_id,
+                            message_id=payload.message_id,
+                            event_type=event_type,
+                            selected_topic_key=selected_topic_key,
+                            confidence=last_confidence,
+                            reason=cls_reason or None,
+                            classifier_payload={
+                                "topic_key": cls_topic_key,
+                                "confidence": cls_conf,
+                                "reason": cls_reason,
+                            },
+                        )
+                        insert_topic_routing_event(
+                            conn,
+                            conversation_id=payload.conversation_id,
+                            message_id=payload.message_id,
+                            event_type="route_decision",
+                            selected_topic_key=selected_topic_key,
+                            confidence=last_confidence,
+                            reason=f"route={route_mode}",
+                            classifier_payload=None,
+                        )
+                else:
+                    if state and state.route_mode == "topic" and state.current_topic_key in topic_by_key:
+                        selected_topic_key = state.current_topic_key
+                        route_mode = "topic"
+                        turns_since_classify = state.turns_since_classify + 1
+                        turns_in_default = 0
+                    else:
+                        route_mode = "default"
+                        turns_since_classify = (state.turns_since_classify + 1) if state else 1
+                        turns_in_default = (state.turns_in_default + 1) if state else 1
+
+                    with conn.transaction():
+                        upsert_conversation_topic_state(
+                            conn,
+                            conversation_id=payload.conversation_id,
+                            current_topic_key=selected_topic_key,
+                            route_mode=route_mode,
+                            last_confidence=last_confidence,
+                            turns_since_classify=turns_since_classify,
+                            turns_in_default=turns_in_default,
+                            clarifying_questions_asked=(
+                                state.clarifying_questions_asked if state else 0
+                            ),
+                        )
+                        insert_topic_routing_event(
+                            conn,
+                            conversation_id=payload.conversation_id,
+                            message_id=payload.message_id,
+                            event_type="route_decision",
+                            selected_topic_key=selected_topic_key,
+                            confidence=last_confidence,
+                            reason=f"route={route_mode}",
+                            classifier_payload=None,
+                        )
+
+                if selected_topic_key and selected_topic_key in topic_by_key:
+                    runtime_system_prompt = _build_topic_system_prompt(topic_by_key[selected_topic_key])
+                else:
+                    runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+            except Exception:
+                runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+                classifier_tokens = 0
+
+            prompt_messages_for_last_call: List[Dict[str, str]] = [
+                {"role": "system", "content": runtime_system_prompt}
+            ]
+            prompt_messages_for_last_call.extend(history)
+            if not (
+                history
+                and history[-1].get("role") == "user"
+                and history[-1].get("content") == normalized_message
+            ):
+                prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
+            last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
+
+            reply, output_tokens = chat_with_history_with_system(
+                session_id=payload.session_id,
+                history=history,
+                user_message=normalized_message,
+                system_prompt=runtime_system_prompt,
             )
+
+            title_tokens = 0
+            if (conversation_title or "") in GENERIC_TITLES:
+                user_msgs_for_title = [
+                    str(m.get("content") or "")
+                    for m in history
+                    if str(m.get("role")) == "user"
+                ]
+                # Keep the default title until the 3rd user message is sent.
+                if len(user_msgs_for_title) >= TITLE_CHECK_MIN_USER_MESSAGES:
+                    suggested_title, title_conf, title_reason, gen_title_tokens = generate_conversation_title(
+                        session_id=payload.session_id,
+                        user_messages=user_msgs_for_title,
+                    )
+                    title_tokens = gen_title_tokens
+                    if suggested_title and suggested_title.strip() and title_conf >= TITLE_MIN_CONFIDENCE:
+                        conversation_title = suggested_title.strip()[:80]
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                UPDATE conversations
+                                SET title = %s, updated_at = NOW()
+                                WHERE id = %s AND user_id = %s
+                                """,
+                                (conversation_title, payload.conversation_id, user_id),
+                            )
+                            conn.commit()
+                    else:
+                        _ = title_reason
 
             # 8) Persist assistant message
             with conn.transaction():
@@ -302,18 +534,41 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 conn.commit()
 
             # 9) Budget: output tokens
+            conversation_tokens = None
             try:
                 with conn.transaction():
-                    add_tokens_and_check_budget(
+                    budget_res = add_tokens_and_check_budget(
                         conn=conn,
                         session_id=payload.session_id,
-                        add_tokens=output_tokens,
+                        add_tokens=output_tokens + classifier_tokens + title_tokens,
                         max_session_tokens=settings.MAX_SESSION_TOKENS,
                     )
+                    conversation_tokens = budget_res.tokens_used_after
             except RuntimeError:
                 raise HTTPException(status_code=429, detail="Session token budget exceeded")
 
-            response = {"reply": reply}
+            # 9b) Persist daily token usage for dashboard stats.
+            try:
+                with conn.transaction():
+                    insert_daily_token_usage(
+                        conn,
+                        user_id=str(user_id),
+                        conversation_id=payload.conversation_id,
+                        message_id=payload.message_id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        classifier_tokens=classifier_tokens,
+                        title_tokens=title_tokens,
+                    )
+            except Exception:
+                pass
+
+            response = {
+                "reply": reply,
+                "last_prompt_tokens": last_prompt_tokens,
+                "conversation_tokens": conversation_tokens,
+                "conversation_title": conversation_title,
+            }
 
             # 10) Store idempotent result
             with conn.cursor() as cur:
