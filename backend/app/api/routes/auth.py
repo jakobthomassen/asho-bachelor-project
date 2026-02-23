@@ -258,8 +258,6 @@ def auth_login(payload: LoginRequest, request: Request):
     try:
         service = _get_custom_auth_service()
         login_result = service.login(email=payload.email, password=payload.password)
-        if login_result.status == "email_not_verified":
-            raise HTTPException(status_code=403, detail="Email not verified")
         if login_result.status != "ok" or not login_result.user_id:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
