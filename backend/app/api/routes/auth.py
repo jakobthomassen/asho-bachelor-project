@@ -28,7 +28,6 @@ from app.services.google_auth import (
     get_session_principal,
     parse_bearer_token,
     revoke_session,
-    ensure_auth_tables,
 )
 
 router = APIRouter()
@@ -125,7 +124,6 @@ def auth_google(payload: GoogleAuthRequest, request: Request):
     _check_rate_limit(_get_client_ip(request))
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             result = exchange_google_credential(conn, payload.credential)
             return {
                 "user_id": result.user_id,
@@ -217,7 +215,6 @@ def auth_me(authorization: str | None = Header(default=None)):
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             principal = get_session_principal(conn, session_token)
             if not principal:
                 raise HTTPException(status_code=401, detail="Invalid session token")
@@ -292,7 +289,6 @@ def auth_logout(authorization: str | None = Header(default=None)):
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             revoke_session(conn, session_token)
             return Response(status_code=204)
     except Exception as exc:
@@ -370,7 +366,6 @@ async def auth_google_redirect(request: Request, return_to: str | None = None):
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             result = exchange_google_credential(conn, credential)
 
         redirect_base = _pick_redirect_url(request, return_to)

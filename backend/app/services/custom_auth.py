@@ -27,28 +27,6 @@ except Exception:  # pragma: no cover - fallback path
 
 AuthStatus = Literal["ok", "invalid_credentials", "email_not_verified"]
 
-POSTGRES_AUTH_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS auth_identities (
-    email_norm TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    verify_token_hash TEXT,
-    verify_token_expires_at TIMESTAMPTZ,
-    reset_token_hash TEXT,
-    reset_token_expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS auth_identities_verify_token_idx
-ON auth_identities (verify_token_hash);
-
-CREATE INDEX IF NOT EXISTS auth_identities_reset_token_idx
-ON auth_identities (reset_token_hash);
-"""
-
-
 @dataclass(frozen=True)
 class RegisterResult:
     user_id: str
@@ -122,23 +100,10 @@ class AuthRepository(Protocol):
 
 
 class PostgresAuthRepository:
-    """
-    Postgres-backed auth repository.
-    Set AUTH_POSTGRES_AUTO_INIT=true only when you are ready to initialize auth_identities schema.
-    """
-
-    def __init__(self, dsn: str, auto_init: bool = False) -> None:
+    def __init__(self, dsn: str) -> None:
         if not dsn:
             raise ValueError("AUTH_POSTGRES_DSN is required for Postgres custom auth store")
         self._dsn = dsn
-        if auto_init:
-            self.ensure_schema()
-
-    def ensure_schema(self) -> None:
-        with psycopg.connect(self._dsn) as conn:
-            with conn.cursor() as cur:
-                cur.execute(POSTGRES_AUTH_SCHEMA_SQL)
-            conn.commit()
 
     @staticmethod
     def _row_to_record(row) -> IdentityRecord:
@@ -340,10 +305,7 @@ class InMemoryAuthRepository:
 def build_auth_repository() -> AuthRepository:
     backend = (settings.AUTH_CUSTOM_STORE_BACKEND or "postgres").strip().lower()
     if backend == "postgres":
-        return PostgresAuthRepository(
-            dsn=settings.AUTH_POSTGRES_DSN,
-            auto_init=bool(settings.AUTH_POSTGRES_AUTO_INIT),
-        )
+        return PostgresAuthRepository(dsn=settings.AUTH_POSTGRES_DSN)
     if backend == "memory":
         return InMemoryAuthRepository()
     raise ValueError("AUTH_CUSTOM_STORE_BACKEND must be 'postgres' or 'memory'")

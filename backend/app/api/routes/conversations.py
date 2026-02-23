@@ -15,7 +15,7 @@ from app.schemas.conversations import (
     ConversationUpdateRequest,
     ConversationMessage,
 )
-from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
+from app.services.google_auth import get_user_id_for_session, parse_bearer_token
 
 router = APIRouter()
 
@@ -30,7 +30,6 @@ def _to_ms(value: datetime | None) -> int:
 
 
 def _require_user(conn: psycopg.Connection, authorization: str | None) -> str:
-    ensure_auth_tables(conn)
     session_token = parse_bearer_token(authorization)
     if not session_token:
         raise HTTPException(status_code=401, detail="Missing session token")

@@ -13,8 +13,7 @@ from app.schemas.topic_dashboard import (
     TopicDashboardTopic,
     TopicDashboardUpdateRequest,
 )
-from app.services.google_auth import ensure_auth_tables, get_session_principal, parse_bearer_token
-from app.services.token_usage_store import ensure_daily_token_usage_table
+from app.services.google_auth import get_session_principal, parse_bearer_token
 
 router = APIRouter()
 
@@ -23,7 +22,6 @@ if not settings.DATABASE_URL:
 
 
 def _require_admin(conn: psycopg.Connection, authorization: str | None) -> str:
-    ensure_auth_tables(conn)
     session_token = parse_bearer_token(authorization)
     if not session_token:
         raise HTTPException(status_code=401, detail="Missing session token")
@@ -125,7 +123,6 @@ def topic_dashboard_stats(
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
             _ = _require_admin(conn, authorization)
-            ensure_daily_token_usage_table(conn)
 
             with conn.cursor() as cur:
                 cur.execute(
