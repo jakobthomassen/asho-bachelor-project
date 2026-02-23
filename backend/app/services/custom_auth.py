@@ -151,7 +151,7 @@ class PostgresAuthRepository:
                     )
                     VALUES (
                         %s, %s, %s, %s, %s,
-                        CASE WHEN %s IS NULL THEN NULL ELSE TO_TIMESTAMP(%s) END,
+                        TO_TIMESTAMP(%s::double precision),
                         NOW(), NOW()
                     )
                     """,
@@ -161,7 +161,6 @@ class PostgresAuthRepository:
                         password_hash,
                         bool(email_verified),
                         verify_token_hash,
-                        verify_token_expires_at_epoch,
                         verify_token_expires_at_epoch,
                     ),
                 )
