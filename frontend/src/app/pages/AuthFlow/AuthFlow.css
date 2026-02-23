@@ -1,0 +1,243 @@
+.authFlow {
+  min-height: 100vh;
+  background: #eef1f4;
+  color: #20222b;
+  display: block;
+  padding: 0;
+}
+
+.authFlow__card {
+  --auth-side-pad: clamp(32px, 7vw, 120px);
+  width: 100%;
+  min-height: 100vh;
+  background: #eef1f4;
+  border: 0;
+  border-radius: 0;
+  padding: clamp(64px, 9vh, 120px) var(--auth-side-pad);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  position: relative;
+}
+
+.authFlow__card--hero {
+  justify-content: center;
+}
+
+.authFlow__title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
+  text-align: center;
+  font-weight: 500;
+}
+
+.authFlow__title--hero {
+  font-size: clamp(2rem, 3.6vw, 3rem);
+}
+
+.authFlow__text {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #2d313c;
+}
+
+.authFlow__text--hero {
+  max-width: 620px;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.authFlow__stack {
+  width: 100%;
+  max-width: 340px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.authFlow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.authFlow__button {
+  border: 1px solid #2a2b36;
+  background: #f6f6f6;
+  color: #20222b;
+  border-radius: 999px;
+  font-weight: 500;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: filter 120ms ease;
+}
+
+.authFlow__button:hover {
+  filter: brightness(0.98);
+}
+
+.authFlow__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.authFlow__button--primary {
+  background: #b8cdec;
+}
+
+.authFlow__button--secondary {
+  background: #d6d1f4;
+}
+
+.authFlow__button--wide {
+  width: 240px;
+  min-height: 44px;
+}
+
+.authFlow__button--small {
+  min-width: 92px;
+  min-height: 40px;
+  padding: 0.45rem 0.85rem;
+  background: #b8cdec;
+}
+
+.authFlow__hint {
+  margin: 2px 0 0;
+  font-size: 1rem;
+  color: #222532;
+}
+
+.authFlow__footer {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.authFlow__back {
+  position: absolute;
+  top: clamp(16px, 3vh, 28px);
+  left: clamp(18px, 3vw, 28px);
+  border: 0;
+  background: transparent;
+  color: #222532;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.authFlow__contentCard {
+  position: relative;
+  width: min(100%, 860px);
+  min-height: clamp(520px, 70vh, 660px);
+  padding: clamp(56px, 9vh, 96px) clamp(20px, 5vw, 92px) clamp(40px, 8vh, 72px);
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+}
+
+.authFlow__link {
+  border: 0;
+  background: transparent;
+  color: #222532;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.authFlow__form {
+  width: 100%;
+  max-width: 380px;
+  display: grid;
+  gap: 10px;
+}
+
+.authFlow__fieldLabel {
+  font-size: 1rem;
+}
+
+.authFlow__input {
+  width: 100%;
+  border: 1px solid #2a2b36;
+  background: #f6f6f6;
+  color: #20222b;
+  border-radius: 0;
+  padding: 0.62rem 0.8rem;
+  font-size: 1rem;
+}
+
+.authFlow__input--compact {
+  max-width: 100%;
+}
+
+.authFlow__divider {
+  width: min(100%, 700px);
+  border-top: 1px solid #d3d4d8;
+  margin: 14px 0;
+}
+
+.authFlow__socials {
+  width: 100%;
+  max-width: 440px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.authFlow__social {
+  width: min(100%, 320px);
+  border: 0;
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  background: #191b20;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.authFlow__social:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.authFlow__social--google {
+  background: #1d1f24;
+}
+
+.authFlow__googleHost {
+  display: flex;
+  justify-content: center;
+  width: min(100%, 320px);
+}
+
+.authFlow__error {
+  color: #ad1f28;
+  font-weight: 600;
+  margin: 0;
+}
+
+@media (max-width: 680px) {
+  .authFlow__card {
+    min-height: 100vh;
+    --auth-side-pad: 20px;
+    padding: 72px var(--auth-side-pad) 28px;
+  }
+
+  .authFlow__title {
+    font-size: 2rem;
+  }
+
+  .authFlow__button--small {
+    justify-self: start;
+  }
+
+  .authFlow__contentCard {
+    width: 100%;
+    min-height: auto;
+    padding: 56px 0 0;
+  }
+}

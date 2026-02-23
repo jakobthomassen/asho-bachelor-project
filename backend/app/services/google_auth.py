@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
-import json
 import time
 import uuid
 from dataclasses import dataclass
 from typing import Optional
 
 import psycopg
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 
 from app.core.config import settings
 
@@ -18,63 +18,27 @@ from app.core.config import settings
 class GoogleAuthResult:
     user_id: str
     session_token: str
+    is_admin: bool
 
 
-def ensure_auth_tables(conn: psycopg.Connection) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS google_users (
-                user_id TEXT PRIMARY KEY,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS google_sessions (
-                session_token TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES google_users(user_id),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                expires_at TIMESTAMPTZ NOT NULL
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE INDEX IF NOT EXISTS google_sessions_expires_at_idx
-            ON google_sessions (expires_at)
-            """
-        )
-    conn.commit()
-
-
-def _base64url_decode(data: str) -> bytes:
-    padded = data + "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(padded.encode("ascii"))
-
-
-def _decode_google_jwt(credential: str) -> dict:
-    parts = credential.split(".")
-    if len(parts) != 3:
-        raise ValueError("Invalid Google credential format")
-    payload = _base64url_decode(parts[1])
-    try:
-        return json.loads(payload.decode("utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ValueError("Invalid Google credential payload") from exc
+@dataclass(frozen=True)
+class SessionPrincipal:
+    user_id: str
+    is_admin: bool
 
 
 def extract_google_user_id(credential: str) -> str:
-    """
-    Extracts the Google 'sub' (user id) from an ID token and hashes it.
-    Note: This is a minimal PoC and does not verify the JWT signature.
-    """
-    payload = _decode_google_jwt(credential)
+    if not settings.GOOGLE_CLIENT_ID:
+        raise ValueError("GOOGLE_CLIENT_ID is required")
 
-    aud = payload.get("aud")
-    if settings.GOOGLE_CLIENT_ID and aud != settings.GOOGLE_CLIENT_ID:
-        raise ValueError("Google credential audience mismatch")
+    try:
+        payload = id_token.verify_oauth2_token(
+            credential,
+            Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except Exception as exc:
+        raise ValueError("Invalid Google credential") from exc
 
     iss = payload.get("iss")
     if iss not in {"accounts.google.com", "https://accounts.google.com"}:
@@ -127,10 +91,17 @@ def create_session_for_user(conn: psycopg.Connection, user_id: str) -> str:
 def exchange_google_credential(conn: psycopg.Connection, credential: str) -> GoogleAuthResult:
     user_id = extract_google_user_id(credential)
     session_token = create_session_for_user(conn, user_id)
-    return GoogleAuthResult(user_id=user_id, session_token=session_token)
+    principal = get_session_principal(conn, session_token)
+    if not principal:
+        raise ValueError("Failed to create session")
+    return GoogleAuthResult(
+        user_id=principal.user_id,
+        session_token=session_token,
+        is_admin=principal.is_admin,
+    )
 
 
-def get_user_id_for_session(conn: psycopg.Connection, session_token: str) -> Optional[str]:
+def get_session_principal(conn: psycopg.Connection, session_token: str) -> Optional[SessionPrincipal]:
     if not session_token:
         return None
 
@@ -143,10 +114,11 @@ def get_user_id_for_session(conn: psycopg.Connection, session_token: str) -> Opt
         )
         cur.execute(
             """
-            SELECT user_id
-            FROM google_sessions
-            WHERE session_token = %s
-              AND expires_at >= NOW()
+            SELECT s.user_id, COALESCE(u.is_admin, FALSE) AS is_admin
+            FROM google_sessions s
+            JOIN google_users u ON u.user_id = s.user_id
+            WHERE s.session_token = %s
+              AND s.expires_at >= NOW()
             """,
             (session_token,),
         )
@@ -155,7 +127,12 @@ def get_user_id_for_session(conn: psycopg.Connection, session_token: str) -> Opt
 
     if not row:
         return None
-    return str(row[0])
+    return SessionPrincipal(user_id=str(row[0]), is_admin=bool(row[1]))
+
+
+def get_user_id_for_session(conn: psycopg.Connection, session_token: str) -> Optional[str]:
+    principal = get_session_principal(conn, session_token)
+    return principal.user_id if principal else None
 
 
 def revoke_session(conn: psycopg.Connection, session_token: str) -> None:

@@ -1,8 +1,8 @@
 import type { Conversation } from "../../features/conversations/types";
-import { useNavigate } from "react-router-dom";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 import ErrorBanner from "./ErrorBanner";
+import type { ChatUiError } from "./ErrorBanner";
 
 type Props = {
   conversation: Conversation | undefined;
@@ -14,7 +14,7 @@ type Props = {
   onSend: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 
-  error: string | null;
+  error: ChatUiError | null;
   onDismissError: () => void;
 
   endRef: React.RefObject<HTMLDivElement | null>;
@@ -33,48 +33,22 @@ export default function ChatPanel({
   onDismissError,
   endRef,
 }: Props) {
-  const navigate = useNavigate();
-
   return (
-    <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          padding: "1rem 1.25rem",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
+    <main className="chatPanel">
+      <div className="chatPanel__header">
         <div>
-          <div style={{ fontWeight: 800, color: "#0f172a" }}>
+          <div className="chatPanel__title">
             {conversation?.title ?? "Samtale"}
           </div>
-          <div style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: 4 }}>
+          <div className="chatPanel__subtitle">
             Velg en samtale til venstre, eller start en ny.
           </div>
         </div>
 
-        <button
-          onClick={() => navigate("/soundtest")}
-          style={{
-            padding: "0.45rem 0.85rem",
-            borderRadius: 999,
-            border: "1px solid #0f766e",
-            background: "#ecfdf5",
-            color: "#0f766e",
-            fontWeight: 900,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-          title="Gå til lydøvelser"
-        >
-          Lydøvelser
-        </button>
+        <span />
       </div>
 
-      {error && <ErrorBanner message={error} onDismiss={onDismissError} />}
+      {error && <ErrorBanner error={error} onDismiss={onDismissError} />}
 
       <MessageList
         conversation={conversation}

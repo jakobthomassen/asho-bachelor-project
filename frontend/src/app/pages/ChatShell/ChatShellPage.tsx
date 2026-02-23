@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message } from "../../../features/conversations/types";
 import { uid } from "../../../features/conversations/helpers";
 import {
@@ -6,7 +6,6 @@ import {
   deleteConversation as deleteConversationApi,
   fetchConversationMessages,
   listConversations,
-  updateConversationTitle,
 } from "../../../features/conversations/api";
 import {
   getSessionIdForConversation,
@@ -17,15 +16,16 @@ import {
   saveConversations as saveCachedConversations,
 } from "../../../features/conversations/storage";
 import { sendChatMessage } from "../../../features/chat/api";
+import { API_BASE_URL } from "../../../config";
 import { useAuth } from "../../AuthProvider";
 
 import Sidebar from "../../../components/sidebar/Sidebar";
 import ChatPanel from "../../../components/chat/ChatPanel";
+import type { ChatUiError } from "../../../components/chat/ErrorBanner";
 import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
-import SubscribeModal from "../../../components/overlays/SubscribeModal";
-import ChatInfoModal from "../../../components/overlays/ChatInfoModal";
-import UroSkoleModal from "../../../components/overlays/UroSkoleModal";
+import ResourcesModal from "../../../components/overlays/ResourcesModal";
+import SettingsModal from "../../../components/overlays/SettingsModal";
 
 
 import "./ChatShellPage.css";
@@ -38,26 +38,45 @@ type ContextMenuState =
   | { open: false };
 
 type ConfirmState = { open: true; convId: string } | { open: false };
+type BackendStatus = "idle" | "checking" | "ok" | "error";
 
 export default function ChatShellPage() {
-  const { userId, sessionToken, isReady, error: authError, logout } = useAuth();
+  const { userId, sessionToken, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatUiError | null>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ open: false });
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
-  const [showSubscribe, setShowSubscribe] = useState(false);
-  const [showChatInfo, setShowChatInfo] = useState(false);
-  const [showUroSkole, setShowUroSkole] = useState(false);
+  const [showResources, setShowResources] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("idle");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
+  const [mode, setMode] = useState<"light" | "dark">("light");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedRef = useRef(false);
+  const streamRef = useRef<{ cancelled: boolean } | null>(null);
 
   const clarifyOptions = ["Kan du utdype?", "Gi et eksempel", "Oppsummer kort"];
+
+  const makeErrorId = () => {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `ASHO-${ts}-${rnd}`;
+  };
+
+  const setUiError = (explanation: string, technical?: string) => {
+    setError({
+      id: makeErrorId(),
+      explanation,
+      technical,
+    });
+  };
 
   useEffect(() => {
     if (!sessionToken) {
@@ -113,7 +132,7 @@ export default function ChatShellPage() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Kunne ikke laste samtaler";
-        setError(message);
+        setUiError("Kunne ikke laste samtaler.", message);
       }
     };
 
@@ -159,7 +178,7 @@ export default function ChatShellPage() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Kunne ikke laste meldinger";
-        setError(message);
+        setUiError("Kunne ikke laste meldinger.", message);
       }
     };
 
@@ -212,10 +231,40 @@ export default function ChatShellPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirm.open]);
 
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("asho_theme");
+    const storedMode = localStorage.getItem("asho_mode");
+
+    if (storedTheme === "green" || storedTheme === "purple" || storedTheme === "blue") {
+      setColorTheme(storedTheme);
+    }
+
+    if (storedMode === "light" || storedMode === "dark") {
+      setMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = colorTheme;
+    root.dataset.mode = mode;
+    localStorage.setItem("asho_theme", colorTheme);
+    localStorage.setItem("asho_mode", mode);
+  }, [colorTheme, mode]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.cancelled = true;
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   const createConversation = async () => {
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å starte en ny samtale.");
+      setUiError("Du må logge inn for å starte en ny samtale.");
       return;
     }
 
@@ -234,7 +283,7 @@ export default function ChatShellPage() {
       setActiveId(created.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Kunne ikke opprette samtale";
-      setError(message);
+      setUiError("Kunne ikke opprette samtale.", message);
     }
   };
 
@@ -251,10 +300,43 @@ export default function ChatShellPage() {
     });
   };
 
+  const updateMessageText = (conversationId: string, messageId: string, text: string) => {
+    updateConversation(conversationId, (c) => ({
+      ...c,
+      messages: c.messages.map((m) => (m.id === messageId ? { ...m, text } : m)),
+    }));
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const streamAssistantReply = async (
+    conversationId: string,
+    messageId: string,
+    fullText: string
+  ) => {
+    if (!fullText) return;
+    const token = { cancelled: false };
+    if (streamRef.current) streamRef.current.cancelled = true;
+    streamRef.current = token;
+
+    let i = 0;
+    while (i < fullText.length) {
+      if (token.cancelled) return;
+
+      const chunkSize =
+        fullText.length > 400 ? 12 : fullText.length > 200 ? 8 : 4;
+      i = Math.min(fullText.length, i + chunkSize);
+      updateMessageText(conversationId, messageId, fullText.slice(0, i));
+
+      const jitter = Math.floor(Math.random() * 12);
+      await sleep(8 + jitter);
+    }
+  };
+
   const deleteConversation = async (id: string) => {
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å slette samtaler.");
+      setUiError("Du må logge inn for å slette samtaler.");
       return;
     }
 
@@ -270,7 +352,7 @@ export default function ChatShellPage() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Kunne ikke slette samtale";
-      setError(message);
+      setUiError("Kunne ikke slette samtale.", message);
     }
   };
 
@@ -313,7 +395,7 @@ export default function ChatShellPage() {
 
     setError(null);
     if (!sessionToken) {
-      setError("Du må logge inn for å sende meldinger.");
+      setUiError("Du må logge inn for å sende meldinger.");
       return;
     }
     setIsSending(true);
@@ -327,43 +409,40 @@ export default function ChatShellPage() {
       createdAt: now,
     };
 
-    const shouldUpdateTitle =
-      activeConversation.messages.filter((m) => m.role === "user").length === 0;
-    const nextTitle = shouldUpdateTitle ? trimmed.slice(0, 28) : activeConversation.title;
-
     updateConversation(activeConversation.id, (c) => ({
       ...c,
-      title: nextTitle,
       updatedAt: now,
       messages: [...c.messages, userMsg],
     }));
 
-    if (shouldUpdateTitle && nextTitle !== activeConversation.title && sessionToken) {
-      void updateConversationTitle(sessionToken, activeConversation.id, nextTitle);
-    }
-
     try {
-      const { reply } = await sendChatMessage({
+      const { reply, conversation_title } = await sendChatMessage({
         conversationId: activeConversation.id,
         sessionId: activeConversation.sessionId,
         message: trimmed,
         sessionToken,
       });
 
+      const botId = uid();
       const botMsg: Message = {
-        id: uid(),
+        id: botId,
         role: "asho",
-        text: reply,
+        text: "",
         createdAt: Date.now(),
       };
 
       updateConversation(activeConversation.id, (c) => ({
         ...c,
+        title: conversation_title?.trim() ? conversation_title : c.title,
         updatedAt: Date.now(),
         messages: [...c.messages, botMsg],
       }));
-    } catch {
-      setError("Serverfeil. Prøv igjen.");
+
+      await streamAssistantReply(activeConversation.id, botId, reply);
+      updateMessageText(activeConversation.id, botId, reply);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ukjent feil";
+      setUiError("Serverfeil. Prøv igjen.", message);
     } finally {
       setIsSending(false);
     }
@@ -378,62 +457,83 @@ export default function ChatShellPage() {
     }
   };
 
+  const pingBackend = useCallback(async () => {
+    setBackendStatus("checking");
+    try {
+      const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+      setBackendStatus(res.ok ? "ok" : "error");
+    } catch {
+      setBackendStatus("error");
+    }
+  }, []);
+
+  const backendDotClass =
+    backendStatus === "ok"
+      ? "is-green"
+      : backendStatus === "error"
+        ? "is-red"
+        : "is-yellow";
+
+  const backendLabel =
+    backendStatus === "ok"
+      ? "OK"
+      : backendStatus === "error"
+        ? "Feil"
+        : backendStatus === "checking"
+          ? "Sjekker"
+          : "Ikke sjekket";
+
   return (
     <div className="chatShell">
-      <div className="chatShell__header">
-        <div className="chatShell__headerSpacer" />
-
-        <div className="chatShell__brand">
-            <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
-            <div className="chatShell__title">ASHO</div>
-            <div className="chatShell__subtitle">støtte gjennom vanskelige tider</div>
-
-            <div className="chatShell__nav">
-                <button className="chatShell__navButton" onClick={() => setShowChatInfo(true)}
-                >
-                Chat
-                </button>
-
-                <button className="chatShell__navButton" onClick={() => setShowSubscribe(true)}>
-                    Abonner
-                </button>
-                <button
-                    className="chatShell__navButton"
-                    onClick={() => setShowUroSkole(true)}
-                    >
-                    Uro-skolen
-                </button>
-            </div>
-
-            </div>
-        <div className="chatShell__auth">
-          {userId ? (
-            <>
-              <div className="chatShell__authUser">Innlogget</div>
-              <button className="chatShell__authButton" onClick={logout}>
-                Logg ut
-              </button>
-            </>
-          ) : (
-            <div className="chatShell__authGoogle">
-              {isReady ? (
-                <div id="google-signin-button" />
-              ) : (
-                <span>Laster Google...</span>
-              )}
-            </div>
-          )}
-          {authError ? <div className="chatShell__authError">{authError}</div> : null}
-        </div>
-      </div>
-
-      <div className="chatShell__main">
+      <div
+        className={`chatShell__main ${isSidebarCollapsed ? "chatShell__main--sidebarCollapsed" : ""}`}
+      >
         <Sidebar
           conversations={conversations}
           activeId={activeId}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
           onNewConversation={createConversation}
           onSelectConversation={selectConversation}
           onOpenContextMenu={openContextMenu}
+          topSlot={
+            <>
+              <img src={LOGO_URL} alt="ASHO logo" className="chatShell__logo" />
+              <div className="chatShell__title">ASHO</div>
+              <div className="chatShell__subtitle">Støtte gjennom vanskelige tider</div>
+            </>
+          }
+          bottomSlot={
+            <>
+              <div className="chatShell__nav">
+                <button className="chatShell__navButton chatShell__statusButton" onClick={pingBackend}>
+                  <span>Backend status</span>
+                  <span className={`chatShell__statusMeta ${backendDotClass}`}>
+                    <span className="chatShell__statusDot" aria-hidden="true" />
+                    <span>{backendLabel}</span>
+                  </span>
+                </button>
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => setShowResources(true)}
+                >
+                  Ressurser
+                </button>
+                <button
+                  className="chatShell__navButton"
+                  onClick={() => setShowSettings(true)}
+                >
+                  Innstillinger
+                </button>
+
+                <div className="chatShell__auth chatShell__auth--sidebar">
+                  <button className="chatShell__authButton" onClick={logout}>
+                    Logg ut
+                  </button>
+                </div>
+              </div>
+            </>
+          }
         />
 
         <ChatPanel
@@ -475,19 +575,18 @@ export default function ChatShellPage() {
 
         />
 
-        <SubscribeModal
-            open={showSubscribe}
-            onClose={() => setShowSubscribe(false)}
+        <ResourcesModal
+            open={showResources}
+            onClose={() => setShowResources(false)}
         />
 
-        <ChatInfoModal
-            open={showChatInfo}
-            onClose={() => setShowChatInfo(false)}
-        />
-
-        <UroSkoleModal
-            open={showUroSkole}
-            onClose={() => setShowUroSkole(false)}
+        <SettingsModal
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          theme={colorTheme}
+          mode={mode}
+          onThemeChange={setColorTheme}
+          onModeChange={setMode}
         />
 
       </div>
