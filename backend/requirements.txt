@@ -8,3 +8,6 @@ psycopg[binary]
 python-multipart
 google-auth
 requests
+PyJWT[crypto]
+argon2-cffi
+bcrypt
