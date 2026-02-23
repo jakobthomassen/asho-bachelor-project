@@ -17,7 +17,7 @@ from app.services.llm_client import (
 from app.core.config import settings
 from app.services.security import validate_and_count
 from app.services.session_budget import add_tokens_and_check_budget
-from app.services.google_auth import ensure_auth_tables, get_user_id_for_session, parse_bearer_token
+from app.services.google_auth import get_user_id_for_session, parse_bearer_token
 
 from app.services.token_count import count_tokens
 
@@ -34,7 +34,6 @@ from app.services.topic_routing_store import (
     insert_topic_routing_event,
 )
 from app.services.token_usage_store import (
-    ensure_daily_token_usage_table,
     insert_daily_token_usage,
 )
 
@@ -128,7 +127,6 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
     try:
         with psycopg.connect(settings.DATABASE_URL) as conn:
-            ensure_auth_tables(conn)
             session_token = parse_bearer_token(authorization)
             if not session_token:
                 raise HTTPException(status_code=401, detail="Missing session token")
@@ -552,7 +550,6 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             # 9b) Persist daily token usage for dashboard stats.
             try:
                 with conn.transaction():
-                    ensure_daily_token_usage_table(conn)
                     insert_daily_token_usage(
                         conn,
                         user_id=str(user_id),
