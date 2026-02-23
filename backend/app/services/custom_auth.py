@@ -102,7 +102,9 @@ class AuthRepository(Protocol):
 class PostgresAuthRepository:
     def __init__(self, dsn: str) -> None:
         if not dsn:
-            raise ValueError("AUTH_POSTGRES_DSN is required for Postgres custom auth store")
+            raise ValueError(
+                "AUTH_POSTGRES_DSN (or DATABASE_URL) is required for Postgres custom auth store"
+            )
         self._dsn = dsn
 
     @staticmethod
@@ -305,7 +307,8 @@ class InMemoryAuthRepository:
 def build_auth_repository() -> AuthRepository:
     backend = (settings.AUTH_CUSTOM_STORE_BACKEND or "postgres").strip().lower()
     if backend == "postgres":
-        return PostgresAuthRepository(dsn=settings.AUTH_POSTGRES_DSN)
+        dsn = (settings.AUTH_POSTGRES_DSN or settings.DATABASE_URL or "").strip()
+        return PostgresAuthRepository(dsn=dsn)
     if backend == "memory":
         return InMemoryAuthRepository()
     raise ValueError("AUTH_CUSTOM_STORE_BACKEND must be 'postgres' or 'memory'")
