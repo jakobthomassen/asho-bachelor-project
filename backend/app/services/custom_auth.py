@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover - fallback path
     bcrypt = None  # type: ignore[assignment]
 
 
-AuthStatus = Literal["ok", "invalid_credentials", "email_not_verified"]
+AuthStatus = Literal["ok", "invalid_credentials"]
 
 @dataclass(frozen=True)
 class RegisterResult:
@@ -344,8 +344,9 @@ class CustomAuthService:
 
         password_hash = self.hash_password(password)
         user_id = derive_provider_user_id("email", normalized)
-        requires_verify = bool(settings.AUTH_REQUIRE_EMAIL_VERIFICATION)
-        verify_token = secrets.token_urlsafe(32) if requires_verify else None
+        # Email verification is temporarily disabled until verification delivery is wired.
+        requires_verify = False
+        verify_token = None
         verify_hash = self._hash_token(verify_token) if verify_token else None
         expires = (
             self._now() + int(settings.AUTH_EMAIL_VERIFY_TOKEN_TTL_MINUTES * 60)
@@ -376,8 +377,6 @@ class CustomAuthService:
         record = self._repo.get_by_email(normalized)
         if not record:
             return LoginResult(status="invalid_credentials")
-        if settings.AUTH_REQUIRE_EMAIL_VERIFICATION and not record.email_verified:
-            return LoginResult(status="email_not_verified")
         if not self._password_engine.verify_password(record.password_hash, password):
             return LoginResult(status="invalid_credentials")
         return LoginResult(status="ok", user_id=record.user_id)

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { fetchAuthMe, revokeSession } from "../features/auth/api";
+import { fetchAuthMe, revokeSession, type AuthResponse } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
@@ -27,6 +27,7 @@ type AuthState = {
 type AuthContextValue = AuthState & {
   login: () => void;
   logout: () => void;
+  completeLogin: (auth: AuthResponse) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -139,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({
         ...prev,
         isReady: false,
-        error: "Missing Google client id",
+        error: null,
       }));
       return;
     }
@@ -244,13 +245,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }));
   }, [state.sessionToken]);
 
+  const completeLogin = useCallback((auth: AuthResponse) => {
+    writeStoredAuth(auth.userId, auth.sessionToken, auth.isAdmin);
+    setState((prev) => ({
+      ...prev,
+      userId: auth.userId,
+      sessionToken: auth.sessionToken,
+      isAdmin: auth.isAdmin,
+      isBootstrapped: true,
+      error: null,
+    }));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       login,
       logout,
+      completeLogin,
     }),
-    [state, login, logout]
+    [state, login, logout, completeLogin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

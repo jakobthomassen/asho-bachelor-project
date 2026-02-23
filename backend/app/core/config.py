@@ -27,7 +27,7 @@ class Settings:
     AUTH_POSTGRES_AUTO_INIT = _as_bool(os.getenv("AUTH_POSTGRES_AUTO_INIT"), default=False)
     AUTH_REQUIRE_EMAIL_VERIFICATION = _as_bool(
         os.getenv("AUTH_REQUIRE_EMAIL_VERIFICATION"),
-        default=True,
+        default=False,
     )
     AUTH_DEBUG_RETURN_TOKENS = _as_bool(
         os.getenv("AUTH_DEBUG_RETURN_TOKENS"),
