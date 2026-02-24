@@ -47,6 +47,7 @@ DEFAULT_RECLASSIFY_TURN_THRESHOLD = 12
 TITLE_MIN_CONFIDENCE = 0.60
 TITLE_CHECK_MIN_USER_MESSAGES = 3
 GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
+GLOBAL_PACING_RULES = {"tempo": "slow", "max_questions_per_turn": 1}
 
 
 @router.options("/chat")
@@ -97,12 +98,14 @@ def _build_topic_system_prompt(topic) -> str:
         SYSTEM_PROMPT.strip(),
         f"Valgt tema: {topic.topic_key}",
         f"Tematittel: {topic.title}",
+        "Tema-spesifikk systeminstruksjon:",
+        topic.system_prompt.strip(),
         "Tema-instruksjoner (JSON):",
         json.dumps(
             {
                 "micro_instructions": topic.micro_instructions,
                 "constraints": topic.constraints,
-                "pacing_rules": topic.pacing_rules,
+                "pacing_rules": GLOBAL_PACING_RULES,
                 "reclassify_rules": topic.reclassify_rules,
                 "safety_rules": topic.safety_rules,
             },

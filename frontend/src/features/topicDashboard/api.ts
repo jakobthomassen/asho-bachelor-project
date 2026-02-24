@@ -6,19 +6,15 @@ export type TopicDashboardTopic = {
   version_no: number;
   is_current: boolean;
   classifier_description: string;
-  classifier_keywords: string[];
-  classifier_exclude_keywords: string[];
   classifier_embedding: number[] | null;
   system_prompt: string;
   micro_instructions: Record<string, unknown>;
   constraints: Record<string, unknown>;
-  pacing_rules: Record<string, unknown>;
   reclassify_rules: Record<string, unknown>;
   safety_rules: Record<string, unknown>;
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
-  examples: unknown[];
 };
 
 export type TopicDashboardDailyTokens = {
@@ -43,18 +39,14 @@ type TopicDashboardListResponse = {
 type SaveTopicVersionPayload = {
   title: string;
   classifier_description: string;
-  classifier_keywords: string[];
-  classifier_exclude_keywords: string[];
   system_prompt: string;
   micro_instructions: Record<string, unknown>;
   constraints: Record<string, unknown>;
-  pacing_rules: Record<string, unknown>;
   reclassify_rules: Record<string, unknown>;
   safety_rules: Record<string, unknown>;
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
-  examples: unknown[];
   created_by?: string;
 };
 
