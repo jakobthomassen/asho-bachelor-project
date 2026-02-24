@@ -14,6 +14,7 @@ from app.schemas.topic_dashboard import (
     TopicDashboardUpdateRequest,
 )
 from app.services.google_auth import get_session_principal, parse_bearer_token
+from app.services.llm_client import create_text_embedding
 
 router = APIRouter()
 
@@ -53,16 +54,17 @@ def _row_to_topic(row: tuple[Any, ...]) -> TopicDashboardTopic:
         classifier_description=str(row[4]),
         classifier_keywords=list(row[5] or []),
         classifier_exclude_keywords=list(row[6] or []),
-        system_prompt=str(row[7]),
-        micro_instructions=dict(row[8] or {}),
-        constraints=dict(row[9] or {}),
-        pacing_rules=dict(row[10] or {}),
-        reclassify_rules=dict(row[11] or {}),
-        safety_rules=dict(row[12] or {}),
-        min_confidence=float(row[13]),
-        reclassify_turn_threshold=int(row[14]),
-        max_clarifying_questions=int(row[15]),
-        examples=list(row[16] or []),
+        classifier_embedding=[float(x) for x in row[7]] if row[7] is not None else None,
+        system_prompt=str(row[8]),
+        micro_instructions=dict(row[9] or {}),
+        constraints=dict(row[10] or {}),
+        pacing_rules=dict(row[11] or {}),
+        reclassify_rules=dict(row[12] or {}),
+        safety_rules=dict(row[13] or {}),
+        min_confidence=float(row[14]),
+        reclassify_turn_threshold=int(row[15]),
+        max_clarifying_questions=int(row[16]),
+        examples=list(row[17] or []),
     )
 
 
@@ -82,6 +84,7 @@ def list_topics(authorization: str | None = Header(default=None)):
                       v.classifier_description,
                       v.classifier_keywords,
                       v.classifier_exclude_keywords,
+                      v.classifier_embedding,
                       v.system_prompt,
                       v.micro_instructions,
                       v.constraints,
@@ -318,6 +321,7 @@ def create_topic_version(
                           classifier_description,
                           classifier_keywords,
                           classifier_exclude_keywords,
+                          classifier_embedding,
                           system_prompt,
                           micro_instructions,
                           constraints,
@@ -331,7 +335,7 @@ def create_topic_version(
                           created_by
                         )
                         VALUES (
-                          %s, %s, TRUE, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb,
+                          %s, %s, TRUE, %s, %s, %s, NULL, %s, %s::jsonb, %s::jsonb, %s::jsonb,
                           %s::jsonb, %s::jsonb, %s, %s, %s, %s::jsonb, %s
                         )
                         """,
@@ -364,6 +368,7 @@ def create_topic_version(
                           v.classifier_description,
                           v.classifier_keywords,
                           v.classifier_exclude_keywords,
+                          v.classifier_embedding,
                           v.system_prompt,
                           v.micro_instructions,
                           v.constraints,
@@ -385,6 +390,93 @@ def create_topic_version(
 
             if not row:
                 raise HTTPException(status_code=500, detail="Failed to create topic version")
+
+            return _row_to_topic(row)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/topic-dashboard/topics/{topic_key}/calculate-vector", response_model=TopicDashboardTopic)
+def calculate_topic_vector(
+    topic_key: str,
+    authorization: str | None = Header(default=None),
+):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _ = _require_admin(conn, authorization)
+
+            clean_topic_key = (topic_key or "").strip()
+            if not clean_topic_key:
+                raise HTTPException(status_code=400, detail="Invalid topic key")
+
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT classifier_description
+                        FROM topic_config_versions
+                        WHERE topic_key = %s
+                          AND is_current = TRUE
+                        FOR UPDATE
+                        """,
+                        (clean_topic_key,),
+                    )
+                    desc_row = cur.fetchone()
+                    if not desc_row:
+                        raise HTTPException(status_code=404, detail="Current topic version not found")
+
+                    classifier_description = str(desc_row[0] or "").strip()
+                    if not classifier_description:
+                        raise HTTPException(status_code=400, detail="classifier_description is empty")
+
+                    embedding = create_text_embedding(text=classifier_description)
+                    if not embedding:
+                        raise HTTPException(status_code=500, detail="Failed to create embedding")
+
+                    cur.execute(
+                        """
+                        UPDATE topic_config_versions
+                        SET classifier_embedding = %s
+                        WHERE topic_key = %s
+                          AND is_current = TRUE
+                        """,
+                        (embedding, clean_topic_key),
+                    )
+
+                    cur.execute(
+                        """
+                        SELECT
+                          t.topic_key,
+                          t.title,
+                          v.version_no,
+                          v.is_current,
+                          v.classifier_description,
+                          v.classifier_keywords,
+                          v.classifier_exclude_keywords,
+                          v.classifier_embedding,
+                          v.system_prompt,
+                          v.micro_instructions,
+                          v.constraints,
+                          v.pacing_rules,
+                          v.reclassify_rules,
+                          v.safety_rules,
+                          v.min_confidence,
+                          v.reclassify_turn_threshold,
+                          v.max_clarifying_questions,
+                          v.examples
+                        FROM topic_catalog t
+                        JOIN topic_config_versions v ON v.topic_key = t.topic_key
+                        WHERE t.topic_key = %s
+                          AND v.is_current = TRUE
+                        """,
+                        (clean_topic_key,),
+                    )
+                    row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=500, detail="Failed to load updated topic")
 
             return _row_to_topic(row)
     except HTTPException:

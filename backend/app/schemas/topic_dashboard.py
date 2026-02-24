@@ -13,6 +13,7 @@ class TopicDashboardTopic(BaseModel):
     classifier_description: str
     classifier_keywords: list[str]
     classifier_exclude_keywords: list[str]
+    classifier_embedding: list[float] | None = None
     system_prompt: str
     micro_instructions: dict[str, Any]
     constraints: dict[str, Any]

@@ -8,7 +8,7 @@ from typing import Dict, List
 from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
 from app.services.llm_client import (
     chat_with_history_with_system,
-    classify_topic,
+    classify_topic_by_embedding,
     generate_conversation_title,
     summarize_history,
     SYSTEM_PROMPT,
@@ -331,6 +331,14 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             # 7) Route + call LLM (topic-specific or default handling)
             classifier_tokens = 0
             runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+            classification_debug: Dict[str, object] = {
+                "method": "embedding",
+                "event": "none",
+                "route_mode": "default",
+                "selected_topic_key": None,
+                "confidence": None,
+                "reason": None,
+            }
             try:
                 active_topics = fetch_active_topic_configs(conn)
                 topic_by_key = {t.topic_key: t for t in active_topics}
@@ -361,16 +369,11 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         classifier_topics.append(
                             {
                                 "topic_key": t.topic_key,
-                                "title": t.title,
-                                "description": t.classifier_description,
-                                "keywords": t.classifier_keywords,
-                                "exclude_keywords": t.classifier_exclude_keywords,
-                                "min_confidence": t.min_confidence,
+                                "embedding": t.classifier_embedding,
                             }
                         )
 
-                    cls_topic_key, cls_conf, cls_reason, cls_tokens = classify_topic(
-                        session_id=payload.session_id,
+                    cls_topic_key, cls_conf, cls_reason, cls_tokens = classify_topic_by_embedding(
                         user_message=normalized_message,
                         recent_history=history,
                         topics=classifier_topics,
@@ -386,6 +389,15 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
                     event_type = "reclassify" if force_reclassify and state is not None else "classify"
                     next_turns_in_default = 0 if route_mode == "topic" else ((state.turns_in_default + 1) if state else 1)
+                    classification_debug = {
+                        "method": "embedding",
+                        "event": event_type,
+                        "route_mode": route_mode,
+                        "selected_topic_key": selected_topic_key,
+                        "candidate_topic_key": cls_topic_key,
+                        "confidence": cls_conf,
+                        "reason": cls_reason,
+                    }
                     with conn.transaction():
                         upsert_conversation_topic_state(
                             conn,
@@ -455,6 +467,15 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             reason=f"route={route_mode}",
                             classifier_payload=None,
                         )
+                    classification_debug = {
+                        "method": "embedding",
+                        "event": "reuse_route",
+                        "route_mode": route_mode,
+                        "selected_topic_key": selected_topic_key,
+                        "candidate_topic_key": None,
+                        "confidence": last_confidence,
+                        "reason": "classification skipped this turn",
+                    }
 
                 if selected_topic_key and selected_topic_key in topic_by_key:
                     runtime_system_prompt = _build_topic_system_prompt(topic_by_key[selected_topic_key])
@@ -463,6 +484,15 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             except Exception:
                 runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
                 classifier_tokens = 0
+                classification_debug = {
+                    "method": "embedding",
+                    "event": "error_fallback",
+                    "route_mode": "default",
+                    "selected_topic_key": None,
+                    "candidate_topic_key": None,
+                    "confidence": None,
+                    "reason": "classification pipeline failed",
+                }
 
             prompt_messages_for_last_call: List[Dict[str, str]] = [
                 {"role": "system", "content": runtime_system_prompt}
@@ -568,6 +598,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 "last_prompt_tokens": last_prompt_tokens,
                 "conversation_tokens": conversation_tokens,
                 "conversation_title": conversation_title,
+                "classification": classification_debug,
             }
 
             # 10) Store idempotent result

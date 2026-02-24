@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from functools import lru_cache
 from typing import Any, List, Dict, Tuple
@@ -181,6 +182,101 @@ def chat_with_history_with_system(
         temperature=temperature,
         max_tokens=settings.MAX_OUTPUT_TOKENS,
     )
+
+
+def create_text_embedding(*, text: str) -> List[float]:
+    clean_text = str(text or "").strip()
+    if not clean_text:
+        raise RuntimeError("Cannot create embedding for empty text")
+
+    client = get_client()
+    try:
+        response = client.embeddings.create(
+            model=settings.EMBEDDING_MODEL_NAME,
+            input=clean_text,
+        )
+    except OpenAIError as e:
+        raise RuntimeError(f"OpenAI embedding request failed: {e}") from e
+
+    if not response.data:
+        raise RuntimeError("OpenAI embedding response was empty")
+
+    vector = response.data[0].embedding
+    if not vector:
+        raise RuntimeError("OpenAI embedding vector was empty")
+
+    return [float(v) for v in vector]
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    if not a or not b:
+        return 0.0
+    if len(a) != len(b):
+        return 0.0
+
+    dot = 0.0
+    norm_a = 0.0
+    norm_b = 0.0
+    for idx in range(len(a)):
+        av = float(a[idx])
+        bv = float(b[idx])
+        dot += av * bv
+        norm_a += av * av
+        norm_b += bv * bv
+
+    if norm_a <= 0.0 or norm_b <= 0.0:
+        return 0.0
+    return dot / (math.sqrt(norm_a) * math.sqrt(norm_b))
+
+
+def classify_topic_by_embedding(
+    *,
+    user_message: str,
+    recent_history: List[Dict[str, Any]],
+    topics: List[Dict[str, Any]],
+) -> Tuple[str | None, float, str, int]:
+    user_snippets: List[str] = []
+    for msg in recent_history[-4:]:
+        if str(msg.get("role")) == "user":
+            snippet = str(msg.get("content") or "").strip()
+            if snippet:
+                user_snippets.append(snippet)
+
+    text_blocks = user_snippets[-3:]
+    text_blocks.append(str(user_message or "").strip())
+    classification_text = "\n".join([t for t in text_blocks if t]).strip()
+    if not classification_text:
+        return None, 0.0, "Tom brukertekst; ingen klassifisering.", 0
+
+    message_embedding = create_text_embedding(text=classification_text)
+    estimated_tokens = count_tokens(classification_text, model=settings.MODEL_NAME)
+
+    scored: List[Tuple[str, float, float]] = []
+    for topic in topics:
+        topic_key = str(topic.get("topic_key") or "").strip()
+        if not topic_key:
+            continue
+
+        topic_embedding = topic.get("embedding")
+        if not isinstance(topic_embedding, list) or not topic_embedding:
+            continue
+
+        try:
+            topic_vec = [float(v) for v in topic_embedding]
+        except Exception:
+            continue
+
+        similarity = _cosine_similarity(message_embedding, topic_vec)
+        confidence = (similarity + 1.0) / 2.0
+        scored.append((topic_key, confidence, similarity))
+
+    if not scored:
+        return None, 0.0, "Ingen topic embeddings tilgjengelig.", estimated_tokens
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    best_topic_key, best_confidence, best_similarity = scored[0]
+    reason = f"embedding_similarity={best_similarity:.4f}"
+    return best_topic_key, best_confidence, reason, estimated_tokens
 
 
 def classify_topic(
