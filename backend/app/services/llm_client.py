@@ -71,6 +71,23 @@ Standardmodus:
 - Prioriter stabilisering, tydelighet og fremdrift uten å presse.
 """
 
+LOW_SIGNAL_MESSAGES = {
+    "hei",
+    "heisann",
+    "hallo",
+    "hello",
+    "ok",
+    "okei",
+    "yo",
+    "test",
+    "start",
+    "ja",
+    "nei",
+}
+
+MIN_TOPIC_SIMILARITY = 0.30
+MIN_TOPIC_SIMILARITY_MARGIN = 0.06
+
 
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
@@ -235,6 +252,13 @@ def classify_topic_by_embedding(
     recent_history: List[Dict[str, Any]],
     topics: List[Dict[str, Any]],
 ) -> Tuple[str | None, float, str, int]:
+    normalized_user = str(user_message or "").strip().lower()
+    normalized_user = re.sub(r"\s+", " ", normalized_user)
+    if normalized_user in LOW_SIGNAL_MESSAGES:
+        return None, 0.0, "Lav-signal melding; klassifisering hoppet over.", 0
+    if len(normalized_user) <= 2:
+        return None, 0.0, "For kort melding; klassifisering hoppet over.", 0
+
     user_snippets: List[str] = []
     for msg in recent_history[-4:]:
         if str(msg.get("role")) == "user":
@@ -275,6 +299,28 @@ def classify_topic_by_embedding(
 
     scored.sort(key=lambda x: x[1], reverse=True)
     best_topic_key, best_confidence, best_similarity = scored[0]
+    second_similarity = scored[1][2] if len(scored) > 1 else -1.0
+    margin = best_similarity - second_similarity
+
+    if best_similarity < MIN_TOPIC_SIMILARITY:
+        return (
+            None,
+            best_confidence,
+            f"embedding_similarity={best_similarity:.4f} under min={MIN_TOPIC_SIMILARITY:.2f}",
+            estimated_tokens,
+        )
+
+    if len(scored) > 1 and margin < MIN_TOPIC_SIMILARITY_MARGIN:
+        return (
+            None,
+            best_confidence,
+            (
+                f"embedding margin for lav: best={best_similarity:.4f}, "
+                f"second={second_similarity:.4f}, min_margin={MIN_TOPIC_SIMILARITY_MARGIN:.2f}"
+            ),
+            estimated_tokens,
+        )
+
     reason = f"embedding_similarity={best_similarity:.4f}"
     return best_topic_key, best_confidence, reason, estimated_tokens
 
