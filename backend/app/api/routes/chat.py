@@ -328,6 +328,20 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             if summary_message:
                 history = [{"role": "system", "content": summary_message}] + history
 
+            total_user_turns = 0
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM chat_messages
+                    WHERE conversation_id = %s
+                      AND role = 'user'
+                    """,
+                    (payload.conversation_id,),
+                )
+                count_row = cur.fetchone()
+                total_user_turns = int((count_row or [0])[0] or 0)
+
             # 7) Route + call LLM (topic-specific or default handling)
             classifier_tokens = 0
             runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
@@ -349,14 +363,23 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 if active_topics:
                     if state is None:
                         needs_classify = True
+                    elif total_user_turns <= EARLY_CLASSIFY_TURNS:
+                        # Always re-evaluate in early turns so first-message noise
+                        # does not lock the route.
+                        needs_classify = True
                     elif force_reclassify:
                         needs_classify = True
                     elif state.route_mode == "default":
-                        # Keep classifying in early turns so greetings/small talk
-                        # do not lock the conversation into default too early.
-                        if state.turns_in_default < EARLY_CLASSIFY_TURNS:
+                        if state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
                             needs_classify = True
-                        elif state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
+                    elif state.route_mode == "topic":
+                        selected_topic = topic_by_key.get(state.current_topic_key or "")
+                        topic_reclassify_threshold = (
+                            int(selected_topic.reclassify_turn_threshold)
+                            if selected_topic is not None
+                            else DEFAULT_RECLASSIFY_TURN_THRESHOLD
+                        )
+                        if state.turns_since_classify >= topic_reclassify_threshold:
                             needs_classify = True
 
                 selected_topic_key = None
