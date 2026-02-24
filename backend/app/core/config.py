@@ -13,6 +13,7 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
 class Settings:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+    EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-3-small")
     DATABASE_URL = os.getenv("DATABASE_URL")
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")

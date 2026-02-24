@@ -14,6 +14,7 @@ class TopicConfigRow:
     classifier_description: str
     classifier_keywords: List[str]
     classifier_exclude_keywords: List[str]
+    classifier_embedding: Optional[List[float]]
     system_prompt: str
     micro_instructions: Dict[str, Any]
     constraints: Dict[str, Any]
@@ -46,6 +47,7 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
               v.classifier_description,
               v.classifier_keywords,
               v.classifier_exclude_keywords,
+              v.classifier_embedding,
               v.system_prompt,
               v.micro_instructions,
               v.constraints,
@@ -71,6 +73,7 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
         classifier_description,
         classifier_keywords,
         classifier_exclude_keywords,
+        classifier_embedding,
         system_prompt,
         micro_instructions,
         constraints,
@@ -88,6 +91,9 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
                 classifier_description=str(classifier_description),
                 classifier_keywords=list(classifier_keywords or []),
                 classifier_exclude_keywords=list(classifier_exclude_keywords or []),
+                classifier_embedding=[float(x) for x in (classifier_embedding or [])]
+                if classifier_embedding is not None
+                else None,
                 system_prompt=str(system_prompt),
                 micro_instructions=dict(micro_instructions or {}),
                 constraints=dict(constraints or {}),

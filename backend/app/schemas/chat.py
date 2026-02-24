@@ -11,3 +11,4 @@ class SimpleChatResponse(BaseModel):
     last_prompt_tokens: int | None = None
     conversation_tokens: int | None = None
     conversation_title: str | None = None
+    classification: dict | None = None

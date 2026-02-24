@@ -30,6 +30,15 @@ type DebugChatResponse = {
   reply?: string;
   last_prompt_tokens?: number | null;
   conversation_tokens?: number | null;
+  classification?: {
+    method?: string;
+    event?: string;
+    route_mode?: string;
+    selected_topic_key?: string | null;
+    candidate_topic_key?: string | null;
+    confidence?: number | null;
+    reason?: string | null;
+  } | null;
 };
 
 export default function Chat() {
@@ -42,6 +51,7 @@ export default function Chat() {
   const [promptTraces, setPromptTraces] = useState<PromptTrace[]>([]);
   const [lastPromptTokens, setLastPromptTokens] = useState<number | null>(null);
   const [conversationTokens, setConversationTokens] = useState<number | null>(null);
+  const [classification, setClassification] = useState<DebugChatResponse["classification"]>(null);
   const streamRef = useRef<{ cancelled: boolean } | null>(null);
 
   useEffect(() => {
@@ -158,6 +168,7 @@ export default function Chat() {
       setConversationTokens(
         typeof data.conversation_tokens === "number" ? data.conversation_tokens : null
       );
+      setClassification(data.classification ?? null);
 
       const assistantId = uuidv4();
       setMessages((prev) => [
@@ -266,6 +277,18 @@ export default function Chat() {
           <div>last prompt tokens: {lastPromptTokens ?? "n/a"}</div>
           <div>conversation tokens: {conversationTokens ?? "n/a"}</div>
           <div>pipeline prompts: {promptTraces.length}</div>
+          <div>classification method: {classification?.method ?? "n/a"}</div>
+          <div>classification event: {classification?.event ?? "n/a"}</div>
+          <div>route mode: {classification?.route_mode ?? "n/a"}</div>
+          <div>selected topic: {classification?.selected_topic_key ?? "default"}</div>
+          <div>candidate topic: {classification?.candidate_topic_key ?? "n/a"}</div>
+          <div>
+            confidence:{" "}
+            {typeof classification?.confidence === "number"
+              ? classification.confidence.toFixed(4)
+              : "n/a"}
+          </div>
+          <div>reason: {classification?.reason ?? "n/a"}</div>
         </div>
         <div style={{ overflowY: "auto", height: "85%" }}>
           {consoleLog.map((c, i) => (

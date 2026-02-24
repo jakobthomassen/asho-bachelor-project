@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../AuthProvider";
 import {
+  calculateTopicVector,
   getTopicDashboardStats,
   listTopicDashboardTopics,
   saveTopicVersion,
@@ -110,6 +111,7 @@ export default function TopicDashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCalculatingTopicKey, setIsCalculatingTopicKey] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +249,23 @@ export default function TopicDashboardPage() {
       setError(err instanceof Error ? err.message : "Kunne ikke lagre ny versjon.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCalculateVector = async (topicKey: string) => {
+    if (!sessionToken) return;
+
+    setError(null);
+    setSuccess(null);
+    setIsCalculatingTopicKey(topicKey);
+    try {
+      const updated = await calculateTopicVector(sessionToken, topicKey);
+      setTopics((prev) => prev.map((topic) => (topic.topic_key === updated.topic_key ? updated : topic)));
+      setSuccess(`Vektor kalkulert for ${updated.topic_key}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke kalkulere vektor.");
+    } finally {
+      setIsCalculatingTopicKey(null);
     }
   };
 
@@ -411,14 +430,30 @@ export default function TopicDashboardPage() {
             {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
             {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
             {topics.map((topic) => (
-              <button
+              <div
                 key={topic.topic_key}
                 className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
-                onClick={() => setSelectedTopicKey(topic.topic_key)}
               >
-                <div className="topicDashboard__topicTitle">{topic.title}</div>
-                <div className="topicDashboard__topicMeta">{topic.topic_key} · v{topic.version_no}</div>
-              </button>
+                <button
+                  className="topicDashboard__topicSelect"
+                  onClick={() => setSelectedTopicKey(topic.topic_key)}
+                  type="button"
+                >
+                  <div className="topicDashboard__topicTitle">{topic.title}</div>
+                  <div className="topicDashboard__topicMeta">
+                    {topic.topic_key} · v{topic.version_no} ·{" "}
+                    {topic.classifier_embedding?.length ? "vector OK" : "vector mangler"}
+                  </div>
+                </button>
+                <button
+                  className="topicDashboard__topicVectorBtn"
+                  type="button"
+                  disabled={isCalculatingTopicKey === topic.topic_key}
+                  onClick={() => handleCalculateVector(topic.topic_key)}
+                >
+                  {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate vector"}
+                </button>
+              </div>
             ))}
           </aside>
 
