@@ -5,6 +5,7 @@ import SoundTestPage from "./app/pages/Soundtest/SoundtestPage";
 import SubscribePage from "./app/pages/Subscribe/SubscribePage";
 import UroSkolenPage from "./app/pages/UroSkole/UroSkolePage";
 import TopicDashboardPage from "./app/pages/TopicDashboard/TopicDashboardPage";
+import Chat from "./Chat";
 import { useAuth } from "./app/AuthProvider";
 import WelcomePage from "./app/pages/Welcome/WelcomePage";
 import LoginPage from "./app/pages/Login/LoginPage";
@@ -91,6 +92,14 @@ export default function AppRoutes() {
           element={
             <AdminRoute>
               <TopicDashboardPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/debug"
+          element={
+            <AdminRoute>
+              <Chat />
             </AdminRoute>
           }
         />
