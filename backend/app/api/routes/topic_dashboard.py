@@ -34,17 +34,6 @@ def _require_admin(conn: psycopg.Connection, authorization: str | None) -> str:
     return principal.user_id
 
 
-def _normalize_keywords(values: list[str]) -> list[str]:
-    out: list[str] = []
-    for value in values:
-        v = str(value).strip()
-        if not v:
-            continue
-        if v not in out:
-            out.append(v)
-    return out
-
-
 def _row_to_topic(row: tuple[Any, ...]) -> TopicDashboardTopic:
     return TopicDashboardTopic(
         topic_key=str(row[0]),
@@ -52,19 +41,15 @@ def _row_to_topic(row: tuple[Any, ...]) -> TopicDashboardTopic:
         version_no=int(row[2]),
         is_current=bool(row[3]),
         classifier_description=str(row[4]),
-        classifier_keywords=list(row[5] or []),
-        classifier_exclude_keywords=list(row[6] or []),
-        classifier_embedding=[float(x) for x in row[7]] if row[7] is not None else None,
-        system_prompt=str(row[8]),
-        micro_instructions=dict(row[9] or {}),
-        constraints=dict(row[10] or {}),
-        pacing_rules=dict(row[11] or {}),
-        reclassify_rules=dict(row[12] or {}),
-        safety_rules=dict(row[13] or {}),
-        min_confidence=float(row[14]),
-        reclassify_turn_threshold=int(row[15]),
-        max_clarifying_questions=int(row[16]),
-        examples=list(row[17] or []),
+        classifier_embedding=[float(x) for x in row[5]] if row[5] is not None else None,
+        system_prompt=str(row[6]),
+        micro_instructions=dict(row[7] or {}),
+        constraints=dict(row[8] or {}),
+        reclassify_rules=dict(row[9] or {}),
+        safety_rules=dict(row[10] or {}),
+        min_confidence=float(row[11]),
+        reclassify_turn_threshold=int(row[12]),
+        max_clarifying_questions=int(row[13]),
     )
 
 
@@ -82,19 +67,15 @@ def list_topics(authorization: str | None = Header(default=None)):
                       v.version_no,
                       v.is_current,
                       v.classifier_description,
-                      v.classifier_keywords,
-                      v.classifier_exclude_keywords,
                       v.classifier_embedding,
                       v.system_prompt,
                       v.micro_instructions,
                       v.constraints,
-                      v.pacing_rules,
                       v.reclassify_rules,
                       v.safety_rules,
                       v.min_confidence,
                       v.reclassify_turn_threshold,
-                      v.max_clarifying_questions,
-                      v.examples
+                      v.max_clarifying_questions
                     FROM topic_catalog t
                     JOIN topic_config_versions v ON v.topic_key = t.topic_key
                     WHERE v.is_current = TRUE
@@ -256,14 +237,10 @@ def create_topic_version(
             if not clean_title or not clean_classifier_description or not clean_system_prompt:
                 raise HTTPException(status_code=400, detail="Missing required fields")
 
-            keywords = _normalize_keywords(payload.classifier_keywords)
-            exclude_keywords = _normalize_keywords(payload.classifier_exclude_keywords)
             micro_instructions_json = json.dumps(payload.micro_instructions or {})
             constraints_json = json.dumps(payload.constraints or {})
-            pacing_rules_json = json.dumps(payload.pacing_rules or {})
             reclassify_rules_json = json.dumps(payload.reclassify_rules or {})
             safety_rules_json = json.dumps(payload.safety_rules or {})
-            examples_json = json.dumps(payload.examples or [])
 
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -319,42 +296,34 @@ def create_topic_version(
                           version_no,
                           is_current,
                           classifier_description,
-                          classifier_keywords,
-                          classifier_exclude_keywords,
                           classifier_embedding,
                           system_prompt,
                           micro_instructions,
                           constraints,
-                          pacing_rules,
                           reclassify_rules,
                           safety_rules,
                           min_confidence,
                           reclassify_turn_threshold,
                           max_clarifying_questions,
-                          examples,
                           created_by
                         )
                         VALUES (
-                          %s, %s, TRUE, %s, %s, %s, NULL, %s, %s::jsonb, %s::jsonb, %s::jsonb,
-                          %s::jsonb, %s::jsonb, %s, %s, %s, %s::jsonb, %s
+                          %s, %s, TRUE, %s, NULL, %s, %s::jsonb, %s::jsonb,
+                          %s::jsonb, %s::jsonb, %s, %s, %s, %s
                         )
                         """,
                         (
                           clean_topic_key,
                           next_version,
                           clean_classifier_description,
-                          keywords,
-                          exclude_keywords,
                           clean_system_prompt,
                           micro_instructions_json,
                           constraints_json,
-                          pacing_rules_json,
                           reclassify_rules_json,
                           safety_rules_json,
                           payload.min_confidence,
                           payload.reclassify_turn_threshold,
                           payload.max_clarifying_questions,
-                          examples_json,
                           clean_created_by,
                         ),
                     )
@@ -366,19 +335,15 @@ def create_topic_version(
                           v.version_no,
                           v.is_current,
                           v.classifier_description,
-                          v.classifier_keywords,
-                          v.classifier_exclude_keywords,
                           v.classifier_embedding,
                           v.system_prompt,
                           v.micro_instructions,
                           v.constraints,
-                          v.pacing_rules,
                           v.reclassify_rules,
                           v.safety_rules,
                           v.min_confidence,
                           v.reclassify_turn_threshold,
-                          v.max_clarifying_questions,
-                          v.examples
+                          v.max_clarifying_questions
                         FROM topic_catalog t
                         JOIN topic_config_versions v ON v.topic_key = t.topic_key
                         WHERE t.topic_key = %s
@@ -453,19 +418,15 @@ def calculate_topic_vector(
                           v.version_no,
                           v.is_current,
                           v.classifier_description,
-                          v.classifier_keywords,
-                          v.classifier_exclude_keywords,
                           v.classifier_embedding,
                           v.system_prompt,
                           v.micro_instructions,
                           v.constraints,
-                          v.pacing_rules,
                           v.reclassify_rules,
                           v.safety_rules,
                           v.min_confidence,
                           v.reclassify_turn_threshold,
-                          v.max_clarifying_questions,
-                          v.examples
+                          v.max_clarifying_questions
                         FROM topic_catalog t
                         JOIN topic_config_versions v ON v.topic_key = t.topic_key
                         WHERE t.topic_key = %s

@@ -15,56 +15,33 @@ type TabKey = "stats" | "temaer";
 type TopicForm = {
   title: string;
   classifier_description: string;
-  classifier_keywords: string;
-  classifier_exclude_keywords: string;
   system_prompt: string;
   micro_instructions: string;
   constraints: string;
-  pacing_rules: string;
   reclassify_rules: string;
   safety_rules: string;
   min_confidence: string;
   reclassify_turn_threshold: string;
   max_clarifying_questions: string;
-  examples: string;
 };
 
 function toPrettyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
-function toPrettyJsonArray(value: unknown): string {
-  return JSON.stringify(value ?? [], null, 2);
-}
-
-function toKeywordText(values: string[]): string {
-  return (values ?? []).join(", ");
-}
-
 function formFromTopic(topic: TopicDashboardTopic): TopicForm {
   return {
     title: topic.title,
     classifier_description: topic.classifier_description,
-    classifier_keywords: toKeywordText(topic.classifier_keywords),
-    classifier_exclude_keywords: toKeywordText(topic.classifier_exclude_keywords),
     system_prompt: topic.system_prompt,
     micro_instructions: toPrettyJson(topic.micro_instructions),
     constraints: toPrettyJson(topic.constraints),
-    pacing_rules: toPrettyJson(topic.pacing_rules),
     reclassify_rules: toPrettyJson(topic.reclassify_rules),
     safety_rules: toPrettyJson(topic.safety_rules),
     min_confidence: String(topic.min_confidence),
     reclassify_turn_threshold: String(topic.reclassify_turn_threshold),
     max_clarifying_questions: String(topic.max_clarifying_questions),
-    examples: toPrettyJsonArray(topic.examples ?? []),
   };
-}
-
-function splitKeywords(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
 }
 
 function parseJsonObject(raw: string, fieldName: string): Record<string, unknown> {
@@ -74,18 +51,6 @@ function parseJsonObject(raw: string, fieldName: string): Record<string, unknown
       throw new Error(`${fieldName} må være et JSON-objekt.`);
     }
     return parsed as Record<string, unknown>;
-  } catch {
-    throw new Error(`${fieldName} inneholder ugyldig JSON.`);
-  }
-}
-
-function parseJsonArray(raw: string, fieldName: string): unknown[] {
-  try {
-    const parsed = JSON.parse(raw || "[]");
-    if (!Array.isArray(parsed)) {
-      throw new Error(`${fieldName} må være en JSON-liste.`);
-    }
-    return parsed;
   } catch {
     throw new Error(`${fieldName} inneholder ugyldig JSON.`);
   }
@@ -219,18 +184,14 @@ export default function TopicDashboardPage() {
       const payload = {
         title: form.title.trim(),
         classifier_description: form.classifier_description.trim(),
-        classifier_keywords: splitKeywords(form.classifier_keywords),
-        classifier_exclude_keywords: splitKeywords(form.classifier_exclude_keywords),
         system_prompt: form.system_prompt.trim(),
         micro_instructions: parseJsonObject(form.micro_instructions, "micro_instructions"),
         constraints: parseJsonObject(form.constraints, "constraints"),
-        pacing_rules: parseJsonObject(form.pacing_rules, "pacing_rules"),
         reclassify_rules: parseJsonObject(form.reclassify_rules, "reclassify_rules"),
         safety_rules: parseJsonObject(form.safety_rules, "safety_rules"),
         min_confidence: minConfidence,
         reclassify_turn_threshold: reclassifyTurnThreshold,
         max_clarifying_questions: maxClarifyingQuestions,
-        examples: parseJsonArray(form.examples, "examples"),
       };
 
       if (!payload.title || !payload.classifier_description || !payload.system_prompt) {
@@ -275,16 +236,6 @@ export default function TopicDashboardPage() {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Invalid format";
       const count = Object.keys(parsed).length;
       return `${count} felt`;
-    } catch {
-      return "Ugyldig JSON";
-    }
-  };
-
-  const arrayFieldSummary = (raw: string): string => {
-    try {
-      const parsed = JSON.parse(raw || "[]");
-      if (!Array.isArray(parsed)) return "Invalid format";
-      return `${parsed.length} elementer`;
     } catch {
       return "Ugyldig JSON";
     }
@@ -486,22 +437,6 @@ export default function TopicDashboardPage() {
                   </label>
 
                   <label>
-                    Classifier keywords (kommaseparert)
-                    <input
-                      value={form.classifier_keywords}
-                      onChange={(e) => updateField("classifier_keywords", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Exclude keywords (kommaseparert)
-                    <input
-                      value={form.classifier_exclude_keywords}
-                      onChange={(e) => updateField("classifier_exclude_keywords", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
                     System prompt
                     <textarea
                       rows={8}
@@ -544,10 +479,6 @@ export default function TopicDashboardPage() {
                     />
                   </label>
 
-                  <label>
-                    Eksempler
-                    <div className="topicDashboard__summaryField">{arrayFieldSummary(form.examples)}</div>
-                  </label>
                 </div>
 
                 <details className="topicDashboard__advanced" open={showAdvanced}>
@@ -571,16 +502,10 @@ export default function TopicDashboardPage() {
                           Constraints: {objectFieldSummary(form.constraints)}
                         </div>
                         <div className="topicDashboard__summaryField">
-                          Pacing rules: {objectFieldSummary(form.pacing_rules)}
-                        </div>
-                        <div className="topicDashboard__summaryField">
                           Reclassify rules: {objectFieldSummary(form.reclassify_rules)}
                         </div>
                         <div className="topicDashboard__summaryField">
                           Safety rules: {objectFieldSummary(form.safety_rules)}
-                        </div>
-                        <div className="topicDashboard__summaryField">
-                          Examples: {arrayFieldSummary(form.examples)}
                         </div>
                       </div>
 
@@ -604,15 +529,6 @@ export default function TopicDashboardPage() {
                         </label>
 
                         <label>
-                          Pacing rules (JSON object)
-                          <textarea
-                            rows={6}
-                            value={form.pacing_rules}
-                            onChange={(e) => updateField("pacing_rules", e.target.value)}
-                          />
-                        </label>
-
-                        <label>
                           Reclassify rules (JSON object)
                           <textarea
                             rows={6}
@@ -630,10 +546,6 @@ export default function TopicDashboardPage() {
                           />
                         </label>
 
-                        <label>
-                          Examples (JSON array)
-                          <textarea rows={6} value={form.examples} onChange={(e) => updateField("examples", e.target.value)} />
-                        </label>
                       </div>
                     </div>
                   ) : null}
@@ -653,3 +565,4 @@ export default function TopicDashboardPage() {
     </div>
   );
 }
+

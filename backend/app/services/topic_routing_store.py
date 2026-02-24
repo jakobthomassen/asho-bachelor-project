@@ -12,13 +12,10 @@ class TopicConfigRow:
     topic_key: str
     title: str
     classifier_description: str
-    classifier_keywords: List[str]
-    classifier_exclude_keywords: List[str]
     classifier_embedding: Optional[List[float]]
     system_prompt: str
     micro_instructions: Dict[str, Any]
     constraints: Dict[str, Any]
-    pacing_rules: Dict[str, Any]
     reclassify_rules: Dict[str, Any]
     safety_rules: Dict[str, Any]
     min_confidence: float
@@ -45,13 +42,10 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
               t.topic_key,
               t.title,
               v.classifier_description,
-              v.classifier_keywords,
-              v.classifier_exclude_keywords,
               v.classifier_embedding,
               v.system_prompt,
               v.micro_instructions,
               v.constraints,
-              v.pacing_rules,
               v.reclassify_rules,
               v.safety_rules,
               v.min_confidence,
@@ -71,13 +65,10 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
         topic_key,
         title,
         classifier_description,
-        classifier_keywords,
-        classifier_exclude_keywords,
         classifier_embedding,
         system_prompt,
         micro_instructions,
         constraints,
-        pacing_rules,
         reclassify_rules,
         safety_rules,
         min_confidence,
@@ -89,15 +80,12 @@ def fetch_active_topic_configs(conn: psycopg.Connection) -> List[TopicConfigRow]
                 topic_key=str(topic_key),
                 title=str(title),
                 classifier_description=str(classifier_description),
-                classifier_keywords=list(classifier_keywords or []),
-                classifier_exclude_keywords=list(classifier_exclude_keywords or []),
                 classifier_embedding=[float(x) for x in (classifier_embedding or [])]
                 if classifier_embedding is not None
                 else None,
                 system_prompt=str(system_prompt),
                 micro_instructions=dict(micro_instructions or {}),
                 constraints=dict(constraints or {}),
-                pacing_rules=dict(pacing_rules or {}),
                 reclassify_rules=dict(reclassify_rules or {}),
                 safety_rules=dict(safety_rules or {}),
                 min_confidence=float(min_confidence),
