@@ -1,5 +1,5 @@
 .topicDashboard {
-  height: 100vh;
+  min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
   --topic-sidebar-width: clamp(220px, 16vw, 280px);
@@ -10,13 +10,16 @@
 }
 
 .topicDashboard__navBar {
-  display: grid;
-  grid-template-columns: var(--topic-sidebar-width) 1fr;
+  position: relative;
+  min-height: 58px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 97%, var(--accent-soft));
 }
 
 .topicDashboard__brandBlock {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--topic-sidebar-width);
   border-right: 1px solid var(--border);
   padding: 0.45rem 0.7rem;
   display: flex;
@@ -106,13 +109,14 @@
 
 .topicDashboard__main {
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   padding: 1rem;
 }
 
 .topicDashboard__tabs {
-  justify-self: center;
-  display: inline-flex;
+  width: 100%;
+  display: flex;
+  justify-content: center;
   align-items: center;
   gap: 0.65rem;
   padding: 0.45rem 1rem;
@@ -163,7 +167,7 @@
 
 .topicDashboard__statsHeader h2 {
   margin: 0;
-  font-size: 2rem;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
   line-height: 1;
 }
 
@@ -206,14 +210,15 @@
 
 .topicDashboard__statLabel {
   color: var(--text-secondary);
-  font-size: 0.96rem;
+  font-size: 0.88rem;
   font-weight: 700;
 }
 
 .topicDashboard__statValue {
-  font-size: clamp(1.6rem, 1.9vw, 2.5rem);
+  font-size: clamp(1.15rem, 1.45vw, 1.9rem);
   font-weight: 900;
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .topicDashboard__chartCard {
@@ -225,6 +230,13 @@
   gap: 0.65rem;
 }
 
+.topicDashboard__chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
 .topicDashboard__chartTitle {
   font-size: 1.35rem;
   font-weight: 900;
@@ -233,6 +245,7 @@
 .topicDashboard__chartWrap {
   height: 320px;
   width: 100%;
+  position: relative;
 }
 
 .topicDashboard__chartSvg {
@@ -261,6 +274,34 @@
   opacity: 0.8;
 }
 
+.topicDashboard__chartTooltip {
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 26px color-mix(in srgb, #000 12%, transparent);
+  padding: 0.45rem 0.6rem;
+  min-width: 110px;
+  z-index: 2;
+}
+
+.topicDashboard__chartTooltipDate {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.topicDashboard__chartTooltipValue {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+  margin-top: 0.1rem;
+}
+
 .topicDashboard__formPane {
   padding: 0.95rem;
   min-height: 0;
@@ -282,7 +323,7 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 96%, var(--accent-soft));
-  max-height: calc(100vh - 132px);
+  overflow: visible;
 }
 
 .topicDashboard__statusRow {
@@ -465,12 +506,13 @@
   }
 
   .topicDashboard__navBar {
-    grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .topicDashboard__brandBlock {
+    position: static;
+    width: 100%;
     border-right: 0;
-    border-bottom: 1px solid var(--border);
   }
 
   .topicDashboard__statsHeader {
@@ -487,7 +529,7 @@
   }
 
   .topicDashboard__leftList--rail {
-    max-height: 220px;
+    max-height: none;
   }
 
   .topicDashboard__statsPane,

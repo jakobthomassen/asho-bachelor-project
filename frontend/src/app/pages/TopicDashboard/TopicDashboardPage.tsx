@@ -161,6 +161,15 @@ function formatDateLabel(day: string): string {
   return day.slice(5);
 }
 
+function formatTooltipDate(day: string): string {
+  const parts = day.split("-");
+  const monthIndex = Number(parts[1] || 1) - 1;
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Des"];
+  const month = monthNames[Math.max(0, Math.min(11, monthIndex))];
+  const dayNumber = String(Number(parts[2] || "1"));
+  return `${dayNumber}. ${month}`;
+}
+
 function KeyValueEditor({
   title,
   rows,
@@ -280,6 +289,7 @@ export default function TopicDashboardPage() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; day: string; tokens: number } | null>(null);
 
   useEffect(() => {
     if (!sessionToken) return;
@@ -510,18 +520,6 @@ export default function TopicDashboardPage() {
           <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
             <div className="topicDashboard__statsHeader">
               <h2>Nokkelstatistikk</h2>
-              <div className="topicDashboard__rangeButtons" role="group" aria-label="Valg av tidsperiode">
-                {[7, 14, 30].map((days) => (
-                  <button
-                    key={days}
-                    className={`topicDashboard__rangeBtn ${statsDays === days ? "is-active" : ""}`}
-                    onClick={() => setStatsDays(days)}
-                    type="button"
-                  >
-                    {days}d
-                  </button>
-                ))}
-              </div>
             </div>
 
             {isStatsLoading ? <div className="topicDashboard__hint">Laster statistikk...</div> : null}
@@ -557,7 +555,21 @@ export default function TopicDashboardPage() {
                 </div>
 
                 <div className="topicDashboard__chartCard">
-                  <div className="topicDashboard__chartTitle">Daglig tokenbruk</div>
+                  <div className="topicDashboard__chartHeader">
+                    <div className="topicDashboard__chartTitle">Daglig tokenbruk</div>
+                    <div className="topicDashboard__rangeButtons" role="group" aria-label="Valg av tidsperiode">
+                      {[7, 14, 30].map((days) => (
+                        <button
+                          key={days}
+                          className={`topicDashboard__rangeBtn ${statsDays === days ? "is-active" : ""}`}
+                          onClick={() => setStatsDays(days)}
+                          type="button"
+                        >
+                          {days}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="topicDashboard__chartWrap">
                     <svg className="topicDashboard__chartSvg" viewBox="0 0 1100 300" preserveAspectRatio="none" role="img">
                       <title>Daglig tokenbruk med dynamisk Y-akse</title>
@@ -593,8 +605,18 @@ export default function TopicDashboardPage() {
                               height={Math.max(0, barHeight)}
                               rx="7"
                               className="topicDashboard__barRect"
+                              onMouseMove={(e) => {
+                                const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                                if (!rect) return;
+                                setHoveredBar({
+                                  x: e.clientX - rect.left,
+                                  y: e.clientY - rect.top,
+                                  day: item.day,
+                                  tokens: item.total_tokens,
+                                });
+                              }}
+                              onMouseLeave={() => setHoveredBar(null)}
                             >
-                              <title>{`${item.day}: ${item.total_tokens.toLocaleString("nb-NO")} tokens`}</title>
                             </rect>
                             {showLabel ? (
                               <text
@@ -610,6 +632,17 @@ export default function TopicDashboardPage() {
                         );
                       })}
                     </svg>
+                    {hoveredBar ? (
+                      <div
+                        className="topicDashboard__chartTooltip"
+                        style={{ left: hoveredBar.x, top: hoveredBar.y }}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <div className="topicDashboard__chartTooltipDate">{formatTooltipDate(hoveredBar.day)}</div>
+                        <div className="topicDashboard__chartTooltipValue">{`${hoveredBar.tokens} tokens`}</div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </>
