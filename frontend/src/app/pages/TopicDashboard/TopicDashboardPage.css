@@ -1,5 +1,5 @@
 .topicDashboard {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
   --topic-sidebar-width: clamp(220px, 16vw, 280px);
@@ -109,7 +109,7 @@
 
 .topicDashboard__main {
   min-height: 0;
-  overflow: visible;
+  overflow: auto;
   padding: 1rem;
 }
 
@@ -323,7 +323,7 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 96%, var(--accent-soft));
-  overflow: visible;
+  align-self: start;
 }
 
 .topicDashboard__statusRow {
