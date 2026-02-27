@@ -478,52 +478,11 @@ export default function TopicDashboardPage() {
 
   return (
     <div className="topicDashboard">
-      <aside className="topicDashboard__leftRail">
-        <div className="topicDashboard__brand">
+      <header className="topicDashboard__navBar">
+        <div className="topicDashboard__brandBlock">
           <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
           <div className="topicDashboard__brandName">ASHO</div>
         </div>
-
-        <div className="topicDashboard__leftList">
-          {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
-          {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
-
-          {topics.map((topic) => {
-            const hasVector = Boolean(topic.classifier_embedding?.length);
-            return (
-              <div
-                key={topic.topic_key}
-                className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
-              >
-                <button
-                  className="topicDashboard__topicSelect"
-                  onClick={() => {
-                    setSelectedTopicKey(topic.topic_key);
-                    setActiveTab("temaer");
-                  }}
-                  type="button"
-                >
-                  <div className="topicDashboard__topicTitle">{topic.title}</div>
-                  <div className={`topicDashboard__topicStatus ${hasVector ? "is-ok" : "is-missing"}`}>
-                    {hasVector ? "Vector OK" : "Vector missing"}
-                  </div>
-                </button>
-
-                <button
-                  className="topicDashboard__topicVectorBtn"
-                  type="button"
-                  disabled={isCalculatingTopicKey === topic.topic_key}
-                  onClick={() => handleCalculateVector(topic.topic_key)}
-                >
-                  {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </aside>
-
-      <main className="topicDashboard__main">
         <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
           <button
             className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
@@ -544,9 +503,11 @@ export default function TopicDashboardPage() {
             Temaer
           </button>
         </div>
+      </header>
 
+      <main className="topicDashboard__main">
         {activeTab === "stats" ? (
-          <section className="topicDashboard__statsPane">
+          <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
             <div className="topicDashboard__statsHeader">
               <h2>Nokkelstatistikk</h2>
               <div className="topicDashboard__rangeButtons" role="group" aria-label="Valg av tidsperiode">
@@ -655,7 +616,47 @@ export default function TopicDashboardPage() {
             ) : null}
           </section>
         ) : (
-          <section className="topicDashboard__formPane">
+          <div className="topicDashboard__temaLayout">
+            <aside className="topicDashboard__leftList topicDashboard__leftList--rail">
+              {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
+              {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
+
+              {topics.map((topic) => {
+                const hasVector = Boolean(topic.classifier_embedding?.length);
+                return (
+                  <div
+                    key={topic.topic_key}
+                    className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
+                  >
+                    <button
+                      className="topicDashboard__topicSelect"
+                      onClick={() => {
+                        setSelectedTopicKey(topic.topic_key);
+                        setActiveTab("temaer");
+                      }}
+                      type="button"
+                    >
+                      <div className="topicDashboard__topicTitle">{topic.title}</div>
+                      <div className={`topicDashboard__topicStatus ${hasVector ? "is-ok" : "is-missing"}`}>
+                        {hasVector ? "Vector OK" : "Vector missing"}
+                      </div>
+                    </button>
+
+                    <button
+                      className="topicDashboard__topicVectorBtn"
+                      type="button"
+                      disabled={isCalculatingTopicKey === topic.topic_key}
+                      onClick={() => handleCalculateVector(topic.topic_key)}
+                    >
+                      {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate"}
+                    </button>
+                  </div>
+                );
+              })}
+            </aside>
+
+            <section className="topicDashboard__formPane">
+              <div className="topicDashboard__formInner">
             {!selectedTopic || !form ? (
               <div className="topicDashboard__hint">Velg et tema for aa redigere.</div>
             ) : (
@@ -803,7 +804,9 @@ export default function TopicDashboardPage() {
                 </div>
               </>
             )}
+              </div>
           </section>
+          </div>
         )}
       </main>
     </div>
