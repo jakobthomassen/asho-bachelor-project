@@ -10,50 +10,36 @@ import {
 } from "../../../features/topicDashboard/api";
 import "./TopicDashboardPage.css";
 
+const LOGO_URL =
+  "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
+
 type TabKey = "stats" | "temaer";
+type JsonValueType = "string" | "number" | "boolean" | "json";
+
+type KeyValueRow = {
+  id: string;
+  key: string;
+  value: string;
+  type: JsonValueType;
+};
 
 type TopicForm = {
   title: string;
   classifier_description: string;
   system_prompt: string;
-  micro_instructions: string;
-  constraints: string;
-  reclassify_rules: string;
-  safety_rules: string;
+  micro_instruction_items: string[];
+  constraints_rows: KeyValueRow[];
+  reclassify_rows: KeyValueRow[];
+  safety_rows: KeyValueRow[];
   min_confidence: string;
   reclassify_turn_threshold: string;
   max_clarifying_questions: string;
 };
 
-function toPrettyJson(value: unknown): string {
-  return JSON.stringify(value ?? {}, null, 2);
-}
-
-function formFromTopic(topic: TopicDashboardTopic): TopicForm {
-  return {
-    title: topic.title,
-    classifier_description: topic.classifier_description,
-    system_prompt: topic.system_prompt,
-    micro_instructions: toPrettyJson(topic.micro_instructions),
-    constraints: toPrettyJson(topic.constraints),
-    reclassify_rules: toPrettyJson(topic.reclassify_rules),
-    safety_rules: toPrettyJson(topic.safety_rules),
-    min_confidence: String(topic.min_confidence),
-    reclassify_turn_threshold: String(topic.reclassify_turn_threshold),
-    max_clarifying_questions: String(topic.max_clarifying_questions),
-  };
-}
-
-function parseJsonObject(raw: string, fieldName: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(raw || "{}");
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error(`${fieldName} må være et JSON-objekt.`);
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new Error(`${fieldName} inneholder ugyldig JSON.`);
-  }
+let rowIdCounter = 0;
+function makeRowId(): string {
+  rowIdCounter += 1;
+  return `row-${Date.now()}-${rowIdCounter}`;
 }
 
 function formatUsd(value: number): string {
@@ -63,6 +49,219 @@ function formatUsd(value: number): string {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   }).format(value || 0);
+}
+
+function valueTypeOf(value: unknown): JsonValueType {
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "string") return "string";
+  return "json";
+}
+
+function rowsFromObject(input: Record<string, unknown>): KeyValueRow[] {
+  return Object.entries(input || {}).map(([key, value]) => {
+    const type = valueTypeOf(value);
+    const normalizedValue =
+      type === "json"
+        ? JSON.stringify(value ?? null)
+        : type === "boolean"
+          ? String(Boolean(value))
+          : String(value ?? "");
+
+    return {
+      id: makeRowId(),
+      key,
+      value: normalizedValue,
+      type,
+    };
+  });
+}
+
+function toInstructionItems(input: Record<string, unknown>): string[] {
+  const rawSequence = input?.sequence;
+  if (Array.isArray(rawSequence)) {
+    return rawSequence.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+
+  return Object.values(input || {})
+    .filter((value) => typeof value === "string")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
+function formFromTopic(topic: TopicDashboardTopic): TopicForm {
+  return {
+    title: topic.title,
+    classifier_description: topic.classifier_description,
+    system_prompt: topic.system_prompt,
+    micro_instruction_items: toInstructionItems(topic.micro_instructions),
+    constraints_rows: rowsFromObject(topic.constraints),
+    reclassify_rows: rowsFromObject(topic.reclassify_rules),
+    safety_rows: rowsFromObject(topic.safety_rules),
+    min_confidence: String(topic.min_confidence),
+    reclassify_turn_threshold: String(topic.reclassify_turn_threshold),
+    max_clarifying_questions: String(topic.max_clarifying_questions),
+  };
+}
+
+function parseRowValue(fieldLabel: string, row: KeyValueRow): unknown {
+  if (row.type === "string") return row.value;
+
+  if (row.type === "number") {
+    const numberValue = Number(row.value);
+    if (!Number.isFinite(numberValue)) {
+      throw new Error(`${fieldLabel}: "${row.key}" ma vaere et gyldig tall.`);
+    }
+    return numberValue;
+  }
+
+  if (row.type === "boolean") {
+    return row.value === "true";
+  }
+
+  try {
+    return JSON.parse(row.value || "null");
+  } catch {
+    throw new Error(`${fieldLabel}: "${row.key}" inneholder ugyldig JSON.`);
+  }
+}
+
+function rowsToObject(fieldLabel: string, rows: KeyValueRow[]): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+
+  for (const row of rows) {
+    const cleanKey = row.key.trim();
+    if (!cleanKey) continue;
+    output[cleanKey] = parseRowValue(fieldLabel, row);
+  }
+
+  return output;
+}
+
+function toNiceMax(rawMax: number): number {
+  if (rawMax <= 0) return 1;
+
+  const exponent = Math.floor(Math.log10(rawMax));
+  const base = 10 ** exponent;
+  const fraction = rawMax / base;
+
+  let niceFraction = 1;
+  if (fraction > 1) niceFraction = 2;
+  if (fraction > 2) niceFraction = 5;
+  if (fraction > 5) niceFraction = 10;
+
+  return niceFraction * base;
+}
+
+function formatTick(value: number): string {
+  return value.toLocaleString("nb-NO");
+}
+
+function formatDateLabel(day: string): string {
+  return day.slice(5);
+}
+
+function KeyValueEditor({
+  title,
+  rows,
+  onChange,
+}: {
+  title: string;
+  rows: KeyValueRow[];
+  onChange: (nextRows: KeyValueRow[]) => void;
+}) {
+  const addRow = () => {
+    onChange([
+      ...rows,
+      {
+        id: makeRowId(),
+        key: "",
+        value: "",
+        type: "string",
+      },
+    ]);
+  };
+
+  const removeRow = (id: string) => {
+    onChange(rows.filter((row) => row.id !== id));
+  };
+
+  const updateRow = (id: string, patch: Partial<KeyValueRow>) => {
+    onChange(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  return (
+    <section className="topicDashboard__kvSection">
+      <div className="topicDashboard__kvHeader">
+        <h3>{title}</h3>
+        <button type="button" className="topicDashboard__ghostBtn" onClick={addRow}>
+          + Legg til rad
+        </button>
+      </div>
+
+      {rows.length === 0 ? <div className="topicDashboard__hint">Ingen felter enda.</div> : null}
+
+      <div className="topicDashboard__kvRows">
+        {rows.map((row) => (
+          <div className="topicDashboard__kvRow" key={row.id}>
+            <input
+              type="text"
+              placeholder="Nokkel"
+              value={row.key}
+              onChange={(e) => updateRow(row.id, { key: e.target.value })}
+            />
+
+            {row.type === "boolean" ? (
+              <select
+                value={row.value}
+                onChange={(e) => updateRow(row.id, { value: e.target.value })}
+                aria-label="Boolean verdi"
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={row.type === "json" ? '{"example": true}' : "Verdi"}
+                value={row.value}
+                onChange={(e) => updateRow(row.id, { value: e.target.value })}
+              />
+            )}
+
+            <select
+              value={row.type}
+              onChange={(e) => {
+                const nextType = e.target.value as JsonValueType;
+                const nextValue =
+                  nextType === "boolean"
+                    ? row.value === "false"
+                      ? "false"
+                      : "true"
+                    : row.value;
+                updateRow(row.id, { type: nextType, value: nextValue });
+              }}
+              aria-label="Verditype"
+            >
+              <option value="string">tekst</option>
+              <option value="number">tall</option>
+              <option value="boolean">bool</option>
+              <option value="json">json</option>
+            </select>
+
+            <button
+              type="button"
+              className="topicDashboard__dangerGhostBtn"
+              onClick={() => removeRow(row.id)}
+              aria-label="Fjern rad"
+            >
+              Fjern
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export default function TopicDashboardPage() {
@@ -155,6 +354,36 @@ export default function TopicDashboardPage() {
     setForm((prev) => (prev ? { ...prev, [name]: value } : prev));
   };
 
+  const updateInstructionItem = (index: number, value: string) => {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const next = [...prev.micro_instruction_items];
+      next[index] = value;
+      return { ...prev, micro_instruction_items: next };
+    });
+  };
+
+  const addInstructionItem = () => {
+    setForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            micro_instruction_items: [...prev.micro_instruction_items, ""],
+          }
+        : prev
+    );
+  };
+
+  const removeInstructionItem = (index: number) => {
+    setForm((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        micro_instruction_items: prev.micro_instruction_items.filter((_, i) => i !== index),
+      };
+    });
+  };
+
   const handleSave = async () => {
     if (!sessionToken || !selectedTopic || !form) return;
 
@@ -166,36 +395,40 @@ export default function TopicDashboardPage() {
     const maxClarifyingQuestions = Number(form.max_clarifying_questions);
 
     if (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1) {
-      setError("min_confidence må være et tall mellom 0 og 1.");
+      setError("min_confidence ma vaere et tall mellom 0 og 1.");
       return;
     }
 
     if (!Number.isInteger(reclassifyTurnThreshold) || reclassifyTurnThreshold < 1) {
-      setError("reclassify_turn_threshold må være et heltall >= 1.");
+      setError("reclassify_turn_threshold ma vaere et heltall >= 1.");
       return;
     }
 
     if (!Number.isInteger(maxClarifyingQuestions) || maxClarifyingQuestions < 0) {
-      setError("max_clarifying_questions må være et heltall >= 0.");
+      setError("max_clarifying_questions ma vaere et heltall >= 0.");
       return;
     }
 
     try {
+      const microInstructions = {
+        sequence: form.micro_instruction_items.map((item) => item.trim()).filter(Boolean),
+      };
+
       const payload = {
         title: form.title.trim(),
         classifier_description: form.classifier_description.trim(),
         system_prompt: form.system_prompt.trim(),
-        micro_instructions: parseJsonObject(form.micro_instructions, "micro_instructions"),
-        constraints: parseJsonObject(form.constraints, "constraints"),
-        reclassify_rules: parseJsonObject(form.reclassify_rules, "reclassify_rules"),
-        safety_rules: parseJsonObject(form.safety_rules, "safety_rules"),
+        micro_instructions: microInstructions,
+        constraints: rowsToObject("Constraints", form.constraints_rows),
+        reclassify_rules: rowsToObject("Reclassify rules", form.reclassify_rows),
+        safety_rules: rowsToObject("Safety rules", form.safety_rows),
         min_confidence: minConfidence,
         reclassify_turn_threshold: reclassifyTurnThreshold,
         max_clarifying_questions: maxClarifyingQuestions,
       };
 
       if (!payload.title || !payload.classifier_description || !payload.system_prompt) {
-        setError("Title, classifier_description og system_prompt er påkrevd.");
+        setError("Title, classifier_description og system_prompt er pakrevd.");
         return;
       }
 
@@ -230,51 +463,88 @@ export default function TopicDashboardPage() {
     }
   };
 
-  const objectFieldSummary = (raw: string): string => {
-    try {
-      const parsed = JSON.parse(raw || "{}");
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Invalid format";
-      const count = Object.keys(parsed).length;
-      return `${count} felt`;
-    } catch {
-      return "Ugyldig JSON";
-    }
-  };
-
   if (!sessionToken) {
     return (
       <div className="topicDashboard">
-        <div className="topicDashboard__empty">Logg inn for å bruke dashboard.</div>
+        <div className="topicDashboard__empty">Logg inn for aa bruke dashboard.</div>
       </div>
     );
   }
 
+  const dailyTokens = stats?.daily_tokens ?? [];
+  const maxTokens = Math.max(0, ...dailyTokens.map((item) => item.total_tokens));
+  const yMax = toNiceMax(maxTokens);
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.round(yMax * ratio));
+
   return (
     <div className="topicDashboard">
-      <header className="topicDashboard__header">
-        <h1>Dashboard</h1>
-      </header>
+      <aside className="topicDashboard__leftRail">
+        <div className="topicDashboard__brand">
+          <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
+          <div className="topicDashboard__brandName">ASHO</div>
+        </div>
 
-      <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
-        <button
-          className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
-          onClick={() => setActiveTab("stats")}
-          role="tab"
-          aria-selected={activeTab === "stats"}
-        >
-          Statistikk
-        </button>
-        <button
-          className={`topicDashboard__tab ${activeTab === "temaer" ? "is-active" : ""}`}
-          onClick={() => setActiveTab("temaer")}
-          role="tab"
-          aria-selected={activeTab === "temaer"}
-        >
-          Temaer
-        </button>
-      </div>
+        <div className="topicDashboard__leftList">
+          {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
+          {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
 
-      <div className={`topicDashboard__panel ${activeTab === "stats" ? "topicDashboard__panel--stats" : ""}`}>
+          {topics.map((topic) => {
+            const hasVector = Boolean(topic.classifier_embedding?.length);
+            return (
+              <div
+                key={topic.topic_key}
+                className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
+              >
+                <button
+                  className="topicDashboard__topicSelect"
+                  onClick={() => {
+                    setSelectedTopicKey(topic.topic_key);
+                    setActiveTab("temaer");
+                  }}
+                  type="button"
+                >
+                  <div className="topicDashboard__topicTitle">{topic.title}</div>
+                  <div className={`topicDashboard__topicStatus ${hasVector ? "is-ok" : "is-missing"}`}>
+                    {hasVector ? "Vector OK" : "Vector missing"}
+                  </div>
+                </button>
+
+                <button
+                  className="topicDashboard__topicVectorBtn"
+                  type="button"
+                  disabled={isCalculatingTopicKey === topic.topic_key}
+                  onClick={() => handleCalculateVector(topic.topic_key)}
+                >
+                  {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+
+      <main className="topicDashboard__main">
+        <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
+          <button
+            className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
+            onClick={() => setActiveTab("stats")}
+            role="tab"
+            aria-selected={activeTab === "stats"}
+            type="button"
+          >
+            Statistikk
+          </button>
+          <button
+            className={`topicDashboard__tab ${activeTab === "temaer" ? "is-active" : ""}`}
+            onClick={() => setActiveTab("temaer")}
+            role="tab"
+            aria-selected={activeTab === "temaer"}
+            type="button"
+          >
+            Temaer
+          </button>
+        </div>
+
         {activeTab === "stats" ? (
           <section className="topicDashboard__statsPane">
             <div className="topicDashboard__statsHeader">
@@ -316,101 +586,78 @@ export default function TopicDashboardPage() {
                     <div className="topicDashboard__statValue">{stats.avg_conversation_length_messages.toFixed(2)}</div>
                   </article>
                   <article className="topicDashboard__statCard">
-                    <div className="topicDashboard__statLabel">
-                      Månedlig tokenkostnad (Estimert)
-                      <span
-                        className="topicDashboard__helpTip"
-                        title="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
-                        aria-label="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
-                      >
-                        ?
-                      </span>
-                    </div>
+                    <div className="topicDashboard__statLabel">Manedlig tokenkostnad (Estimert)</div>
                     <div className="topicDashboard__statValue">{formatUsd(stats.monthly_estimated_token_cost_usd)}</div>
                   </article>
                   <article className="topicDashboard__statCard">
-                    <div className="topicDashboard__statLabel">
-                      Total tokenkostnad (Estimert)
-                      <span
-                        className="topicDashboard__helpTip"
-                        title="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
-                        aria-label="Disse tallene kan variere fra faktisk tokenbruk og er ikke helt nøyaktig."
-                      >
-                        ?
-                      </span>
-                    </div>
+                    <div className="topicDashboard__statLabel">Total tokenkostnad (Estimert)</div>
                     <div className="topicDashboard__statValue">{formatUsd(stats.total_estimated_token_cost_usd)}</div>
                   </article>
                 </div>
 
                 <div className="topicDashboard__chartCard">
                   <div className="topicDashboard__chartTitle">Daglig tokenbruk</div>
-                  <div className="topicDashboard__chartViewport">
-                    <div className="topicDashboard__chartBars">
-                    {(() => {
-                      const maxTokens = Math.max(1, ...stats.daily_tokens.map((item) => item.total_tokens));
-                      const labelStep = stats.daily_tokens.length > 20 ? 3 : stats.daily_tokens.length > 10 ? 2 : 1;
-                      return stats.daily_tokens.map((item, index) => {
-                        const hasTokens = item.total_tokens > 0;
-                        const pct = hasTokens ? Math.max(0.08, item.total_tokens / maxTokens) : 0;
-                        const label = item.day.slice(5);
-                        const showLabel = index % labelStep === 0 || index === stats.daily_tokens.length - 1;
+                  <div className="topicDashboard__chartWrap">
+                    <svg className="topicDashboard__chartSvg" viewBox="0 0 1100 300" preserveAspectRatio="none" role="img">
+                      <title>Daglig tokenbruk med dynamisk Y-akse</title>
+
+                      {yTicks.map((tick) => {
+                        const y = 24 + (1 - tick / yMax) * 220;
                         return (
-                          <div className="topicDashboard__barItem" key={item.day}>
-                            <div className="topicDashboard__barValue">{item.total_tokens.toLocaleString("nb-NO")}</div>
-                            <div className="topicDashboard__barTrack">
-                              <div
-                                className={`topicDashboard__barFill ${hasTokens ? "" : "is-zero"}`}
-                                style={{ height: `${pct * 100}%` }}
-                              />
-                            </div>
-                            <div className={`topicDashboard__barLabel ${showLabel ? "" : "is-hidden"}`}>{label}</div>
-                          </div>
+                          <g key={tick}>
+                            <line x1="52" y1={y} x2="1080" y2={y} className="topicDashboard__gridLine" />
+                            <text x="46" y={y + 4} className="topicDashboard__tickText" textAnchor="end">
+                              {formatTick(tick)}
+                            </text>
+                          </g>
                         );
-                      });
-                    })()}
-                    </div>
+                      })}
+
+                      {dailyTokens.map((item, index) => {
+                        const count = Math.max(1, dailyTokens.length);
+                        const slotWidth = 1028 / count;
+                        const barWidth = Math.max(6, Math.min(24, slotWidth * 0.62));
+                        const x = 52 + index * slotWidth + (slotWidth - barWidth) / 2;
+                        const barHeight = yMax > 0 ? (item.total_tokens / yMax) * 220 : 0;
+                        const y = 244 - barHeight;
+                        const showLabelEvery = count > 20 ? 3 : count > 12 ? 2 : 1;
+                        const showLabel = index % showLabelEvery === 0 || index === count - 1;
+
+                        return (
+                          <g key={item.day}>
+                            <rect
+                              x={x}
+                              y={y}
+                              width={barWidth}
+                              height={Math.max(0, barHeight)}
+                              rx="7"
+                              className="topicDashboard__barRect"
+                            >
+                              <title>{`${item.day}: ${item.total_tokens.toLocaleString("nb-NO")} tokens`}</title>
+                            </rect>
+                            {showLabel ? (
+                              <text
+                                x={x + barWidth / 2}
+                                y="282"
+                                textAnchor="middle"
+                                className="topicDashboard__dateText"
+                              >
+                                {formatDateLabel(item.day)}
+                              </text>
+                            ) : null}
+                          </g>
+                        );
+                      })}
+                    </svg>
                   </div>
                 </div>
               </>
             ) : null}
           </section>
         ) : (
-          <div className="topicDashboard__content">
-          <aside className="topicDashboard__sidebar">
-            {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
-            {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
-            {topics.map((topic) => (
-              <div
-                key={topic.topic_key}
-                className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
-              >
-                <button
-                  className="topicDashboard__topicSelect"
-                  onClick={() => setSelectedTopicKey(topic.topic_key)}
-                  type="button"
-                >
-                  <div className="topicDashboard__topicTitle">{topic.title}</div>
-                  <div className="topicDashboard__topicMeta">
-                    {topic.topic_key} · v{topic.version_no} ·{" "}
-                    {topic.classifier_embedding?.length ? "vector OK" : "vector mangler"}
-                  </div>
-                </button>
-                <button
-                  className="topicDashboard__topicVectorBtn"
-                  type="button"
-                  disabled={isCalculatingTopicKey === topic.topic_key}
-                  onClick={() => handleCalculateVector(topic.topic_key)}
-                >
-                  {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate vector"}
-                </button>
-              </div>
-            ))}
-          </aside>
-
           <section className="topicDashboard__formPane">
             {!selectedTopic || !form ? (
-              <div className="topicDashboard__hint">Velg et tema for å redigere.</div>
+              <div className="topicDashboard__hint">Velg et tema for aa redigere.</div>
             ) : (
               <>
                 <div className="topicDashboard__statusRow">
@@ -445,40 +692,41 @@ export default function TopicDashboardPage() {
                     />
                   </label>
 
-                  <label>
-                    Min confidence
-                    <input
-                      type="number"
-                      min={0}
-                      max={1}
-                      step="0.01"
-                      value={form.min_confidence}
-                      onChange={(e) => updateField("min_confidence", e.target.value)}
-                    />
-                  </label>
+                  <div className="topicDashboard__numberGrid">
+                    <label>
+                      Min confidence
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step="0.01"
+                        value={form.min_confidence}
+                        onChange={(e) => updateField("min_confidence", e.target.value)}
+                      />
+                    </label>
 
-                  <label>
-                    Reclassify turn threshold
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={form.reclassify_turn_threshold}
-                      onChange={(e) => updateField("reclassify_turn_threshold", e.target.value)}
-                    />
-                  </label>
+                    <label>
+                      Reclassify turn threshold
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={form.reclassify_turn_threshold}
+                        onChange={(e) => updateField("reclassify_turn_threshold", e.target.value)}
+                      />
+                    </label>
 
-                  <label>
-                    Max clarifying questions
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={form.max_clarifying_questions}
-                      onChange={(e) => updateField("max_clarifying_questions", e.target.value)}
-                    />
-                  </label>
-
+                    <label>
+                      Max clarifying questions
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={form.max_clarifying_questions}
+                        onChange={(e) => updateField("max_clarifying_questions", e.target.value)}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <details className="topicDashboard__advanced" open={showAdvanced}>
@@ -488,81 +736,76 @@ export default function TopicDashboardPage() {
                       className="topicDashboard__advancedToggle"
                       onClick={() => setShowAdvanced((prev) => !prev)}
                     >
-                      {showAdvanced ? "Skjul avanserte JSON-felt" : "Vis avanserte JSON-felt"}
+                      {showAdvanced ? "Skjul avanserte felt" : "Vis avanserte felt"}
                     </button>
                   </summary>
 
                   {showAdvanced ? (
                     <div className="topicDashboard__advancedBody">
-                      <div className="topicDashboard__jsonSummaryGrid">
-                        <div className="topicDashboard__summaryField">
-                          Micro instructions: {objectFieldSummary(form.micro_instructions)}
+                      <section className="topicDashboard__kvSection">
+                        <div className="topicDashboard__kvHeader">
+                          <h3>Micro instructions</h3>
+                          <button type="button" className="topicDashboard__ghostBtn" onClick={addInstructionItem}>
+                            + Legg til punkt
+                          </button>
                         </div>
-                        <div className="topicDashboard__summaryField">
-                          Constraints: {objectFieldSummary(form.constraints)}
+
+                        {form.micro_instruction_items.length === 0 ? (
+                          <div className="topicDashboard__hint">Ingen punkter enda.</div>
+                        ) : null}
+
+                        <div className="topicDashboard__instructionList">
+                          {form.micro_instruction_items.map((item, index) => (
+                            <div className="topicDashboard__instructionRow" key={`micro-${index}`}>
+                              <input
+                                type="text"
+                                value={item}
+                                onChange={(e) => updateInstructionItem(index, e.target.value)}
+                                placeholder="Skriv et instruksjonspunkt"
+                              />
+                              <button
+                                type="button"
+                                className="topicDashboard__dangerGhostBtn"
+                                onClick={() => removeInstructionItem(index)}
+                              >
+                                Fjern
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                        <div className="topicDashboard__summaryField">
-                          Reclassify rules: {objectFieldSummary(form.reclassify_rules)}
-                        </div>
-                        <div className="topicDashboard__summaryField">
-                          Safety rules: {objectFieldSummary(form.safety_rules)}
-                        </div>
-                      </div>
+                      </section>
 
-                      <div className="topicDashboard__formGrid">
-                        <label>
-                          Micro instructions (JSON object)
-                          <textarea
-                            rows={6}
-                            value={form.micro_instructions}
-                            onChange={(e) => updateField("micro_instructions", e.target.value)}
-                          />
-                        </label>
+                      <KeyValueEditor
+                        title="Constraints"
+                        rows={form.constraints_rows}
+                        onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, constraints_rows: nextRows } : prev))}
+                      />
 
-                        <label>
-                          Constraints (JSON object)
-                          <textarea
-                            rows={6}
-                            value={form.constraints}
-                            onChange={(e) => updateField("constraints", e.target.value)}
-                          />
-                        </label>
+                      <KeyValueEditor
+                        title="Reclassify rules"
+                        rows={form.reclassify_rows}
+                        onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, reclassify_rows: nextRows } : prev))}
+                      />
 
-                        <label>
-                          Reclassify rules (JSON object)
-                          <textarea
-                            rows={6}
-                            value={form.reclassify_rules}
-                            onChange={(e) => updateField("reclassify_rules", e.target.value)}
-                          />
-                        </label>
-
-                        <label>
-                          Safety rules (JSON object)
-                          <textarea
-                            rows={6}
-                            value={form.safety_rules}
-                            onChange={(e) => updateField("safety_rules", e.target.value)}
-                          />
-                        </label>
-
-                      </div>
+                      <KeyValueEditor
+                        title="Safety rules"
+                        rows={form.safety_rows}
+                        onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, safety_rows: nextRows } : prev))}
+                      />
                     </div>
                   ) : null}
                 </details>
 
                 <div className="topicDashboard__actions">
-                  <button disabled={isSaving} onClick={handleSave}>
+                  <button disabled={isSaving} onClick={handleSave} type="button">
                     {isSaving ? "Lagrer..." : "Lagre ny versjon"}
                   </button>
                 </div>
               </>
             )}
           </section>
-          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
-
