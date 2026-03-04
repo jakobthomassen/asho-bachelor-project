@@ -9,6 +9,7 @@ import {
   type TopicDashboardStats,
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
+import SettingsModal from "../../../components/overlays/SettingsModal";
 import "./TopicDashboardPage.css";
 
 const LOGO_URL =
@@ -304,6 +305,9 @@ export default function TopicDashboardPage() {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newTopicKey, setNewTopicKey] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
+  const [mode, setMode] = useState<"light" | "dark">("light");
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -361,6 +365,21 @@ export default function TopicDashboardPage() {
       cancelled = true;
     };
   }, [sessionToken, statsDays]);
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("asho_theme");
+    const storedMode = localStorage.getItem("asho_mode");
+    if (storedTheme === "green" || storedTheme === "purple" || storedTheme === "blue") setColorTheme(storedTheme);
+    if (storedMode === "light" || storedMode === "dark") setMode(storedMode);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = colorTheme;
+    root.dataset.mode = mode;
+    localStorage.setItem("asho_theme", colorTheme);
+    localStorage.setItem("asho_mode", mode);
+  }, [colorTheme, mode]);
 
   const selectedTopic = useMemo(
     () => topics.find((t) => t.topic_key === selectedTopicKey),
@@ -549,6 +568,13 @@ export default function TopicDashboardPage() {
             Temaer
           </button>
         </div>
+        <button
+          className="topicDashboard__settingsBtn"
+          type="button"
+          onClick={() => setShowSettings(true)}
+        >
+          ⚙ Innstillinger
+        </button>
       </header>
 
       <main className="topicDashboard__main">
@@ -919,6 +945,14 @@ export default function TopicDashboardPage() {
           </div>
         )}
       </main>
+      <SettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        theme={colorTheme}
+        mode={mode}
+        onThemeChange={setColorTheme}
+        onModeChange={setMode}
+      />
     </div>
   );
 }
