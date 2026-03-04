@@ -58,9 +58,6 @@
   --text-primary: #e2e8f0;
   --text-secondary: #cbd5f5;
   --text-muted: #94a3b8;
-  --sidebar-active-text: #1f2937;
-  --sidebar-active-time: #334155;
-
   --bubble-user: #1b2430;
   --bubble-asho: color-mix(in srgb, var(--surface) 70%, var(--accent) 30%);
 
