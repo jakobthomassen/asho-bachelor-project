@@ -15,6 +15,7 @@ export type TopicDashboardTopic = {
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
+  updated_at: string | null;
 };
 
 export type TopicDashboardDailyTokens = {

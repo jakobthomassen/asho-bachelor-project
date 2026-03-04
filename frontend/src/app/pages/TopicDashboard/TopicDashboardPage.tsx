@@ -115,9 +115,9 @@ function emptyForm(): TopicForm {
     constraints_rows: [],
     reclassify_rows: [],
     safety_rows: [],
-    min_confidence: "0.7",
-    reclassify_turn_threshold: "3",
-    max_clarifying_questions: "2",
+    min_confidence: "0.6",
+    reclassify_turn_threshold: "12",
+    max_clarifying_questions: "1",
   };
 }
 
@@ -490,7 +490,7 @@ export default function TopicDashboardPage() {
           return;
         }
         const saved = await createTopic(sessionToken, { topic_key: cleanKey, ...basePayload });
-        setTopics((prev) => [...prev, saved].sort((a, b) => a.title.localeCompare(b.title)));
+        setTopics((prev) => [...prev, saved].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? "")));
         setSelectedTopicKey(saved.topic_key);
         setIsCreatingNew(false);
         setNewTopicKey("");
