@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../AuthProvider";
 import {
   calculateTopicVector,
+  createTopic,
   getTopicDashboardStats,
   listTopicDashboardTopics,
   saveTopicVersion,
@@ -101,6 +102,21 @@ function formFromTopic(topic: TopicDashboardTopic): TopicForm {
     min_confidence: String(topic.min_confidence),
     reclassify_turn_threshold: String(topic.reclassify_turn_threshold),
     max_clarifying_questions: String(topic.max_clarifying_questions),
+  };
+}
+
+function emptyForm(): TopicForm {
+  return {
+    title: "",
+    classifier_description: "",
+    system_prompt: "",
+    micro_instruction_items: [],
+    constraints_rows: [],
+    reclassify_rows: [],
+    safety_rows: [],
+    min_confidence: "0.7",
+    reclassify_turn_threshold: "3",
+    max_clarifying_questions: "2",
   };
 }
 
@@ -285,6 +301,8 @@ export default function TopicDashboardPage() {
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCalculatingTopicKey, setIsCalculatingTopicKey] = useState<string | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [newTopicKey, setNewTopicKey] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -350,6 +368,7 @@ export default function TopicDashboardPage() {
   );
 
   useEffect(() => {
+    if (isCreatingNew) return;
     if (!selectedTopic) {
       setForm(null);
       return;
@@ -358,7 +377,7 @@ export default function TopicDashboardPage() {
     setShowAdvanced(false);
     setSuccess(null);
     setError(null);
-  }, [selectedTopicKey, selectedTopic]);
+  }, [selectedTopicKey, selectedTopic, isCreatingNew]);
 
   const updateField = (name: keyof TopicForm, value: string) => {
     setForm((prev) => (prev ? { ...prev, [name]: value } : prev));
@@ -395,7 +414,7 @@ export default function TopicDashboardPage() {
   };
 
   const handleSave = async () => {
-    if (!sessionToken || !selectedTopic || !form) return;
+    if (!sessionToken || !form) return;
 
     setError(null);
     setSuccess(null);
@@ -403,6 +422,11 @@ export default function TopicDashboardPage() {
     const minConfidence = Number(form.min_confidence);
     const reclassifyTurnThreshold = Number(form.reclassify_turn_threshold);
     const maxClarifyingQuestions = Number(form.max_clarifying_questions);
+
+    if (!form.title.trim() || !form.classifier_description.trim() || !form.system_prompt.trim()) {
+      setError("Title, classifier_description og system_prompt er pakrevd.");
+      return;
+    }
 
     if (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1) {
       setError("min_confidence ma vaere et tall mellom 0 og 1.");
@@ -424,7 +448,7 @@ export default function TopicDashboardPage() {
         sequence: form.micro_instruction_items.map((item) => item.trim()).filter(Boolean),
       };
 
-      const payload = {
+      const basePayload = {
         title: form.title.trim(),
         classifier_description: form.classifier_description.trim(),
         system_prompt: form.system_prompt.trim(),
@@ -437,20 +461,32 @@ export default function TopicDashboardPage() {
         max_clarifying_questions: maxClarifyingQuestions,
       };
 
-      if (!payload.title || !payload.classifier_description || !payload.system_prompt) {
-        setError("Title, classifier_description og system_prompt er pakrevd.");
-        return;
-      }
-
       setIsSaving(true);
-      const saved = await saveTopicVersion(sessionToken, selectedTopic.topic_key, payload);
 
-      setTopics((prev) => prev.map((topic) => (topic.topic_key === saved.topic_key ? saved : topic)));
-      setSelectedTopicKey(saved.topic_key);
-      setForm(formFromTopic(saved));
-      setSuccess(`Lagret ny versjon v${saved.version_no}.`);
+      if (isCreatingNew) {
+        const cleanKey = newTopicKey.trim();
+        if (!cleanKey) {
+          setError("Topic key er pakrevd.");
+          setIsSaving(false);
+          return;
+        }
+        const saved = await createTopic(sessionToken, { topic_key: cleanKey, ...basePayload });
+        setTopics((prev) => [...prev, saved].sort((a, b) => a.title.localeCompare(b.title)));
+        setSelectedTopicKey(saved.topic_key);
+        setIsCreatingNew(false);
+        setNewTopicKey("");
+        setForm(formFromTopic(saved));
+        setSuccess(`Nytt tema "${saved.title}" opprettet.`);
+      } else {
+        if (!selectedTopic) return;
+        const saved = await saveTopicVersion(sessionToken, selectedTopic.topic_key, basePayload);
+        setTopics((prev) => prev.map((topic) => (topic.topic_key === saved.topic_key ? saved : topic)));
+        setSelectedTopicKey(saved.topic_key);
+        setForm(formFromTopic(saved));
+        setSuccess(`Lagret ny versjon v${saved.version_no}.`);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunne ikke lagre ny versjon.");
+      setError(err instanceof Error ? err.message : "Kunne ikke lagre.");
     } finally {
       setIsSaving(false);
     }
@@ -651,19 +687,46 @@ export default function TopicDashboardPage() {
         ) : (
           <div className="topicDashboard__temaLayout">
             <aside className="topicDashboard__leftList topicDashboard__leftList--rail">
+              <button
+                className="topicDashboard__addNewBtn"
+                type="button"
+                onClick={() => {
+                  setIsCreatingNew(true);
+                  setSelectedTopicKey("");
+                  setNewTopicKey("");
+                  setForm(emptyForm());
+                  setShowAdvanced(false);
+                  setSuccess(null);
+                  setError(null);
+                }}
+              >
+                + Legg til nytt tema
+              </button>
+
               {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
               {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
+
+              {isCreatingNew ? (
+                <div className="topicDashboard__topicItem is-active">
+                  <button className="topicDashboard__topicSelect" type="button" disabled>
+                    <div className="topicDashboard__topicTitle">{newTopicKey.trim() || "Nytt tema"}</div>
+                    <div className="topicDashboard__topicStatus is-missing">Ikke lagret</div>
+                  </button>
+                </div>
+              ) : null}
 
               {topics.map((topic) => {
                 const hasVector = Boolean(topic.classifier_embedding?.length);
                 return (
                   <div
                     key={topic.topic_key}
-                    className={`topicDashboard__topicItem ${selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
+                    className={`topicDashboard__topicItem ${!isCreatingNew && selectedTopicKey === topic.topic_key ? "is-active" : ""}`}
                   >
                     <button
                       className="topicDashboard__topicSelect"
                       onClick={() => {
+                        setIsCreatingNew(false);
+                        setNewTopicKey("");
                         setSelectedTopicKey(topic.topic_key);
                         setActiveTab("temaer");
                       }}
@@ -690,19 +753,33 @@ export default function TopicDashboardPage() {
 
             <section className="topicDashboard__formPane">
               <div className="topicDashboard__formInner">
-            {!selectedTopic || !form ? (
+            {!form ? (
               <div className="topicDashboard__hint">Velg et tema for aa redigere.</div>
             ) : (
               <>
                 <div className="topicDashboard__statusRow">
                   <div className="topicDashboard__selectedMeta">
-                    Aktivt tema: <b>{selectedTopic.topic_key}</b> (v{selectedTopic.version_no})
+                    {isCreatingNew
+                      ? "Nytt tema"
+                      : <>Aktivt tema: <b>{selectedTopic!.topic_key}</b> (v{selectedTopic!.version_no})</>
+                    }
                   </div>
                   {success ? <div className="topicDashboard__success">{success}</div> : null}
                   {error ? <div className="topicDashboard__error">{error}</div> : null}
                 </div>
 
                 <div className="topicDashboard__formGrid">
+                  {isCreatingNew ? (
+                    <label>
+                      Topic key
+                      <input
+                        value={newTopicKey}
+                        onChange={(e) => setNewTopicKey(e.target.value)}
+                        placeholder="f.eks. helse, okonomi, teknologi"
+                      />
+                    </label>
+                  ) : null}
+
                   <label>
                     Tittel
                     <input value={form.title} onChange={(e) => updateField("title", e.target.value)} />
@@ -832,7 +909,7 @@ export default function TopicDashboardPage() {
 
                 <div className="topicDashboard__actions">
                   <button disabled={isSaving} onClick={handleSave} type="button">
-                    {isSaving ? "Lagrer..." : "Lagre ny versjon"}
+                    {isSaving ? "Lagrer..." : isCreatingNew ? "Opprett tema" : "Lagre ny versjon"}
                   </button>
                 </div>
               </>
