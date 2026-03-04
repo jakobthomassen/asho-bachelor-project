@@ -6,18 +6,15 @@ export type TopicDashboardTopic = {
   version_no: number;
   is_current: boolean;
   classifier_description: string;
-  classifier_keywords: string[];
-  classifier_exclude_keywords: string[];
+  classifier_embedding: number[] | null;
   system_prompt: string;
   micro_instructions: Record<string, unknown>;
   constraints: Record<string, unknown>;
-  pacing_rules: Record<string, unknown>;
   reclassify_rules: Record<string, unknown>;
   safety_rules: Record<string, unknown>;
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
-  examples: unknown[];
 };
 
 export type TopicDashboardDailyTokens = {
@@ -42,18 +39,14 @@ type TopicDashboardListResponse = {
 type SaveTopicVersionPayload = {
   title: string;
   classifier_description: string;
-  classifier_keywords: string[];
-  classifier_exclude_keywords: string[];
   system_prompt: string;
   micro_instructions: Record<string, unknown>;
   constraints: Record<string, unknown>;
-  pacing_rules: Record<string, unknown>;
   reclassify_rules: Record<string, unknown>;
   safety_rules: Record<string, unknown>;
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
-  examples: unknown[];
   created_by?: string;
 };
 
@@ -134,4 +127,29 @@ export async function getTopicDashboardStats(sessionToken: string, days = 7): Pr
   }
 
   return (await res.json()) as TopicDashboardStats;
+}
+
+export async function calculateTopicVector(
+  sessionToken: string,
+  topicKey: string
+): Promise<TopicDashboardTopic> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/topic-dashboard/topics/${encodeURIComponent(topicKey)}/calculate-vector`,
+    {
+      method: "POST",
+      headers: authHeaders(sessionToken),
+    }
+  );
+
+  if (!res.ok) {
+    let detail = "Failed to calculate vector";
+    try {
+      detail = extractErrorDetail(await res.json(), detail);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  return (await res.json()) as TopicDashboardTopic;
 }
