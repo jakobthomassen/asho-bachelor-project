@@ -1,96 +1,179 @@
 .topicDashboard {
-  min-height: 100vh;
-  background: var(--app-bg);
-  color: var(--text-primary);
-  padding: 1rem;
+  height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  gap: 12px;
+  grid-template-rows: auto 1fr;
+  --topic-sidebar-width: clamp(220px, 16vw, 280px);
+  background:
+    radial-gradient(circle at 6% 5%, color-mix(in srgb, var(--accent-soft) 68%, transparent), transparent 32%),
+    var(--app-bg);
+  color: var(--text-primary);
 }
 
-.topicDashboard__header h1 {
-  margin: 0;
-  font-size: 1.5rem;
+.topicDashboard__navBar {
+  position: relative;
+  min-height: 58px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 97%, var(--accent-soft));
+}
+
+.topicDashboard__brandBlock {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--topic-sidebar-width);
+  border-right: 1px solid var(--border);
+  padding: 0.45rem 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.topicDashboard__logo {
+  width: 64px;
+  height: auto;
+  display: block;
+}
+
+.topicDashboard__brandName {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: 0.84rem;
+}
+
+.topicDashboard__leftList {
+  padding: 0.5rem;
+  overflow: auto;
+  min-height: 0;
+}
+
+.topicDashboard__topicItem {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.35rem;
+  margin-bottom: 0.5rem;
+  background: var(--surface);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.topicDashboard__topicItem.is-active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+}
+
+.topicDashboard__topicSelect {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.05rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.topicDashboard__topicTitle {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.topicDashboard__topicStatus {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.topicDashboard__topicStatus.is-ok {
+  color: #16a34a;
+}
+
+.topicDashboard__topicStatus.is-missing {
+  color: #dc2626;
+}
+
+.topicDashboard__topicVectorBtn {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topicDashboard__topicVectorBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.topicDashboard__main {
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
 }
 
 .topicDashboard__tabs {
+  width: 100%;
   display: flex;
-  gap: 8px;
+  justify-content: center;
   align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 1rem;
 }
 
 .topicDashboard__tab {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-primary);
-  border-radius: 10px;
-  padding: 0.55rem 0.85rem;
-  font-weight: 700;
+  border-radius: 6px;
+  padding: 0.4rem 0.76rem;
+  font-size: 1.05rem;
+  line-height: 1;
   cursor: pointer;
 }
 
 .topicDashboard__tab.is-active {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
   background: var(--accent-soft);
 }
 
-.topicDashboard__panel {
-  min-height: calc(100vh - 180px);
-}
-
-.topicDashboard__panel--stats {
-  padding-inline: clamp(14px, 2.8vw, 44px);
-}
-
-.topicDashboard__placeholder,
+.topicDashboard__statsPane,
+.topicDashboard__formPane,
 .topicDashboard__empty {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  padding: 1rem;
-  color: var(--text-secondary);
-}
-
-.topicDashboard__content {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 12px;
-}
-
-.topicDashboard__placeholder {
-  height: 100%;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 97%, var(--accent-soft));
 }
 
 .topicDashboard__statsPane {
-  height: 100%;
-  width: min(100%, 1480px);
-  margin: 0 auto;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  padding: 1.15rem 1.2rem;
+  padding: 1rem;
   display: grid;
-  gap: 12px;
-  align-content: start;
+  gap: 0.9rem;
+  min-height: 0;
+}
+
+.topicDashboard__statsPane--constrained {
+  width: min(1300px, 100%);
+  margin-inline: auto;
 }
 
 .topicDashboard__statsHeader {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .topicDashboard__statsHeader h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  line-height: 1;
 }
 
 .topicDashboard__rangeButtons {
   display: inline-flex;
-  gap: 6px;
+  gap: 0.4rem;
 }
 
 .topicDashboard__rangeBtn {
@@ -99,8 +182,8 @@
   color: var(--text-primary);
   border-radius: 999px;
   padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 800;
   cursor: pointer;
 }
 
@@ -111,228 +194,277 @@
 
 .topicDashboard__statCards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  gap: 0.65rem;
 }
 
 .topicDashboard__statCard {
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: linear-gradient(160deg, var(--surface-muted), var(--surface));
-  padding: 0.85rem;
+  border-radius: 16px;
+  background: var(--surface-muted);
+  padding: 0.8rem 0.85rem;
   display: grid;
-  gap: 6px;
+  gap: 0.35rem;
+  min-height: 110px;
 }
 
 .topicDashboard__statLabel {
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 
 .topicDashboard__statValue {
-  color: var(--text-primary);
-  font-size: 1.45rem;
+  font-size: clamp(1.15rem, 1.45vw, 1.9rem);
   font-weight: 900;
-  line-height: 1.1;
-}
-
-.topicDashboard__helpTip {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  cursor: help;
+  line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .topicDashboard__chartCard {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-muted);
-  padding: 0.95rem;
+  padding: 0.85rem;
   display: grid;
-  gap: 10px;
+  gap: 0.65rem;
+}
+
+.topicDashboard__chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
 }
 
 .topicDashboard__chartTitle {
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: var(--text-secondary);
+  font-size: 1.35rem;
+  font-weight: 900;
 }
 
-.topicDashboard__chartViewport {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
+.topicDashboard__chartWrap {
+  height: 320px;
+  width: 100%;
+  position: relative;
 }
 
-.topicDashboard__chartBars {
-  display: flex;
-  gap: 10px;
-  align-items: end;
-  min-width: max-content;
+.topicDashboard__chartSvg {
+  width: 100%;
+  height: 100%;
 }
 
-.topicDashboard__barItem {
-  display: grid;
-  gap: 4px;
-  justify-items: center;
-  min-width: 48px;
+.topicDashboard__gridLine {
+  stroke: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  stroke-width: 1;
 }
 
-.topicDashboard__barValue {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+.topicDashboard__tickText,
+.topicDashboard__dateText {
+  fill: var(--text-secondary);
+  font-size: 12px;
   font-weight: 700;
 }
 
-.topicDashboard__barTrack {
-  width: 100%;
-  max-width: 28px;
-  height: 158px;
-  border-radius: 12px;
+.topicDashboard__barRect {
+  fill: var(--accent);
+  opacity: 0.95;
+}
+
+.topicDashboard__barRect:hover {
+  opacity: 0.8;
+}
+
+.topicDashboard__chartTooltip {
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
   border: 1px solid var(--border);
-  background:
-    linear-gradient(var(--surface), var(--surface)),
-    repeating-linear-gradient(
-      to top,
-      transparent 0,
-      transparent 23%,
-      rgba(20, 34, 61, 0.08) 24%,
-      transparent 25%
-    );
-  padding: 3px;
-  display: flex;
-  align-items: flex-end;
-}
-
-.topicDashboard__barFill {
-  width: 100%;
-  border-radius: 8px;
-  background: linear-gradient(180deg, var(--accent), #16a34a);
-}
-
-.topicDashboard__barFill.is-zero {
-  height: 0 !important;
-}
-
-.topicDashboard__barLabel {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  font-weight: 700;
-  min-height: 14px;
-}
-
-.topicDashboard__barLabel.is-hidden {
-  color: transparent;
-  user-select: none;
-}
-
-.topicDashboard__sidebar,
-.topicDashboard__formPane {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-
-.topicDashboard__sidebar {
-  padding: 0.5rem;
-  overflow-y: auto;
-  max-height: calc(100vh - 180px);
-}
-
-.topicDashboard__topicItem {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
   border-radius: 10px;
-  padding: 0.6rem;
-  margin-bottom: 6px;
-  cursor: pointer;
-  color: var(--text-primary);
+  background: var(--surface);
+  box-shadow: 0 12px 26px color-mix(in srgb, #000 12%, transparent);
+  padding: 0.45rem 0.6rem;
+  min-width: 110px;
+  z-index: 2;
 }
 
-.topicDashboard__topicItem.is-active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.topicDashboard__topicTitle {
+.topicDashboard__chartTooltipDate {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
   font-weight: 700;
-  font-size: 0.95rem;
+  line-height: 1.2;
 }
 
-.topicDashboard__topicMeta {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-top: 2px;
+.topicDashboard__chartTooltipValue {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+  margin-top: 0.1rem;
 }
 
 .topicDashboard__formPane {
-  padding: 0.9rem;
-  overflow-y: auto;
-  max-height: calc(100vh - 180px);
+  padding: 0.95rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.topicDashboard__formInner {
+  width: min(1120px, 100%);
+}
+
+.topicDashboard__temaLayout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--topic-sidebar-width) 1fr;
+  gap: 0.85rem;
+}
+
+.topicDashboard__leftList--rail {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent-soft));
+  align-self: start;
 }
 
 .topicDashboard__statusRow {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
 }
 
 .topicDashboard__selectedMeta {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
 }
 
 .topicDashboard__success {
   color: #15803d;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .topicDashboard__error {
   color: var(--danger);
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .topicDashboard__formGrid {
   display: grid;
-  gap: 10px;
+  gap: 0.7rem;
 }
 
 .topicDashboard__formGrid label {
   display: grid;
-  gap: 5px;
-  font-size: 0.85rem;
+  gap: 0.35rem;
   font-weight: 700;
+  font-size: 0.86rem;
 }
 
 .topicDashboard__formGrid input,
-.topicDashboard__formGrid textarea {
+.topicDashboard__formGrid textarea,
+.topicDashboard__formGrid select,
+.topicDashboard__instructionRow input,
+.topicDashboard__kvRow input,
+.topicDashboard__kvRow select {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-muted);
   color: var(--text-primary);
-  padding: 0.55rem 0.7rem;
-  font-family: inherit;
+  padding: 0.52rem 0.65rem;
+  font: inherit;
+}
+
+.topicDashboard__numberGrid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.topicDashboard__advanced {
+  margin-top: 0.95rem;
+}
+
+.topicDashboard__advanced summary {
+  list-style: none;
+}
+
+.topicDashboard__advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.topicDashboard__advancedToggle,
+.topicDashboard__ghostBtn,
+.topicDashboard__dangerGhostBtn {
+  border-radius: 10px;
+  padding: 0.42rem 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topicDashboard__advancedToggle,
+.topicDashboard__ghostBtn {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.topicDashboard__dangerGhostBtn {
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--danger);
+}
+
+.topicDashboard__advancedBody {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.topicDashboard__kvSection {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.topicDashboard__kvHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.topicDashboard__kvHeader h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.topicDashboard__kvRows,
+.topicDashboard__instructionList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.topicDashboard__kvRow,
+.topicDashboard__instructionRow {
+  display: grid;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.topicDashboard__kvRow {
+  grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.6fr) minmax(100px, 0.6fr) auto;
+}
+
+.topicDashboard__instructionRow {
+  grid-template-columns: 1fr auto;
 }
 
 .topicDashboard__actions {
-  margin-top: 12px;
+  margin-top: 0.95rem;
 }
 
 .topicDashboard__actions button {
@@ -340,7 +472,7 @@
   background: var(--accent);
   color: var(--accent-contrast);
   border-radius: 10px;
-  padding: 0.6rem 1rem;
+  padding: 0.64rem 0.98rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -352,64 +484,35 @@
 
 .topicDashboard__hint {
   color: var(--text-muted);
-  padding: 0.5rem;
+  font-size: 0.9rem;
 }
 
-.topicDashboard__summaryField {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-  padding: 0.55rem 0.7rem;
-  font-weight: 600;
-  font-size: 0.85rem;
+.topicDashboard__empty {
+  margin: 1rem;
+  padding: 1rem;
 }
 
-.topicDashboard__advanced {
-  margin-top: 10px;
-}
-
-.topicDashboard__advanced summary {
-  list-style: none;
-}
-
-.topicDashboard__advanced summary::-webkit-details-marker {
-  display: none;
-}
-
-.topicDashboard__advancedToggle {
-  border: 1px solid var(--border);
-  background: var(--surface-muted);
-  color: var(--text-primary);
-  border-radius: 10px;
-  padding: 0.5rem 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.topicDashboard__advancedBody {
-  margin-top: 10px;
-  display: grid;
-  gap: 10px;
-}
-
-.topicDashboard__jsonSummaryGrid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+@media (max-width: 1200px) {
+  .topicDashboard__statCards {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+  }
 }
 
 @media (max-width: 980px) {
-  .topicDashboard__panel {
+  .topicDashboard {
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .topicDashboard__navBar {
     min-height: 0;
   }
 
-  .topicDashboard__panel--stats {
-    padding-inline: 0;
-  }
-
-  .topicDashboard__content {
-    grid-template-columns: 1fr;
+  .topicDashboard__brandBlock {
+    position: static;
+    width: 100%;
+    border-right: 0;
   }
 
   .topicDashboard__statsHeader {
@@ -417,8 +520,48 @@
     align-items: flex-start;
   }
 
-  .topicDashboard__sidebar,
-  .topicDashboard__formPane {
+  .topicDashboard__main {
+    min-height: 0;
+  }
+
+  .topicDashboard__temaLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .topicDashboard__leftList--rail {
     max-height: none;
+  }
+
+  .topicDashboard__statsPane,
+  .topicDashboard__formPane {
+    min-height: 0;
+  }
+
+  .topicDashboard__numberGrid,
+  .topicDashboard__kvRow,
+  .topicDashboard__instructionRow {
+    grid-template-columns: 1fr;
+  }
+
+  .topicDashboard__statCards {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .topicDashboard__main {
+    padding: 0.6rem;
+  }
+
+  .topicDashboard__tab {
+    font-size: 0.96rem;
+  }
+
+  .topicDashboard__statCards {
+    grid-template-columns: 1fr;
+  }
+
+  .topicDashboard__chartWrap {
+    height: 290px;
   }
 }
