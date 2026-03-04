@@ -3,7 +3,8 @@ import { getProfileName, saveProfileName } from "../../features/profile/storage"
 
 type ThemeOption = "green" | "purple" | "blue";
 type ModeOption = "light" | "dark";
-type TabOption = "utseende" | "profil" | "personvern";
+type TabOption = "utseende" | "profil" | "konto";
+type KontoSection = "personvern" | "billing";
 
 type Props = {
   open: boolean;
@@ -29,6 +30,7 @@ export default function SettingsModal({
   onModeChange,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabOption>("utseende");
+  const [activeKontoSection, setActiveKontoSection] = useState<KontoSection>("personvern");
   const [profileName, setProfileName] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
   const showWip = () => window.alert("WIP");
@@ -38,6 +40,7 @@ export default function SettingsModal({
     setProfileName(getProfileName());
     setProfileSaved(false);
     setActiveTab("utseende");
+    setActiveKontoSection("personvern");
   }, [open]);
 
   const saveProfile = () => {
@@ -75,11 +78,11 @@ export default function SettingsModal({
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "personvern"}
-              className={`settingsTabButton ${activeTab === "personvern" ? "is-active" : ""}`}
-              onClick={() => setActiveTab("personvern")}
+              aria-selected={activeTab === "konto"}
+              className={`settingsTabButton ${activeTab === "konto" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("konto")}
             >
-              Personvern
+              Konto
             </button>
           </div>
 
@@ -144,16 +147,45 @@ export default function SettingsModal({
               </div>
             )}
 
-            {activeTab === "personvern" && (
+            {activeTab === "konto" && (
               <div className="settingsSection">
-                <div className="settingsActionList">
-                  <button type="button" className="settingsActionItem" onClick={showWip}>
-                    Slett mine data
+                <div className="settingsSubTabs" role="tablist" aria-label="Konto seksjoner">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeKontoSection === "personvern"}
+                    className={`settingsSubTabButton ${activeKontoSection === "personvern" ? "is-active" : ""}`}
+                    onClick={() => setActiveKontoSection("personvern")}
+                  >
+                    Personvern
                   </button>
-                  <button type="button" className="settingsActionItem settingsActionItem--danger" onClick={showWip}>
-                    Slett konto
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeKontoSection === "billing"}
+                    className={`settingsSubTabButton ${activeKontoSection === "billing" ? "is-active" : ""}`}
+                    onClick={() => setActiveKontoSection("billing")}
+                  >
+                    Billing
                   </button>
                 </div>
+
+                {activeKontoSection === "personvern" && (
+                  <div className="settingsActionList">
+                    <button type="button" className="settingsActionItem" onClick={showWip}>
+                      Slett mine data
+                    </button>
+                    <button type="button" className="settingsActionItem settingsActionItem--danger" onClick={showWip}>
+                      Slett konto
+                    </button>
+                  </div>
+                )}
+
+                {activeKontoSection === "billing" && (
+                  <div className="settingsAccountPlaceholder">
+                    Billing er ikke satt opp enda. Administrasjon av abonnement og betaling kommer snart.
+                  </div>
+                )}
               </div>
             )}
           </div>
