@@ -368,6 +368,7 @@ export default function TopicDashboardPage() {
   );
 
   useEffect(() => {
+    if (isCreatingNew) return;
     if (!selectedTopic) {
       setForm(null);
       return;
@@ -376,7 +377,7 @@ export default function TopicDashboardPage() {
     setShowAdvanced(false);
     setSuccess(null);
     setError(null);
-  }, [selectedTopicKey, selectedTopic]);
+  }, [selectedTopicKey, selectedTopic, isCreatingNew]);
 
   const updateField = (name: keyof TopicForm, value: string) => {
     setForm((prev) => (prev ? { ...prev, [name]: value } : prev));
