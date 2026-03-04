@@ -41,7 +41,7 @@ type ConfirmState = { open: true; convId: string } | { open: false };
 type BackendStatus = "idle" | "checking" | "ok" | "error";
 
 export default function ChatShellPage() {
-  const { userId, sessionToken, logout } = useAuth();
+  const { userId, sessionToken, isAdmin, logout } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -587,6 +587,7 @@ export default function ChatShellPage() {
           mode={mode}
           onThemeChange={setColorTheme}
           onModeChange={setMode}
+          isAdmin={isAdmin}
         />
 
       </div>

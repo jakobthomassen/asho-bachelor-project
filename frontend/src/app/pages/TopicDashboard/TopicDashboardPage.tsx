@@ -291,7 +291,7 @@ function KeyValueEditor({
 }
 
 export default function TopicDashboardPage() {
-  const { sessionToken } = useAuth();
+  const { sessionToken, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("stats");
   const [topics, setTopics] = useState<TopicDashboardTopic[]>([]);
   const [stats, setStats] = useState<TopicDashboardStats | null>(null);
@@ -544,10 +544,10 @@ export default function TopicDashboardPage() {
   return (
     <div className="topicDashboard">
       <header className="topicDashboard__navBar">
-        <div className="topicDashboard__brandBlock">
+        <a href="/" className="topicDashboard__brandBlock">
           <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
           <div className="topicDashboard__brandName">ASHO</div>
-        </div>
+        </a>
         <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
           <button
             className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
@@ -952,6 +952,7 @@ export default function TopicDashboardPage() {
         mode={mode}
         onThemeChange={setColorTheme}
         onModeChange={setMode}
+        isAdmin={isAdmin}
       />
     </div>
   );
