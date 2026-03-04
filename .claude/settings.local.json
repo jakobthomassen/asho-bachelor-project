@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"topic\" /c/Users/Pizza/Desktop/Bachelor/backend/app/api/routes/*.py)",
+      "Bash(xargs grep -l \"topic_catalog\")"
+    ]
+  }
+}
