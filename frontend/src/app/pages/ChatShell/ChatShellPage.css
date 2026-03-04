@@ -254,27 +254,31 @@
 
 .settingsTabs {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   align-content: start;
 }
 
 .settingsTabButton {
-  padding: 0 0.75rem;
-  min-height: 56px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-primary);
   font-weight: 700;
   display: flex;
   align-items: center;
   text-align: left;
   cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.settingsTabButton:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .settingsTabButton.is-active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: rgba(148, 163, 184, 0.38);
   color: var(--accent);
 }
 
@@ -311,23 +315,27 @@
 
 .settingsThemeGrid {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .settingsThemeButton {
-  padding: 0.55rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  padding: 0.45rem 0.55rem;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-primary);
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.settingsThemeButton:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .settingsThemeButton.is-active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: rgba(148, 163, 184, 0.38);
   color: var(--accent);
 }
 
@@ -339,23 +347,64 @@
 
 .settingsActionList {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
-.settingsActionItem {
-  min-height: 56px;
-  padding: 0 0.85rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+.settingsSubTabs {
+  display: grid;
+  gap: 4px;
+}
+
+.settingsSubTabButton {
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-primary);
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.settingsSubTabButton:hover {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.settingsSubTabButton.is-active {
+  border-color: rgba(148, 163, 184, 0.38);
+  color: var(--accent);
+}
+
+.settingsActionItem {
+  min-height: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.settingsActionItem:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .settingsActionItem--danger {
   color: var(--danger);
+}
+
+.settingsAccountPlaceholder {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .settingsInput {
