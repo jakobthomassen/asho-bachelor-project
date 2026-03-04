@@ -309,8 +309,6 @@
   min-height: 0;
 }
 
-/* Legacy modifier — no additional styling needed */
-.topicDashboard__leftList--rail {}
 
 .topicDashboard__addNewBtn {
   display: block;

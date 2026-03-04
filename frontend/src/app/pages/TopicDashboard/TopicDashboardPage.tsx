@@ -10,6 +10,7 @@ import {
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
 import SettingsModal from "../../../components/overlays/SettingsModal";
+import { useThemePreference } from "../../../hooks/useThemePreference";
 import "./TopicDashboardPage.css";
 
 const LOGO_URL =
@@ -306,8 +307,7 @@ export default function TopicDashboardPage() {
   const [newTopicKey, setNewTopicKey] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
-  const [mode, setMode] = useState<"light" | "dark">("light");
+  const { colorTheme, mode, setColorTheme, setMode } = useThemePreference();
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -365,21 +365,6 @@ export default function TopicDashboardPage() {
       cancelled = true;
     };
   }, [sessionToken, statsDays]);
-
-  useEffect(() => {
-    const storedTheme = localStorage.getItem("asho_theme");
-    const storedMode = localStorage.getItem("asho_mode");
-    if (storedTheme === "green" || storedTheme === "purple" || storedTheme === "blue") setColorTheme(storedTheme);
-    if (storedMode === "light" || storedMode === "dark") setMode(storedMode);
-  }, []);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.theme = colorTheme;
-    root.dataset.mode = mode;
-    localStorage.setItem("asho_theme", colorTheme);
-    localStorage.setItem("asho_mode", mode);
-  }, [colorTheme, mode]);
 
   const selectedTopic = useMemo(
     () => topics.find((t) => t.topic_key === selectedTopicKey),

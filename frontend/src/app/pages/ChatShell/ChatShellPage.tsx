@@ -26,7 +26,7 @@ import ContextMenu from "../../../components/overlays/ContextMenu";
 import ConfirmModal from "../../../components/overlays/ConfirmModal";
 import ResourcesModal from "../../../components/overlays/ResourcesModal";
 import SettingsModal from "../../../components/overlays/SettingsModal";
-
+import { useThemePreference } from "../../../hooks/useThemePreference";
 
 import "./ChatShellPage.css";
 
@@ -55,8 +55,7 @@ export default function ChatShellPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("idle");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [colorTheme, setColorTheme] = useState<"green" | "purple" | "blue">("green");
-  const [mode, setMode] = useState<"light" | "dark">("light");
+  const { colorTheme, mode, setColorTheme, setMode } = useThemePreference();
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedRef = useRef(false);
@@ -230,27 +229,6 @@ export default function ChatShellPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirm.open]);
-
-  useEffect(() => {
-    const storedTheme = localStorage.getItem("asho_theme");
-    const storedMode = localStorage.getItem("asho_mode");
-
-    if (storedTheme === "green" || storedTheme === "purple" || storedTheme === "blue") {
-      setColorTheme(storedTheme);
-    }
-
-    if (storedMode === "light" || storedMode === "dark") {
-      setMode(storedMode);
-    }
-  }, []);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.theme = colorTheme;
-    root.dataset.mode = mode;
-    localStorage.setItem("asho_theme", colorTheme);
-    localStorage.setItem("asho_mode", mode);
-  }, [colorTheme, mode]);
 
   useEffect(() => {
     return () => {
