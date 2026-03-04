@@ -50,6 +50,8 @@ type SaveTopicVersionPayload = {
   created_by?: string;
 };
 
+type CreateTopicPayload = SaveTopicVersionPayload & { topic_key: string };
+
 function authHeaders(sessionToken: string) {
   return {
     "Content-Type": "application/json",
@@ -127,6 +129,29 @@ export async function getTopicDashboardStats(sessionToken: string, days = 7): Pr
   }
 
   return (await res.json()) as TopicDashboardStats;
+}
+
+export async function createTopic(
+  sessionToken: string,
+  payload: CreateTopicPayload
+): Promise<TopicDashboardTopic> {
+  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/topics`, {
+    method: "POST",
+    headers: authHeaders(sessionToken),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let detail = "Failed to create topic";
+    try {
+      detail = extractErrorDetail(await res.json(), detail);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  return (await res.json()) as TopicDashboardTopic;
 }
 
 export async function calculateTopicVector(

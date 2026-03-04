@@ -155,42 +155,6 @@
   background: var(--surface);
 }
 
-.chatPanel__header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-}
-
-.chatPanel__title {
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.chatPanel__subtitle {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.chatPanel__soundButton {
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 900;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.chatPanel__soundButton:hover {
-  opacity: 0.9;
-}
-
 .subscribeOverlay {
   position: fixed;
   inset: 0;

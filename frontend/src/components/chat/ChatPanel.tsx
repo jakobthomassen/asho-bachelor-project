@@ -35,19 +35,6 @@ export default function ChatPanel({
 }: Props) {
   return (
     <main className="chatPanel">
-      <div className="chatPanel__header">
-        <div>
-          <div className="chatPanel__title">
-            {conversation?.title ?? "Samtale"}
-          </div>
-          <div className="chatPanel__subtitle">
-            Velg en samtale til venstre, eller start en ny.
-          </div>
-        </div>
-
-        <span />
-      </div>
-
       {error && <ErrorBanner error={error} onDismiss={onDismissError} />}
 
       <MessageList
