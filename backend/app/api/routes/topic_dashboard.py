@@ -7,6 +7,7 @@ import psycopg
 
 from app.core.config import settings
 from app.schemas.topic_dashboard import (
+    TopicDashboardCreateRequest,
     TopicDashboardDailyTokens,
     TopicDashboardListResponse,
     TopicDashboardStatsResponse,
@@ -210,6 +211,101 @@ def topic_dashboard_stats(
                 ),
                 daily_tokens=daily_tokens,
             )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/topic-dashboard/topics", response_model=TopicDashboardTopic)
+def create_topic(
+    payload: TopicDashboardCreateRequest,
+    authorization: str | None = Header(default=None),
+):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _ = _require_admin(conn, authorization)
+
+            clean_topic_key = (payload.topic_key or "").strip()
+            if not clean_topic_key:
+                raise HTTPException(status_code=400, detail="Invalid topic key")
+
+            clean_title = payload.title.strip()
+            clean_classifier_description = payload.classifier_description.strip()
+            clean_system_prompt = payload.system_prompt.strip()
+            clean_created_by = (payload.created_by or "dashboard").strip()[:120] or "dashboard"
+
+            if not clean_title or not clean_classifier_description or not clean_system_prompt:
+                raise HTTPException(status_code=400, detail="Missing required fields")
+
+            micro_instructions_json = json.dumps(payload.micro_instructions or {})
+            constraints_json = json.dumps(payload.constraints or {})
+            reclassify_rules_json = json.dumps(payload.reclassify_rules or {})
+            safety_rules_json = json.dumps(payload.safety_rules or {})
+
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM topic_catalog WHERE topic_key = %s",
+                        (clean_topic_key,),
+                    )
+                    if cur.fetchone() is not None:
+                        raise HTTPException(status_code=409, detail="Topic key already exists")
+
+                    cur.execute(
+                        "INSERT INTO topic_catalog (topic_key, title) VALUES (%s, %s)",
+                        (clean_topic_key, clean_title),
+                    )
+
+                    cur.execute(
+                        """
+                        INSERT INTO topic_config_versions (
+                          topic_key, version_no, is_current,
+                          classifier_description, classifier_embedding,
+                          system_prompt, micro_instructions, constraints,
+                          reclassify_rules, safety_rules,
+                          min_confidence, reclassify_turn_threshold,
+                          max_clarifying_questions, created_by
+                        )
+                        VALUES (%s, 1, TRUE, %s, NULL, %s, %s::jsonb, %s::jsonb,
+                                %s::jsonb, %s::jsonb, %s, %s, %s, %s)
+                        """,
+                        (
+                            clean_topic_key,
+                            clean_classifier_description,
+                            clean_system_prompt,
+                            micro_instructions_json,
+                            constraints_json,
+                            reclassify_rules_json,
+                            safety_rules_json,
+                            payload.min_confidence,
+                            payload.reclassify_turn_threshold,
+                            payload.max_clarifying_questions,
+                            clean_created_by,
+                        ),
+                    )
+
+                    cur.execute(
+                        """
+                        SELECT
+                          t.topic_key, t.title, v.version_no, v.is_current,
+                          v.classifier_description, v.classifier_embedding,
+                          v.system_prompt, v.micro_instructions, v.constraints,
+                          v.reclassify_rules, v.safety_rules,
+                          v.min_confidence, v.reclassify_turn_threshold,
+                          v.max_clarifying_questions
+                        FROM topic_catalog t
+                        JOIN topic_config_versions v ON v.topic_key = t.topic_key
+                        WHERE t.topic_key = %s AND v.version_no = 1
+                        """,
+                        (clean_topic_key,),
+                    )
+                    row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=500, detail="Failed to create topic")
+
+            return _row_to_topic(row)
     except HTTPException:
         raise
     except Exception as exc:
