@@ -53,3 +53,18 @@ class TopicDashboardUpdateRequest(BaseModel):
     reclassify_turn_threshold: int = Field(..., ge=1)
     max_clarifying_questions: int = Field(..., ge=0)
     created_by: str | None = None
+
+
+class TopicDashboardCreateRequest(BaseModel):
+    topic_key: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    classifier_description: str = Field(..., min_length=1)
+    system_prompt: str = Field(..., min_length=1)
+    micro_instructions: dict[str, Any] = Field(default_factory=dict)
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    reclassify_rules: dict[str, Any] = Field(default_factory=dict)
+    safety_rules: dict[str, Any] = Field(default_factory=dict)
+    min_confidence: float = Field(..., ge=0.0, le=1.0)
+    reclassify_turn_threshold: int = Field(..., ge=1)
+    max_clarifying_questions: int = Field(..., ge=0)
+    created_by: str | None = None
