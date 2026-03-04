@@ -337,9 +337,19 @@
   margin-bottom: 0.1rem;
   display: grid;
   gap: 0;
+  border: 1px solid transparent;
+}
+
+.topicDashboard__topicItem:hover {
+  background: var(--surface-muted);
 }
 
 .topicDashboard__topicItem.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.topicDashboard__topicItem.is-active:hover {
   background: var(--accent-soft);
 }
 
@@ -356,23 +366,23 @@
   gap: 0.12rem;
 }
 
-.topicDashboard__topicSelect:hover {
-  background: var(--surface-muted);
-}
-
-.topicDashboard__topicItem.is-active .topicDashboard__topicSelect:hover {
-  background: color-mix(in srgb, var(--accent-soft) 75%, var(--surface-muted));
-}
-
 .topicDashboard__topicTitle {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
+.topicDashboard__topicItem.is-active .topicDashboard__topicTitle {
+  color: var(--sidebar-active-text);
+}
+
 .topicDashboard__topicStatus {
   font-size: 0.74rem;
   font-weight: 600;
+}
+
+.topicDashboard__topicItem.is-active .topicDashboard__topicStatus {
+  color: var(--sidebar-active-time);
 }
 
 .topicDashboard__topicStatus.is-ok {
@@ -414,7 +424,7 @@
 
 .topicDashboard__formInner {
   width: min(860px, 100%);
-  margin-inline: auto;
+  margin-left: max(0px, calc(50vw - var(--topic-sidebar-width) - 2rem - 430px));
 }
 
 /* Status row — inline with a bottom separator */
