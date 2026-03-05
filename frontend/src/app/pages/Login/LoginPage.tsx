@@ -107,9 +107,8 @@ export default function LoginPage() {
           />
 
           <button
-            type="button"
+            type="submit"
             className="welcomeAuth__primary"
-            onClick={handleContinue}
             disabled={!email.trim() || !password.trim() || isSubmitting}
           >
             {isSubmitting ? "Sender..." : isRegisterPage ? "Opprett Konto" : "Logg Inn"}
