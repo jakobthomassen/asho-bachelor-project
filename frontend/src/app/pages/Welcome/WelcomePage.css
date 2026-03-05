@@ -1,0 +1,166 @@
+.welcomeAuth {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #ededed;
+  color: #1f2330;
+}
+
+.welcomeAuth__panel {
+  width: min(100%, 520px);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.welcomeAuth__title {
+  margin: 0;
+  font-size: clamp(2.35rem, 5.2vw, 3.05rem);
+  line-height: 1.1;
+  font-weight: 500;
+  text-align: center;
+}
+
+.welcomeAuth__subtitle {
+  margin: 0;
+  max-width: 500px;
+  text-align: center;
+  line-height: 1.35;
+  color: #2b2f39;
+  font-size: 1rem;
+}
+
+.welcomeAuth__form {
+  width: 100%;
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+}
+
+.welcomeAuth__input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #6f737d;
+  border-radius: 0;
+  padding: 0 12px;
+  text-align: center;
+  font-size: 1rem;
+  color: #1f2330;
+  background: transparent;
+}
+
+.welcomeAuth__input::placeholder {
+  color: #5a5f69;
+}
+
+.welcomeAuth__primary,
+.welcomeAuth__secondary {
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid #4e8def;
+  font-size: 1.03rem;
+  color: #1f2330;
+  cursor: pointer;
+}
+
+.welcomeAuth__primary {
+  background: #b6cdf2;
+}
+
+.welcomeAuth__secondary {
+  background: transparent;
+}
+
+.welcomeAuth__primary:disabled,
+.welcomeAuth__secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.welcomeAuth__socials {
+  margin-top: 2px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.welcomeAuth__googleHost {
+  width: 320px;
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.welcomeAuth__apple {
+  width: 320px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2330;
+  cursor: pointer;
+}
+
+.welcomeAuth__appleIcon {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.welcomeAuth__link {
+  border: 0;
+  background: transparent;
+  color: #2e3340;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.welcomeAuth__link--forgot {
+  width: 100%;
+  text-align: right;
+  margin-top: -2px;
+}
+
+.welcomeAuth__link--footer {
+  margin-top: 72px;
+}
+
+.welcomeAuth__notice,
+.welcomeAuth__error {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.welcomeAuth__notice {
+  color: #2f3441;
+}
+
+.welcomeAuth__error {
+  color: #ad1f28;
+  font-weight: 600;
+}
+
+.welcomeAuth__secondary {
+  margin-top: 52px;
+}
+
+@media (max-width: 620px) {
+  .welcomeAuth {
+    padding: 18px 14px;
+  }
+
+  .welcomeAuth__googleHost {
+    width: 100%;
+  }
+}
