@@ -13,6 +13,7 @@ from app.services.llm_client import (
     summarize_history,
     SYSTEM_PROMPT,
     DEFAULT_DIALOGUE_APPENDIX,
+    SOMATIC_NUDGE_APPENDIX,
 )
 from app.core.config import settings
 from app.services.security import validate_and_count
@@ -48,6 +49,7 @@ TITLE_MIN_CONFIDENCE = 0.60
 TITLE_CHECK_MIN_USER_MESSAGES = 3
 GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 GLOBAL_PACING_RULES = {"tempo": "slow", "max_questions_per_turn": 1}
+SOMATIC_NUDGE_TURN_THRESHOLD = 5
 
 
 @router.options("/chat")
@@ -347,7 +349,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
             # 7) Route + call LLM (topic-specific or default handling)
             classifier_tokens = 0
-            runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+            _somatic = SOMATIC_NUDGE_APPENDIX if total_user_turns >= SOMATIC_NUDGE_TURN_THRESHOLD else ""
+            runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX + ("\n\n" + _somatic if _somatic else "")
             classification_debug: Dict[str, object] = {
                 "method": "embedding",
                 "event": "none",
@@ -506,7 +509,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 if selected_topic_key and selected_topic_key in topic_by_key:
                     runtime_system_prompt = _build_topic_system_prompt(topic_by_key[selected_topic_key])
                 else:
-                    runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+                    runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX + ("\n\n" + _somatic if _somatic else "")
             except Exception:
                 runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
                 classifier_tokens = 0

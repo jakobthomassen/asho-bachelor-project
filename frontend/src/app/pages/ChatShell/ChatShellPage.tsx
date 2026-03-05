@@ -484,13 +484,6 @@ export default function ChatShellPage() {
           bottomSlot={
             <>
               <div className="chatShell__nav">
-                <button className="chatShell__navButton chatShell__statusButton" onClick={pingBackend}>
-                  <span>Backend status</span>
-                  <span className={`chatShell__statusMeta ${backendDotClass}`}>
-                    <span className="chatShell__statusDot" aria-hidden="true" />
-                    <span>{backendLabel}</span>
-                  </span>
-                </button>
                 <button
                   className="chatShell__navButton"
                   onClick={() => setShowResources(true)}
@@ -505,7 +498,14 @@ export default function ChatShellPage() {
                 </button>
 
                 <div className="chatShell__auth chatShell__auth--sidebar">
-                  <button className="chatShell__authButton" onClick={logout}>
+                  <button
+                    className="chatShell__authButton"
+                    onClick={() => {
+                      if (window.confirm("Er du sikker på at du vil logge ut?")) {
+                        logout();
+                      }
+                    }}
+                  >
                     Logg ut
                   </button>
                 </div>
@@ -566,6 +566,9 @@ export default function ChatShellPage() {
           onThemeChange={setColorTheme}
           onModeChange={setMode}
           isAdmin={isAdmin}
+          onPingBackend={pingBackend}
+          backendDotClass={backendDotClass}
+          backendLabel={backendLabel}
         />
 
       </div>
