@@ -9,6 +9,8 @@ import {
   type TopicDashboardStats,
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
+import SettingsModal from "../../../components/overlays/SettingsModal";
+import { useThemePreference } from "../../../hooks/useThemePreference";
 import "./TopicDashboardPage.css";
 
 const LOGO_URL =
@@ -114,9 +116,9 @@ function emptyForm(): TopicForm {
     constraints_rows: [],
     reclassify_rows: [],
     safety_rows: [],
-    min_confidence: "0.7",
-    reclassify_turn_threshold: "3",
-    max_clarifying_questions: "2",
+    min_confidence: "0.6",
+    reclassify_turn_threshold: "12",
+    max_clarifying_questions: "1",
   };
 }
 
@@ -290,7 +292,7 @@ function KeyValueEditor({
 }
 
 export default function TopicDashboardPage() {
-  const { sessionToken } = useAuth();
+  const { sessionToken, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("stats");
   const [topics, setTopics] = useState<TopicDashboardTopic[]>([]);
   const [stats, setStats] = useState<TopicDashboardStats | null>(null);
@@ -304,6 +306,8 @@ export default function TopicDashboardPage() {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newTopicKey, setNewTopicKey] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const { colorTheme, mode, setColorTheme, setMode } = useThemePreference();
   const [statsError, setStatsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -471,7 +475,7 @@ export default function TopicDashboardPage() {
           return;
         }
         const saved = await createTopic(sessionToken, { topic_key: cleanKey, ...basePayload });
-        setTopics((prev) => [...prev, saved].sort((a, b) => a.title.localeCompare(b.title)));
+        setTopics((prev) => [...prev, saved].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? "")));
         setSelectedTopicKey(saved.topic_key);
         setIsCreatingNew(false);
         setNewTopicKey("");
@@ -525,10 +529,10 @@ export default function TopicDashboardPage() {
   return (
     <div className="topicDashboard">
       <header className="topicDashboard__navBar">
-        <div className="topicDashboard__brandBlock">
+        <a href="/" className="topicDashboard__brandBlock">
           <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
           <div className="topicDashboard__brandName">ASHO</div>
-        </div>
+        </a>
         <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
           <button
             className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
@@ -549,6 +553,13 @@ export default function TopicDashboardPage() {
             Temaer
           </button>
         </div>
+        <button
+          className="topicDashboard__settingsBtn"
+          type="button"
+          onClick={() => setShowSettings(true)}
+        >
+          ⚙ Innstillinger
+        </button>
       </header>
 
       <main className="topicDashboard__main">
@@ -919,6 +930,15 @@ export default function TopicDashboardPage() {
           </div>
         )}
       </main>
+      <SettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        theme={colorTheme}
+        mode={mode}
+        onThemeChange={setColorTheme}
+        onModeChange={setMode}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
