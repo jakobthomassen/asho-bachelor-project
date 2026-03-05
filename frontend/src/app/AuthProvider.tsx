@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const hash = window.location.hash || "";
-    if (!hash.startsWith("#auth=google")) {
+    if (!hash.startsWith("#auth=")) {
       markBootstrapped();
       return;
     }

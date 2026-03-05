@@ -14,6 +14,9 @@ type Props = {
   onThemeChange: (theme: ThemeOption) => void;
   onModeChange: (mode: ModeOption) => void;
   isAdmin?: boolean;
+  onPingBackend?: () => void;
+  backendDotClass?: string;
+  backendLabel?: string;
 };
 
 const themeLabels: Record<ThemeOption, string> = {
@@ -30,6 +33,9 @@ export default function SettingsModal({
   onThemeChange,
   onModeChange,
   isAdmin = false,
+  onPingBackend,
+  backendDotClass,
+  backendLabel,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabOption>("utseende");
   const [activeKontoSection, setActiveKontoSection] = useState<KontoSection>("personvern");
@@ -211,6 +217,19 @@ export default function SettingsModal({
                   >
                     Gå til Admin Dashboard
                   </button>
+                  {onPingBackend && (
+                    <button
+                      type="button"
+                      className="chatShell__navButton chatShell__statusButton settingsActionItem"
+                      onClick={onPingBackend}
+                    >
+                      <span>Backend status</span>
+                      <span className={`chatShell__statusMeta ${backendDotClass ?? "is-yellow"}`}>
+                        <span className="chatShell__statusDot" aria-hidden="true" />
+                        <span>{backendLabel ?? "Ikke sjekket"}</span>
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
