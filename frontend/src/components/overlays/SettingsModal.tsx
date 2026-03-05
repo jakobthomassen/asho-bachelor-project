@@ -3,7 +3,7 @@ import { getProfileName, saveProfileName } from "../../features/profile/storage"
 
 type ThemeOption = "green" | "purple" | "blue";
 type ModeOption = "light" | "dark";
-type TabOption = "utseende" | "profil" | "konto";
+type TabOption = "utseende" | "profil" | "konto" | "admin";
 type KontoSection = "personvern" | "billing";
 
 type Props = {
@@ -13,6 +13,7 @@ type Props = {
   mode: ModeOption;
   onThemeChange: (theme: ThemeOption) => void;
   onModeChange: (mode: ModeOption) => void;
+  isAdmin?: boolean;
 };
 
 const themeLabels: Record<ThemeOption, string> = {
@@ -28,6 +29,7 @@ export default function SettingsModal({
   mode,
   onThemeChange,
   onModeChange,
+  isAdmin = false,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabOption>("utseende");
   const [activeKontoSection, setActiveKontoSection] = useState<KontoSection>("personvern");
@@ -84,6 +86,17 @@ export default function SettingsModal({
             >
               Konto
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "admin"}
+                className={`settingsTabButton ${activeTab === "admin" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("admin")}
+              >
+                Admin
+              </button>
+            )}
           </div>
 
           <div className="settingsPanel">
@@ -186,6 +199,19 @@ export default function SettingsModal({
                     Billing er ikke satt opp enda. Administrasjon av abonnement og betaling kommer snart.
                   </div>
                 )}
+              </div>
+            )}
+            {activeTab === "admin" && (
+              <div className="settingsSection">
+                <div className="settingsActionList">
+                  <button
+                    type="button"
+                    className="settingsActionItem"
+                    onClick={() => { window.location.href = "/dashboard"; }}
+                  >
+                    Gå til Admin Dashboard
+                  </button>
+                </div>
               </div>
             )}
           </div>

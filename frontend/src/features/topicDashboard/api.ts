@@ -15,6 +15,7 @@ export type TopicDashboardTopic = {
   min_confidence: number;
   reclassify_turn_threshold: number;
   max_clarifying_questions: number;
+  updated_at: string | null;
 };
 
 export type TopicDashboardDailyTokens = {
@@ -67,14 +68,10 @@ function extractErrorDetail(raw: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function listTopicDashboardTopics(sessionToken: string): Promise<TopicDashboardTopic[]> {
-  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/topics`, {
-    method: "GET",
-    headers: authHeaders(sessionToken),
-  });
-
+async function apiFetch<T>(url: string, options: RequestInit, fallback: string): Promise<T> {
+  const res = await fetch(url, options);
   if (!res.ok) {
-    let detail = "Failed to load topics";
+    let detail = fallback;
     try {
       detail = extractErrorDetail(await res.json(), detail);
     } catch {
@@ -82,8 +79,15 @@ export async function listTopicDashboardTopics(sessionToken: string): Promise<To
     }
     throw new Error(detail);
   }
+  return res.json() as Promise<T>;
+}
 
-  const data = (await res.json()) as TopicDashboardListResponse;
+export async function listTopicDashboardTopics(sessionToken: string): Promise<TopicDashboardTopic[]> {
+  const data = await apiFetch<TopicDashboardListResponse>(
+    `${API_BASE_URL}/api/topic-dashboard/topics`,
+    { method: "GET", headers: authHeaders(sessionToken) },
+    "Failed to load topics"
+  );
   return data.topics ?? [];
 }
 
@@ -92,89 +96,40 @@ export async function saveTopicVersion(
   topicKey: string,
   payload: SaveTopicVersionPayload
 ): Promise<TopicDashboardTopic> {
-  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/topics/${encodeURIComponent(topicKey)}/versions`, {
-    method: "POST",
-    headers: authHeaders(sessionToken),
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    let detail = "Failed to save topic version";
-    try {
-      detail = extractErrorDetail(await res.json(), detail);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-
-  return (await res.json()) as TopicDashboardTopic;
+  return apiFetch<TopicDashboardTopic>(
+    `${API_BASE_URL}/api/topic-dashboard/topics/${encodeURIComponent(topicKey)}/versions`,
+    { method: "POST", headers: authHeaders(sessionToken), body: JSON.stringify(payload) },
+    "Failed to save topic version"
+  );
 }
 
 export async function getTopicDashboardStats(sessionToken: string, days = 7): Promise<TopicDashboardStats> {
   const safeDays = Number.isFinite(days) ? Math.min(90, Math.max(1, Math.round(days))) : 7;
-  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/stats?days=${safeDays}`, {
-    method: "GET",
-    headers: authHeaders(sessionToken),
-  });
-
-  if (!res.ok) {
-    let detail = "Failed to load dashboard stats";
-    try {
-      detail = extractErrorDetail(await res.json(), detail);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-
-  return (await res.json()) as TopicDashboardStats;
+  return apiFetch<TopicDashboardStats>(
+    `${API_BASE_URL}/api/topic-dashboard/stats?days=${safeDays}`,
+    { method: "GET", headers: authHeaders(sessionToken) },
+    "Failed to load dashboard stats"
+  );
 }
 
 export async function createTopic(
   sessionToken: string,
   payload: CreateTopicPayload
 ): Promise<TopicDashboardTopic> {
-  const res = await fetch(`${API_BASE_URL}/api/topic-dashboard/topics`, {
-    method: "POST",
-    headers: authHeaders(sessionToken),
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    let detail = "Failed to create topic";
-    try {
-      detail = extractErrorDetail(await res.json(), detail);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-
-  return (await res.json()) as TopicDashboardTopic;
+  return apiFetch<TopicDashboardTopic>(
+    `${API_BASE_URL}/api/topic-dashboard/topics`,
+    { method: "POST", headers: authHeaders(sessionToken), body: JSON.stringify(payload) },
+    "Failed to create topic"
+  );
 }
 
 export async function calculateTopicVector(
   sessionToken: string,
   topicKey: string
 ): Promise<TopicDashboardTopic> {
-  const res = await fetch(
+  return apiFetch<TopicDashboardTopic>(
     `${API_BASE_URL}/api/topic-dashboard/topics/${encodeURIComponent(topicKey)}/calculate-vector`,
-    {
-      method: "POST",
-      headers: authHeaders(sessionToken),
-    }
+    { method: "POST", headers: authHeaders(sessionToken) },
+    "Failed to calculate vector"
   );
-
-  if (!res.ok) {
-    let detail = "Failed to calculate vector";
-    try {
-      detail = extractErrorDetail(await res.json(), detail);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-
-  return (await res.json()) as TopicDashboardTopic;
 }

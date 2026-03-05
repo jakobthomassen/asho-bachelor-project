@@ -51,6 +51,7 @@ def _row_to_topic(row: tuple[Any, ...]) -> TopicDashboardTopic:
         min_confidence=float(row[11]),
         reclassify_turn_threshold=int(row[12]),
         max_clarifying_questions=int(row[13]),
+        updated_at=row[14] if len(row) > 14 else None,
     )
 
 
@@ -76,11 +77,12 @@ def list_topics(authorization: str | None = Header(default=None)):
                       v.safety_rules,
                       v.min_confidence,
                       v.reclassify_turn_threshold,
-                      v.max_clarifying_questions
+                      v.max_clarifying_questions,
+                      t.updated_at
                     FROM topic_catalog t
                     JOIN topic_config_versions v ON v.topic_key = t.topic_key
                     WHERE v.is_current = TRUE
-                    ORDER BY t.title ASC
+                    ORDER BY t.updated_at DESC NULLS LAST
                     """
                 )
                 rows = cur.fetchall() or []

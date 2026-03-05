@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -20,6 +21,7 @@ class TopicDashboardTopic(BaseModel):
     min_confidence: float
     reclassify_turn_threshold: int
     max_clarifying_questions: int
+    updated_at: datetime | None = None
 
 
 class TopicDashboardListResponse(BaseModel):
