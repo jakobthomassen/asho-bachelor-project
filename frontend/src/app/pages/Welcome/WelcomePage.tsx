@@ -115,9 +115,8 @@ export default function WelcomePage() {
           />
 
           <button
-            type="button"
+            type="submit"
             className="welcomeAuth__primary"
-            onClick={handleLogin}
             disabled={!email.trim() || !password.trim() || isSubmitting}
           >
             {isSubmitting ? "Sender..." : "Logg Inn"}
