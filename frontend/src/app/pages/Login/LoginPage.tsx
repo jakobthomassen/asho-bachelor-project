@@ -68,42 +68,43 @@ export default function LoginPage() {
             className="authFlow__back"
             onClick={() => navigate(`/welcome?next=${encodeURIComponent(next)}`)}
           >
-            {"<- Tilbake"}
+            ← Tilbake
           </button>
 
-          <h1 className="authFlow__title authFlow__title--hero">
-            {mode === "register" ? "Opprett konto" : "Logg inn for a fortsette"}
+          <h1 className="authFlow__title">
+            {mode === "register" ? "Opprett konto" : "Logg inn"}
           </h1>
 
-          <div className="authFlow__form">
-            <div className="authFlow__actions">
-              <button
-                type="button"
-                className="authFlow__button authFlow__button--small"
-                onClick={() => setMode("login")}
-                disabled={isSubmitting || mode === "login"}
-              >
-                Logg inn
-              </button>
-              <button
-                type="button"
-                className="authFlow__button authFlow__button--secondary authFlow__button--small"
-                onClick={() => setMode("register")}
-                disabled={isSubmitting || mode === "register"}
-              >
-                Opprett konto
-              </button>
-            </div>
+          <div className="authFlow__segmented">
+            <button
+              type="button"
+              className={`authFlow__segmentBtn ${mode === "login" ? "is-active" : ""}`}
+              onClick={() => { setMode("login"); setFormError(null); setFormNotice(null); }}
+              disabled={isSubmitting}
+            >
+              Logg inn
+            </button>
+            <button
+              type="button"
+              className={`authFlow__segmentBtn ${mode === "register" ? "is-active" : ""}`}
+              onClick={() => { setMode("register"); setFormError(null); setFormNotice(null); }}
+              disabled={isSubmitting}
+            >
+              Opprett konto
+            </button>
+          </div>
 
+          <div className="authFlow__form">
             <label className="authFlow__fieldLabel" htmlFor="login-email">
               E-post
             </label>
             <input
               id="login-email"
-              className="authFlow__input authFlow__input--compact"
+              className="authFlow__input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              type="email"
             />
 
             <label className="authFlow__fieldLabel" htmlFor="login-password">
@@ -111,15 +112,18 @@ export default function LoginPage() {
             </label>
             <input
               id="login-password"
-              className="authFlow__input authFlow__input--compact"
+              className="authFlow__input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleEmailPasswordContinue(); }}
               autoComplete={mode === "register" ? "new-password" : "current-password"}
             />
+
             <button
               type="button"
-              className="authFlow__button authFlow__button--primary authFlow__button--small"
+              className="authFlow__button authFlow__button--primary authFlow__button--wide"
+              style={{ marginTop: 4 }}
               onClick={handleEmailPasswordContinue}
               disabled={!email.trim() || !password.trim() || isSubmitting}
             >
@@ -127,23 +131,25 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="authFlow__divider" />
+          {(formNotice || formError || error) && (
+            <div style={{ width: "100%" }}>
+              {formNotice && <p className="authFlow__text">{formNotice}</p>}
+              {formError && <p className="authFlow__error">{formError}</p>}
+              {error && <p className="authFlow__error">{error}</p>}
+            </div>
+          )}
+
+          <div className="authFlow__divider">eller</div>
 
           <div className="authFlow__socials">
-            <button type="button" className="authFlow__social authFlow__social--apple" disabled>
-              Sign in with Apple
-            </button>
-
             <div ref={buttonHostRef} className="authFlow__googleHost" />
+            {!isReady && <p className="authFlow__text">Laster Google innlogging...</p>}
+            <button type="button" className="authFlow__social" disabled>
+              Fortsett med Apple
+            </button>
           </div>
-
-          {!isReady && <p className="authFlow__text">Laster Google innlogging...</p>}
-          {formNotice ? <p className="authFlow__text">{formNotice}</p> : null}
-          {formError ? <p className="authFlow__error">{formError}</p> : null}
-          {error ? <p className="authFlow__error">{error}</p> : null}
         </div>
       </section>
     </main>
   );
 }
-
