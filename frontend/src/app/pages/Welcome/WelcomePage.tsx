@@ -113,6 +113,14 @@ export default function WelcomePage() {
           </button>
         </div>
 
+        <button
+          type="button"
+          className="welcomeAuth__link welcomeAuth__link--forgot"
+          onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`)}
+        >
+          Glemt passord?
+        </button>
+
         <div className="welcomeAuth__socials">
           <div ref={buttonHostRef} className="welcomeAuth__googleHost" />
           <button type="button" className="welcomeAuth__apple" onClick={startAppleLogin}>
@@ -123,13 +131,9 @@ export default function WelcomePage() {
             >
               <path d="M16.37 12.06c.02 2.05 1.8 2.74 1.82 2.75-.01.04-.28.96-.91 1.9-.55.82-1.12 1.64-2.02 1.66-.88.02-1.17-.52-2.18-.52-1.02 0-1.34.5-2.15.54-.86.03-1.52-.86-2.07-1.67-1.12-1.62-1.97-4.58-.82-6.58.58-1 1.6-1.64 2.72-1.66.84-.02 1.64.56 2.16.56.52 0 1.5-.7 2.52-.6.43.02 1.63.17 2.4 1.3-.06.04-1.43.84-1.41 2.32zM14.77 5.4c.46-.56.78-1.34.69-2.12-.67.03-1.48.45-1.96 1-.43.5-.81 1.29-.71 2.05.75.06 1.52-.39 1.98-.93z" />
             </svg>
-            Sign in with Apple
+            Logg inn med Apple
           </button>
         </div>
-
-        <button type="button" className="welcomeAuth__link" onClick={() => navigate(`/login?next=${encodeURIComponent(next)}`)}>
-          Glemt passord?
-        </button>
 
         <button type="button" className="welcomeAuth__secondary" onClick={goToRegister}>
           Opprett Konto
@@ -138,7 +142,7 @@ export default function WelcomePage() {
         {formError ? <p className="welcomeAuth__error">{formError}</p> : null}
         {authError ? <p className="welcomeAuth__error">{authError}</p> : null}
 
-        <button type="button" className="welcomeAuth__link" onClick={() => navigate("/uro-skolen")}>
+        <button type="button" className="welcomeAuth__link welcomeAuth__link--footer" onClick={() => navigate("/uro-skolen")}>
           Om Urometoden
         </button>
       </section>

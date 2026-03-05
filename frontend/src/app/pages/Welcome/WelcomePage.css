@@ -81,7 +81,7 @@
 }
 
 .welcomeAuth__socials {
-  margin-top: 4px;
+  margin-top: 2px;
   display: grid;
   justify-items: center;
   gap: 8px;
@@ -96,13 +96,15 @@
 }
 
 .welcomeAuth__apple {
-  min-width: 210px;
+  width: 320px;
   height: 38px;
   border: 0;
   background: transparent;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  text-align: center;
   font-size: 1rem;
   font-weight: 600;
   color: #1f2330;
@@ -123,6 +125,16 @@
   cursor: pointer;
 }
 
+.welcomeAuth__link--forgot {
+  width: 100%;
+  text-align: right;
+  margin-top: -2px;
+}
+
+.welcomeAuth__link--footer {
+  margin-top: 72px;
+}
+
 .welcomeAuth__notice,
 .welcomeAuth__error {
   margin: 0;
@@ -137,6 +149,10 @@
 .welcomeAuth__error {
   color: #ad1f28;
   font-weight: 600;
+}
+
+.welcomeAuth__secondary {
+  margin-top: 52px;
 }
 
 @media (max-width: 620px) {
