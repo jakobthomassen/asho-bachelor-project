@@ -57,7 +57,12 @@ export default function WelcomePage() {
       completeLogin(auth);
       navigate(next, { replace: true });
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Noe gikk galt under innlogging");
+      const message = err instanceof Error ? err.message : "Noe gikk galt under innlogging";
+      if (message.toLowerCase().includes("invalid credentials")) {
+        setFormError("Feil Email eller Passord");
+      } else {
+        setFormError(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -82,7 +87,13 @@ export default function WelcomePage() {
           ASHO er en trygg samtalepartner for struktur, refleksjon og stotte gjennom vanskelige perioder.
         </p>
 
-        <div className="welcomeAuth__form">
+        <form
+          className="welcomeAuth__form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleLogin();
+          }}
+        >
           <input
             id="welcome-email"
             className="welcomeAuth__input"
@@ -111,7 +122,7 @@ export default function WelcomePage() {
           >
             {isSubmitting ? "Sender..." : "Logg Inn"}
           </button>
-        </div>
+        </form>
 
         <button
           type="button"
