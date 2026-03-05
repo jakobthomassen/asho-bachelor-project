@@ -1,0 +1,168 @@
+.welcomeLanding {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: #1f2330;
+  background-color: #eceef1;
+  background-image:
+    linear-gradient(to right, rgba(24, 33, 51, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(24, 33, 51, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.welcomeLanding__panel {
+  width: min(100%, 680px);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.welcomeLanding__panel--register {
+  min-height: 84vh;
+}
+
+.welcomeLanding__title {
+  margin: 0;
+  width: min(100%, 530px);
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.66);
+  text-align: center;
+  font-size: clamp(2.35rem, 5vw, 3rem);
+  line-height: 1.1;
+  font-weight: 600;
+}
+
+.welcomeLanding__subtitle {
+  margin: 0;
+  width: min(100%, 530px);
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.66);
+  text-align: center;
+  font-size: 1.95rem;
+  line-height: 1.35;
+}
+
+.welcomeLanding__form {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.welcomeLanding__input {
+  height: 40px;
+  border: 2px solid #777c86;
+  border-radius: 0;
+  padding: 0 14px;
+  font-size: 1.05rem;
+  text-align: center;
+  color: #1f2330;
+  background: transparent;
+}
+
+.welcomeLanding__input::placeholder {
+  color: #555a64;
+}
+
+.welcomeLanding__primary,
+.welcomeLanding__secondary {
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid #5e96f1;
+  background: #bed4f5;
+  font-size: 1.05rem;
+  color: #1f2330;
+  cursor: pointer;
+}
+
+.welcomeLanding__primary:disabled,
+.welcomeLanding__secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.welcomeLanding__secondary {
+  width: min(100%, 420px);
+  margin-top: 8px;
+  background: transparent;
+}
+
+.welcomeLanding__socials {
+  margin-top: 6px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.welcomeLanding__social {
+  min-width: 180px;
+  height: 30px;
+  border: 1px solid #e3e6eb;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #2f333f;
+  cursor: pointer;
+}
+
+.welcomeLanding__social--apple {
+  font-size: 0.95rem;
+}
+
+.welcomeLanding__link,
+.welcomeLanding__footerLink {
+  border: 0;
+  background: transparent;
+  color: #2f3441;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.welcomeLanding__spacer {
+  height: clamp(80px, 18vh, 220px);
+}
+
+.welcomeLanding__message {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #2f3441;
+  text-align: center;
+}
+
+.welcomeLanding__error {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #ad1f28;
+  text-align: center;
+  font-weight: 600;
+}
+
+.welcomeLanding__footerLink {
+  margin-top: 4px;
+}
+
+@media (max-width: 760px) {
+  .welcomeLanding {
+    background-size: 24px 24px;
+  }
+
+  .welcomeLanding__title {
+    font-size: clamp(2rem, 8vw, 2.6rem);
+  }
+
+  .welcomeLanding__subtitle {
+    font-size: clamp(1rem, 4.1vw, 1.2rem);
+  }
+
+  .welcomeLanding__input,
+  .welcomeLanding__primary,
+  .welcomeLanding__secondary,
+  .welcomeLanding__link,
+  .welcomeLanding__footerLink,
+  .welcomeLanding__social,
+  .welcomeLanding__social--apple {
+    font-size: 0.95rem;
+  }
+}

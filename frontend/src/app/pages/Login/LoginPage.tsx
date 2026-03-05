@@ -7,13 +7,18 @@ import {
 } from "../../../features/auth/api";
 import { renderGoogleButton } from "../../../features/auth/google";
 import "../AuthFlow/AuthFlow.css";
+import "../Welcome/WelcomePage.css";
+
+type AuthMode = "login" | "register";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isReady, error, completeLogin } = useAuth();
   const buttonHostRef = useRef<HTMLDivElement | null>(null);
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const queryMode = searchParams.get("mode");
+  const initialMode: AuthMode = queryMode === "register" ? "register" : "login";
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,18 +27,35 @@ export default function LoginPage() {
   const next = searchParams.get("next") || "/";
 
   useEffect(() => {
+    const requestedMode = searchParams.get("mode");
+    if (requestedMode === "register") {
+      setMode("register");
+      return;
+    }
+    setMode("login");
+  }, [searchParams]);
+
+  useEffect(() => {
     sessionStorage.setItem("asho_auth_next_path", next);
   }, [next]);
 
   useEffect(() => {
-    if (!isReady || !buttonHostRef.current) return;
+    if (!isReady || !buttonHostRef.current || mode !== "login") return;
     void renderGoogleButton(buttonHostRef.current, {
       theme: "filled_black",
       size: "large",
       text: "continue_with",
       width: 320,
     });
-  }, [isReady]);
+  }, [isReady, mode]);
+
+  const goToLogin = () => {
+    navigate(`/login?next=${encodeURIComponent(next)}`);
+  };
+
+  const goToRegister = () => {
+    navigate(`/login?mode=register&next=${encodeURIComponent(next)}`);
+  };
 
   const handleEmailPasswordContinue = async () => {
     const cleanEmail = email.trim();
@@ -59,6 +81,66 @@ export default function LoginPage() {
     }
   };
 
+  if (mode === "register") {
+    return (
+      <main className="welcomeLanding">
+        <section className="welcomeLanding__panel welcomeLanding__panel--register">
+          <h1 className="welcomeLanding__title">Velkommen til ASHO</h1>
+          <p className="welcomeLanding__subtitle">
+            ASHO er en trygg samtalepartner for struktur, refleksjon og stotte gjennom vanskelige perioder.
+          </p>
+
+          <div className="welcomeLanding__form">
+            <input
+              className="welcomeLanding__input"
+              type="email"
+              placeholder="Email Adresse"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+            <input
+              className="welcomeLanding__input"
+              type="password"
+              placeholder="Passord"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+
+            <button
+              type="button"
+              className="welcomeLanding__primary"
+              onClick={handleEmailPasswordContinue}
+              disabled={!email.trim() || !password.trim() || isSubmitting}
+            >
+              {isSubmitting ? "Sender..." : "Opprett Konto"}
+            </button>
+          </div>
+
+          <div className="welcomeLanding__socials">
+            <button type="button" className="welcomeLanding__social" onClick={goToLogin}>
+              Login with Google
+            </button>
+            <button type="button" className="welcomeLanding__social welcomeLanding__social--apple" onClick={goToLogin}>
+              Sign in with Apple
+            </button>
+          </div>
+
+          {!isReady && <p className="welcomeLanding__message">Laster Google innlogging...</p>}
+          {formNotice ? <p className="welcomeLanding__message">{formNotice}</p> : null}
+          {formError ? <p className="welcomeLanding__error">{formError}</p> : null}
+          {error ? <p className="welcomeLanding__error">{error}</p> : null}
+
+          <div className="welcomeLanding__spacer" />
+          <button type="button" className="welcomeLanding__footerLink" onClick={() => navigate("/uro-skolen")}>
+            Om Urometoden
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="authFlow">
       <section className="authFlow__card authFlow__card--hero">
@@ -71,9 +153,7 @@ export default function LoginPage() {
             {"<- Tilbake"}
           </button>
 
-          <h1 className="authFlow__title authFlow__title--hero">
-            {mode === "register" ? "Opprett konto" : "Logg inn for a fortsette"}
-          </h1>
+          <h1 className="authFlow__title authFlow__title--hero">Logg inn for a fortsette</h1>
 
           <div className="authFlow__form">
             <div className="authFlow__actions">
@@ -88,8 +168,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 className="authFlow__button authFlow__button--secondary authFlow__button--small"
-                onClick={() => setMode("register")}
-                disabled={isSubmitting || mode === "register"}
+                onClick={goToRegister}
+                disabled={isSubmitting}
               >
                 Opprett konto
               </button>
@@ -115,7 +195,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              autoComplete="current-password"
             />
             <button
               type="button"
@@ -123,7 +203,7 @@ export default function LoginPage() {
               onClick={handleEmailPasswordContinue}
               disabled={!email.trim() || !password.trim() || isSubmitting}
             >
-              {isSubmitting ? "Sender..." : mode === "register" ? "Opprett konto" : "Fortsett"}
+              {isSubmitting ? "Sender..." : "Fortsett"}
             </button>
           </div>
 
@@ -146,4 +226,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
