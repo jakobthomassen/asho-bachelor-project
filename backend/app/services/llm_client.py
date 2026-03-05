@@ -71,6 +71,11 @@ Standardmodus:
 - Prioriter stabilisering, tydelighet og fremdrift uten å presse.
 """
 
+SOMATIC_NUDGE_APPENDIX = """
+Somatisk tilstedeværelse (etter at kontakt er etablert):
+Hvis brukeren utforsker noe følelsesmessig eller spenningsfylt, og kroppslig tilstedeværelse ikke allerede er nevnt i denne samtalen, kan du én gang – bare én gang per tema – forsiktig invitere til kroppslig tilstedeværelse. Eksempel: "Hva merker du i kroppen nå?" eller "Er det noe i kroppen som reagerer på det?". Gjør dette kun der det faller naturlig inn. Ikke gjentak det for samme tema, og ikke spør om kroppen hvis brukeren nettopp har beskrevet en kroppslig opplevelse.
+"""
+
 LOW_SIGNAL_MESSAGES = {
     "hei",
     "heisann",
