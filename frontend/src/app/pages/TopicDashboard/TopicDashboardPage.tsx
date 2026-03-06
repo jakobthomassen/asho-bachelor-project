@@ -17,13 +17,11 @@ const LOGO_URL =
   "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
 
 type TabKey = "stats" | "temaer";
-type JsonValueType = "string" | "number" | "boolean" | "json";
 
 type KeyValueRow = {
   id: string;
   key: string;
   value: string;
-  type: JsonValueType;
 };
 
 type TopicForm = {
@@ -54,30 +52,12 @@ function formatUsd(value: number): string {
   }).format(value || 0);
 }
 
-function valueTypeOf(value: unknown): JsonValueType {
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "string") return "string";
-  return "json";
-}
-
 function rowsFromObject(input: Record<string, unknown>): KeyValueRow[] {
-  return Object.entries(input || {}).map(([key, value]) => {
-    const type = valueTypeOf(value);
-    const normalizedValue =
-      type === "json"
-        ? JSON.stringify(value ?? null)
-        : type === "boolean"
-          ? String(Boolean(value))
-          : String(value ?? "");
-
-    return {
-      id: makeRowId(),
-      key,
-      value: normalizedValue,
-      type,
-    };
-  });
+  return Object.entries(input || {}).map(([key, value]) => ({
+    id: makeRowId(),
+    key,
+    value: typeof value === "object" ? JSON.stringify(value ?? null) : String(value ?? ""),
+  }));
 }
 
 function toInstructionItems(input: Record<string, unknown>): string[] {
@@ -122,37 +102,13 @@ function emptyForm(): TopicForm {
   };
 }
 
-function parseRowValue(fieldLabel: string, row: KeyValueRow): unknown {
-  if (row.type === "string") return row.value;
-
-  if (row.type === "number") {
-    const numberValue = Number(row.value);
-    if (!Number.isFinite(numberValue)) {
-      throw new Error(`${fieldLabel}: "${row.key}" ma vaere et gyldig tall.`);
-    }
-    return numberValue;
-  }
-
-  if (row.type === "boolean") {
-    return row.value === "true";
-  }
-
-  try {
-    return JSON.parse(row.value || "null");
-  } catch {
-    throw new Error(`${fieldLabel}: "${row.key}" inneholder ugyldig JSON.`);
-  }
-}
-
-function rowsToObject(fieldLabel: string, rows: KeyValueRow[]): Record<string, unknown> {
-  const output: Record<string, unknown> = {};
-
+function rowsToObject(rows: KeyValueRow[]): Record<string, string> {
+  const output: Record<string, string> = {};
   for (const row of rows) {
     const cleanKey = row.key.trim();
     if (!cleanKey) continue;
-    output[cleanKey] = parseRowValue(fieldLabel, row);
+    output[cleanKey] = row.value;
   }
-
   return output;
 }
 
@@ -198,15 +154,7 @@ function KeyValueEditor({
   onChange: (nextRows: KeyValueRow[]) => void;
 }) {
   const addRow = () => {
-    onChange([
-      ...rows,
-      {
-        id: makeRowId(),
-        key: "",
-        value: "",
-        type: "string",
-      },
-    ]);
+    onChange([...rows, { id: makeRowId(), key: "", value: "" }]);
   };
 
   const removeRow = (id: string) => {
@@ -237,45 +185,12 @@ function KeyValueEditor({
               value={row.key}
               onChange={(e) => updateRow(row.id, { key: e.target.value })}
             />
-
-            {row.type === "boolean" ? (
-              <select
-                value={row.value}
-                onChange={(e) => updateRow(row.id, { value: e.target.value })}
-                aria-label="Boolean verdi"
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            ) : (
-              <input
-                type="text"
-                placeholder={row.type === "json" ? '{"example": true}' : "Verdi"}
-                value={row.value}
-                onChange={(e) => updateRow(row.id, { value: e.target.value })}
-              />
-            )}
-
-            <select
-              value={row.type}
-              onChange={(e) => {
-                const nextType = e.target.value as JsonValueType;
-                const nextValue =
-                  nextType === "boolean"
-                    ? row.value === "false"
-                      ? "false"
-                      : "true"
-                    : row.value;
-                updateRow(row.id, { type: nextType, value: nextValue });
-              }}
-              aria-label="Verditype"
-            >
-              <option value="string">tekst</option>
-              <option value="number">tall</option>
-              <option value="boolean">bool</option>
-              <option value="json">json</option>
-            </select>
-
+            <input
+              type="text"
+              placeholder="Verdi"
+              value={row.value}
+              onChange={(e) => updateRow(row.id, { value: e.target.value })}
+            />
             <button
               type="button"
               className="topicDashboard__dangerGhostBtn"
@@ -457,9 +372,9 @@ export default function TopicDashboardPage() {
         classifier_description: form.classifier_description.trim(),
         system_prompt: form.system_prompt.trim(),
         micro_instructions: microInstructions,
-        constraints: rowsToObject("Constraints", form.constraints_rows),
-        reclassify_rules: rowsToObject("Reclassify rules", form.reclassify_rows),
-        safety_rules: rowsToObject("Safety rules", form.safety_rows),
+        constraints: rowsToObject(form.constraints_rows),
+        reclassify_rules: rowsToObject(form.reclassify_rows),
+        safety_rules: rowsToObject(form.safety_rows),
         min_confidence: minConfidence,
         reclassify_turn_threshold: reclassifyTurnThreshold,
         max_clarifying_questions: maxClarifyingQuestions,
@@ -533,7 +448,7 @@ export default function TopicDashboardPage() {
           <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
           <div className="topicDashboard__brandName">ASHO</div>
         </a>
-        <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
+        <div className="topicDashboard__tabs" role="tablist" aria-label="Dashbord-faner">
           <button
             className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
             onClick={() => setActiveTab("stats")}
@@ -745,7 +660,7 @@ export default function TopicDashboardPage() {
                     >
                       <div className="topicDashboard__topicTitle">{topic.title}</div>
                       <div className={`topicDashboard__topicStatus ${hasVector ? "is-ok" : "is-missing"}`}>
-                        {hasVector ? "Vector OK" : "Vector missing"}
+                        {hasVector ? "Vektor OK" : "Vektor mangler"}
                       </div>
                     </button>
 
@@ -755,7 +670,7 @@ export default function TopicDashboardPage() {
                       disabled={isCalculatingTopicKey === topic.topic_key}
                       onClick={() => handleCalculateVector(topic.topic_key)}
                     >
-                      {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate"}
+                      {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Kalkuler"}
                     </button>
                   </div>
                 );
@@ -898,19 +813,19 @@ export default function TopicDashboardPage() {
                       </section>
 
                       <KeyValueEditor
-                        title="Constraints"
+                        title="Begrensninger"
                         rows={form.constraints_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, constraints_rows: nextRows } : prev))}
                       />
 
                       <KeyValueEditor
-                        title="Reclassify rules"
+                        title="Omklassifiseringsregler"
                         rows={form.reclassify_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, reclassify_rows: nextRows } : prev))}
                       />
 
                       <KeyValueEditor
-                        title="Safety rules"
+                        title="Sikkerhetsregler"
                         rows={form.safety_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, safety_rows: nextRows } : prev))}
                       />
