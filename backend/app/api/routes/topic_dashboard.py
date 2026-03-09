@@ -13,6 +13,8 @@ from app.schemas.topic_dashboard import (
     TopicDashboardStatsResponse,
     TopicDashboardTopic,
     TopicDashboardUpdateRequest,
+    SecurityRejectionItem,
+    SecurityRejectionListResponse,
 )
 from app.services.google_auth import get_session_principal, parse_bearer_token
 from app.services.llm_client import create_text_embedding
@@ -538,6 +540,54 @@ def calculate_topic_vector(
                 raise HTTPException(status_code=500, detail="Failed to load updated topic")
 
             return _row_to_topic(row)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/topic-dashboard/security-rejections", response_model=SecurityRejectionListResponse)
+def list_security_rejections(
+    limit: int = Query(default=200, ge=1, le=1000),
+    authorization: str | None = Header(default=None),
+):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                      id,
+                      conversation_id,
+                      session_id,
+                      message_id,
+                      user_id,
+                      message_preview,
+                      rejection_type,
+                      created_at
+                    FROM security_rejections
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall() or []
+
+        rejections = [
+            SecurityRejectionItem(
+                id=int(row[0]),
+                conversation_id=row[1],
+                session_id=row[2],
+                message_id=row[3],
+                user_id=row[4],
+                message_preview=row[5],
+                rejection_type=str(row[6]),
+                created_at=row[7].isoformat() if row[7] else None,
+            )
+            for row in rows
+        ]
+        return SecurityRejectionListResponse(rejections=rejections)
     except HTTPException:
         raise
     except Exception as exc:

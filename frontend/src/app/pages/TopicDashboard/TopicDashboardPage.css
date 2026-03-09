@@ -724,3 +724,33 @@
     height: 240px;
   }
 }
+
+
+/* === SECURITY TABLE === */
+
+.topicDashboard__securityTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.topicDashboard__securityTable th,
+.topicDashboard__securityTable td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.topicDashboard__securityTable th {
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+  white-space: nowrap;
+}
+
+.topicDashboard__securityTable tr:last-child td {
+  border-bottom: none;
+}
+
+.topicDashboard__securityTable tr:hover td {
+  background: var(--surface-hover, rgba(0,0,0,0.04));
+}
