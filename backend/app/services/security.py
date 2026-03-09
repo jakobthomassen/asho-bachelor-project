@@ -14,6 +14,12 @@ class SecurityResult:
     normalized_message: str
     message_tokens: int
 
+
+class SecurityRejectionError(ValueError):
+    def __init__(self, message: str, rejection_type: str) -> None:
+        super().__init__(message)
+        self.rejection_type = rejection_type
+
 _ALLOWED_PUNCT = set("!?.,-")
 _ALLOWED_WHITESPACE = set([" ", "\n", "\t"])
 
@@ -94,7 +100,6 @@ def _detect_prompt_injection(msg_lower: str) -> Optional[str]:
         "bypass",
         "jailbreak",
         "do anything now",
-        "dan",
         "act as",
         "pretend to be",
         "roleplay as",
@@ -115,7 +120,7 @@ def validate_and_count(message: str, model_name: str) -> SecurityResult:
     normalized = _normalize_message(message)
 
     if not normalized:
-        raise ValueError("Message is empty.")
+        raise SecurityRejectionError("Message is empty.", rejection_type="empty")
 
     # Hard character allowlist policy
     bad_chars = []
@@ -126,18 +131,18 @@ def validate_and_count(message: str, model_name: str) -> SecurityResult:
                 break
     if bad_chars:
         # Do not echo untrusted input back in detail.
-        raise ValueError("Message contains disallowed characters.")
+        raise SecurityRejectionError("Message contains disallowed characters.", rejection_type="disallowed_chars")
 
     # Token limit per message (input)
     msg_tokens = count_tokens(normalized, model=model_name)
     if msg_tokens > settings.MAX_MESSAGE_TOKENS:
-        raise ValueError("Message exceeds token limit.")
+        raise SecurityRejectionError("Message exceeds token limit.", rejection_type="token_limit")
 
     # Basic prompt injection heuristics
     # If you prefer “warn but allow”, return a flag instead of raising.
     msg_lower = normalized.lower()
     matched = _detect_prompt_injection(msg_lower)
     if matched:
-        raise ValueError("Message appears to be a prompt-injection attempt.")
+        raise SecurityRejectionError("Message appears to be a prompt-injection attempt.", rejection_type="prompt_injection")
 
     return SecurityResult(normalized_message=normalized, message_tokens=msg_tokens)

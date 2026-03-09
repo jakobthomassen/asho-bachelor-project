@@ -4,8 +4,10 @@ import {
   calculateTopicVector,
   createTopic,
   getTopicDashboardStats,
+  getSecurityRejections,
   listTopicDashboardTopics,
   saveTopicVersion,
+  type SecurityRejection,
   type TopicDashboardStats,
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
@@ -16,7 +18,7 @@ import "./TopicDashboardPage.css";
 const LOGO_URL =
   "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
 
-type TabKey = "stats" | "temaer";
+type TabKey = "stats" | "temaer" | "sikkerhet";
 
 type KeyValueRow = {
   id: string;
@@ -206,6 +208,13 @@ function KeyValueEditor({
   );
 }
 
+const REJECTION_TYPE_LABELS: Record<string, string> = {
+  empty: "Tom melding",
+  disallowed_chars: "Ugyldige tegn",
+  token_limit: "For lang melding",
+  prompt_injection: "Prompt-injeksjon",
+};
+
 export default function TopicDashboardPage() {
   const { sessionToken, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("stats");
@@ -227,6 +236,9 @@ export default function TopicDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; day: string; tokens: number } | null>(null);
+  const [securityRejections, setSecurityRejections] = useState<SecurityRejection[]>([]);
+  const [isSecurityLoading, setIsSecurityLoading] = useState(false);
+  const [securityError, setSecurityError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionToken) return;
@@ -280,6 +292,29 @@ export default function TopicDashboardPage() {
       cancelled = true;
     };
   }, [sessionToken, statsDays]);
+
+  useEffect(() => {
+    if (!sessionToken || activeTab !== "sikkerhet") return;
+    let cancelled = false;
+
+    const loadSecurity = async () => {
+      setIsSecurityLoading(true);
+      setSecurityError(null);
+      try {
+        const data = await getSecurityRejections(sessionToken);
+        if (cancelled) return;
+        setSecurityRejections(data);
+      } catch (err) {
+        if (cancelled) return;
+        setSecurityError(err instanceof Error ? err.message : "Kunne ikke laste sikkerhetslogg.");
+      } finally {
+        if (!cancelled) setIsSecurityLoading(false);
+      }
+    };
+
+    void loadSecurity();
+    return () => { cancelled = true; };
+  }, [sessionToken, activeTab]);
 
   const selectedTopic = useMemo(
     () => topics.find((t) => t.topic_key === selectedTopicKey),
@@ -467,6 +502,15 @@ export default function TopicDashboardPage() {
           >
             Temaer
           </button>
+          <button
+            className={`topicDashboard__tab ${activeTab === "sikkerhet" ? "is-active" : ""}`}
+            onClick={() => setActiveTab("sikkerhet")}
+            role="tab"
+            aria-selected={activeTab === "sikkerhet"}
+            type="button"
+          >
+            Sikkerhet
+          </button>
         </div>
         <button
           className="topicDashboard__settingsBtn"
@@ -478,7 +522,45 @@ export default function TopicDashboardPage() {
       </header>
 
       <main className="topicDashboard__main">
-        {activeTab === "stats" ? (
+        {activeTab === "sikkerhet" ? (
+          <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
+            <div className="topicDashboard__statsHeader">
+              <h2>Sikkerhetslogg</h2>
+            </div>
+            {isSecurityLoading ? <div className="topicDashboard__hint">Laster sikkerhetslogg...</div> : null}
+            {securityError ? <div className="topicDashboard__error">{securityError}</div> : null}
+            {!isSecurityLoading && !securityError ? (
+              securityRejections.length === 0 ? (
+                <div className="topicDashboard__hint">Ingen avviste meldinger funnet.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="topicDashboard__securityTable">
+                    <thead>
+                      <tr>
+                        <th>Tidspunkt</th>
+                        <th>Bruker-ID</th>
+                        <th>Aarsak</th>
+                        <th>Melding (forhandsvisning)</th>
+                        <th>Samtale-ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {securityRejections.map((r) => (
+                        <tr key={r.id}>
+                          <td style={{ whiteSpace: "nowrap" }}>{r.created_at ? new Date(r.created_at).toLocaleString("nb-NO") : "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: "0.8em" }}>{r.user_id ?? "Ukjent"}</td>
+                          <td>{REJECTION_TYPE_LABELS[r.rejection_type] ?? r.rejection_type}</td>
+                          <td style={{ maxWidth: "320px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.message_preview ?? "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: "0.8em" }}>{r.conversation_id ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : null}
+          </section>
+        ) : activeTab === "stats" ? (
           <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
             <div className="topicDashboard__statsHeader">
               <h2>Nokkelstatistikk</h2>
@@ -845,6 +927,7 @@ export default function TopicDashboardPage() {
           </div>
         )}
       </main>
+
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
