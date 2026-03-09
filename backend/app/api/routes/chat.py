@@ -16,7 +16,8 @@ from app.services.llm_client import (
     SOMATIC_NUDGE_APPENDIX,
 )
 from app.core.config import settings
-from app.services.security import validate_and_count
+from app.services.security import SecurityRejectionError, validate_and_count
+from app.services.security_rejection_store import insert_security_rejection
 from app.services.session_budget import add_tokens_and_check_budget
 from app.services.google_auth import get_user_id_for_session, parse_bearer_token
 
@@ -123,7 +124,22 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
     # 1) Security: normalize + per-message token cap
     try:
         sec = validate_and_count(payload.message, model_name=settings.MODEL_NAME)
-    except ValueError as e:
+    except SecurityRejectionError as e:
+        try:
+            session_token = parse_bearer_token(authorization)
+            with psycopg.connect(settings.DATABASE_URL or "") as log_conn:
+                user_id = get_user_id_for_session(log_conn, session_token) if session_token else None
+                insert_security_rejection(
+                    log_conn,
+                    conversation_id=payload.conversation_id,
+                    session_id=payload.session_id,
+                    message_id=payload.message_id,
+                    user_id=user_id,
+                    message_preview=payload.message[:500],
+                    rejection_type=e.rejection_type,
+                )
+        except Exception:
+            pass
         raise HTTPException(status_code=400, detail=str(e))
 
     normalized_message = sec.normalized_message
