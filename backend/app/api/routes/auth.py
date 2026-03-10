@@ -133,7 +133,7 @@ def auth_google(payload: GoogleAuthRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/auth/apple/start")
@@ -150,7 +150,7 @@ def auth_apple_start(request: Request, return_to: str | None = None):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/apple/callback")
@@ -190,21 +190,22 @@ async def auth_apple_callback(request: Request):
         redirect_base = _pick_redirect_url(request, str(return_to) if isinstance(return_to, str) else None)
         admin_flag = "1" if principal.is_admin else "0"
         fragment = (
-            f"session_token={session_token}"
-            f"&user_id={principal.user_id}"
+            f"user_id={principal.user_id}"
             f"&is_admin={admin_flag}"
         )
         redirect_url = f"{redirect_base.rstrip('/')}/#auth=apple&{fragment}"
         response = RedirectResponse(url=redirect_url, status_code=303)
         response.delete_cookie("apple_oauth_state", path="/")
         response.delete_cookie("apple_oauth_nonce", path="/")
+        session_cookie_kwargs = {**_cookie_kwargs(), "max_age": settings.SESSION_TTL_DAYS * 86400}
+        response.set_cookie("session_token", session_token, **session_cookie_kwargs)
         return response
     except HTTPException:
         raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/auth/me", response_model=AuthMeResponse)
@@ -225,7 +226,7 @@ def auth_me(authorization: str | None = Header(default=None)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/register", response_model=RegisterResponse)
@@ -247,7 +248,7 @@ def auth_register(payload: RegisterRequest, request: Request):
             raise HTTPException(status_code=409, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/login", response_model=GoogleAuthResponse)
@@ -276,7 +277,7 @@ def auth_login(payload: LoginRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/logout", status_code=204)
@@ -290,7 +291,7 @@ def auth_logout(authorization: str | None = Header(default=None)):
             revoke_session(conn, session_token)
             return Response(status_code=204)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
@@ -308,7 +309,7 @@ def auth_forgot_password(payload: ForgotPasswordRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/reset-password", response_model=GenericAuthMessageResponse)
@@ -326,7 +327,7 @@ def auth_reset_password(payload: ResetPasswordRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/verify-email", response_model=GenericAuthMessageResponse)
@@ -344,7 +345,7 @@ def auth_verify_email(payload: VerifyEmailRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/google/redirect")
@@ -369,13 +370,15 @@ async def auth_google_redirect(request: Request, return_to: str | None = None):
         redirect_base = _pick_redirect_url(request, return_to)
         admin_flag = "1" if result.is_admin else "0"
         fragment = (
-            f"session_token={result.session_token}"
-            f"&user_id={result.user_id}"
+            f"user_id={result.user_id}"
             f"&is_admin={admin_flag}"
         )
         redirect_url = f"{redirect_base.rstrip('/')}/#auth=google&{fragment}"
-        return RedirectResponse(url=redirect_url, status_code=303)
+        response = RedirectResponse(url=redirect_url, status_code=303)
+        session_cookie_kwargs = {**_cookie_kwargs(), "max_age": settings.SESSION_TTL_DAYS * 86400}
+        response.set_cookie("session_token", result.session_token, **session_cookie_kwargs)
+        return response
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
