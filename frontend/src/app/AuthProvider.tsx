@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { GOOGLE_CLIENT_ID } from "../config";
-import { fetchAuthMe, revokeSession, type AuthResponse } from "../features/auth/api";
+import { exchangeSessionCookie, fetchAuthMe, revokeSession, type AuthResponse } from "../features/auth/api";
 import {
   disableGoogleAutoSelect,
   initGoogleIdentity,
@@ -95,29 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const params = new URLSearchParams(hash.replace(/^#/, ""));
-    const sessionToken = params.get("session_token");
     const userId = params.get("user_id");
-    const isAdminParam = params.get("is_admin");
-    const isAdmin = isAdminParam === "1" || isAdminParam === "true";
 
-    console.info("[auth] redirect detected", {
-      hasSessionToken: Boolean(sessionToken),
-      hasUserId: Boolean(userId),
-    });
+    console.info("[auth] redirect detected", { hasUserId: Boolean(userId) });
 
-    if (sessionToken && userId) {
-      writeStoredAuth(userId, sessionToken, isAdmin);
-      setState((prev) => ({
-        ...prev,
-        userId,
-        sessionToken,
-        isAdmin,
-        isBootstrapped: true,
-        error: null,
-      }));
-    } else {
-      markBootstrapped();
-    }
+    exchangeSessionCookie()
+      .then((auth) => {
+        writeStoredAuth(auth.userId, auth.sessionToken, auth.isAdmin);
+        setState((prev) => ({
+          ...prev,
+          userId: auth.userId,
+          sessionToken: auth.sessionToken,
+          isAdmin: auth.isAdmin,
+          isBootstrapped: true,
+          error: null,
+        }));
+      })
+      .catch(() => {
+        markBootstrapped();
+      });
 
     const storedNextPath = sessionStorage.getItem(AUTH_NEXT_PATH_KEY);
     if (storedNextPath) {

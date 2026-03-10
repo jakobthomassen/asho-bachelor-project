@@ -193,6 +193,20 @@ export async function registerWithEmailPassword(
   return coerceRegisterResponse(await res.json());
 }
 
+export async function exchangeSessionCookie(): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("Session cookie exchange failed");
+  }
+
+  const data = (await res.json()) as unknown;
+  return coerceAuthResponse(data);
+}
+
 export async function revokeSession(sessionToken: string | null): Promise<void> {
   if (!sessionToken) return;
 
