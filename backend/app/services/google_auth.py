@@ -71,15 +71,33 @@ def create_session_for_user(conn: psycopg.Connection, user_id: str) -> str:
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO google_users (user_id)
+            INSERT INTO users (id)
             VALUES (%s)
-            ON CONFLICT (user_id) DO NOTHING
+            ON CONFLICT (id) DO NOTHING
             """,
             (user_id,),
         )
+        if user_id.startswith("apple_"):
+            cur.execute(
+                """
+                INSERT INTO user_apple_identities (apple_sub_hash, user_id)
+                VALUES (%s, %s)
+                ON CONFLICT (apple_sub_hash) DO NOTHING
+                """,
+                (user_id, user_id),
+            )
+        elif not user_id.startswith("email_"):
+            cur.execute(
+                """
+                INSERT INTO user_google_identities (google_sub_hash, user_id)
+                VALUES (%s, %s)
+                ON CONFLICT (google_sub_hash) DO NOTHING
+                """,
+                (user_id, user_id),
+            )
         cur.execute(
             """
-            INSERT INTO google_sessions (session_token, user_id, expires_at)
+            INSERT INTO sessions (session_token, user_id, expires_at)
             VALUES (%s, %s, NOW() + (%s || ' days')::interval)
             """,
             (session_token, user_id, int(ttl_days)),
@@ -108,15 +126,15 @@ def get_session_principal(conn: psycopg.Connection, session_token: str) -> Optio
     with conn.cursor() as cur:
         cur.execute(
             """
-            DELETE FROM google_sessions
+            DELETE FROM sessions
             WHERE expires_at < NOW()
             """
         )
         cur.execute(
             """
             SELECT s.user_id, COALESCE(u.is_admin, FALSE) AS is_admin
-            FROM google_sessions s
-            JOIN google_users u ON u.user_id = s.user_id
+            FROM sessions s
+            JOIN users u ON u.id = s.user_id
             WHERE s.session_token = %s
               AND s.expires_at >= NOW()
             """,
@@ -142,7 +160,7 @@ def revoke_session(conn: psycopg.Connection, session_token: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
             """
-            DELETE FROM google_sessions
+            DELETE FROM sessions
             WHERE session_token = %s
             """,
             (session_token,),

@@ -122,7 +122,7 @@ class PostgresAuthRepository:
                 cur.execute(
                     """
                     SELECT email_norm, user_id, password_hash, email_verified
-                    FROM auth_identities
+                    FROM user_email_identities
                     WHERE email_norm = %s
                     """,
                     (email_norm,),
@@ -144,7 +144,15 @@ class PostgresAuthRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO auth_identities (
+                    INSERT INTO users (id)
+                    VALUES (%s)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (user_id,),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO user_email_identities (
                         email_norm, user_id, password_hash, email_verified,
                         verify_token_hash, verify_token_expires_at,
                         created_at, updated_at
@@ -171,7 +179,7 @@ class PostgresAuthRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    UPDATE auth_identities
+                    UPDATE user_email_identities
                     SET email_verified = TRUE,
                         verify_token_hash = NULL,
                         verify_token_expires_at = NULL,
@@ -191,7 +199,7 @@ class PostgresAuthRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    UPDATE auth_identities
+                    UPDATE user_email_identities
                     SET reset_token_hash = %s,
                         reset_token_expires_at = TO_TIMESTAMP(%s),
                         updated_at = NOW()
@@ -208,7 +216,7 @@ class PostgresAuthRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    UPDATE auth_identities
+                    UPDATE user_email_identities
                     SET password_hash = %s,
                         reset_token_hash = NULL,
                         reset_token_expires_at = NULL,
