@@ -208,6 +208,28 @@ async def auth_apple_callback(request: Request):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/auth/session", response_model=GoogleAuthResponse)
+def auth_session(request: Request):
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="No session cookie")
+
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            principal = get_session_principal(conn, session_token)
+            if not principal:
+                raise HTTPException(status_code=401, detail="Invalid session token")
+            return {
+                "user_id": principal.user_id,
+                "session_token": session_token,
+                "is_admin": principal.is_admin,
+            }
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.get("/auth/me", response_model=AuthMeResponse)
 def auth_me(authorization: str | None = Header(default=None)):
     session_token = parse_bearer_token(authorization)
