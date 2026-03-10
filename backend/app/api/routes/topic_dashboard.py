@@ -93,7 +93,7 @@ def list_topics(authorization: str | None = Header(default=None)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/topic-dashboard/stats", response_model=TopicDashboardStatsResponse)
@@ -218,7 +218,7 @@ def topic_dashboard_stats(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics", response_model=TopicDashboardTopic)
@@ -313,7 +313,7 @@ def create_topic(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics/{topic_key}/versions", response_model=TopicDashboardTopic)
@@ -460,7 +460,7 @@ def create_topic_version(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics/{topic_key}/calculate-vector", response_model=TopicDashboardTopic)
@@ -543,7 +543,7 @@ def calculate_topic_vector(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/topic-dashboard/security-rejections", response_model=SecurityRejectionListResponse)
@@ -591,4 +591,4 @@ def list_security_rejections(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")

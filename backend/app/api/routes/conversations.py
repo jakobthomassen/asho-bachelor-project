@@ -79,7 +79,7 @@ def list_conversations(authorization: str | None = Header(default=None)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/conversations", response_model=ConversationSummary)
@@ -118,7 +118,7 @@ def create_conversation(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.patch("/conversations/{conversation_id}", response_model=ConversationSummary)
@@ -157,7 +157,7 @@ def update_conversation(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
@@ -212,7 +212,7 @@ def delete_conversation(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get(
@@ -267,4 +267,4 @@ def list_messages(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
