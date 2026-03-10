@@ -190,15 +190,14 @@ async def auth_apple_callback(request: Request):
         redirect_base = _pick_redirect_url(request, str(return_to) if isinstance(return_to, str) else None)
         admin_flag = "1" if principal.is_admin else "0"
         fragment = (
-            f"user_id={principal.user_id}"
+            f"session_token={session_token}"
+            f"&user_id={principal.user_id}"
             f"&is_admin={admin_flag}"
         )
         redirect_url = f"{redirect_base.rstrip('/')}/#auth=apple&{fragment}"
         response = RedirectResponse(url=redirect_url, status_code=303)
         response.delete_cookie("apple_oauth_state", path="/")
         response.delete_cookie("apple_oauth_nonce", path="/")
-        session_cookie_kwargs = {**_cookie_kwargs(), "max_age": settings.SESSION_TTL_DAYS * 86400}
-        response.set_cookie("session_token", session_token, **session_cookie_kwargs)
         return response
     except HTTPException:
         raise
@@ -392,14 +391,12 @@ async def auth_google_redirect(request: Request, return_to: str | None = None):
         redirect_base = _pick_redirect_url(request, return_to)
         admin_flag = "1" if result.is_admin else "0"
         fragment = (
-            f"user_id={result.user_id}"
+            f"session_token={result.session_token}"
+            f"&user_id={result.user_id}"
             f"&is_admin={admin_flag}"
         )
         redirect_url = f"{redirect_base.rstrip('/')}/#auth=google&{fragment}"
-        response = RedirectResponse(url=redirect_url, status_code=303)
-        session_cookie_kwargs = {**_cookie_kwargs(), "max_age": settings.SESSION_TTL_DAYS * 86400}
-        response.set_cookie("session_token", result.session_token, **session_cookie_kwargs)
-        return response
+        return RedirectResponse(url=redirect_url, status_code=303)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
