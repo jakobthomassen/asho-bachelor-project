@@ -306,6 +306,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             recent_rows.reverse()
             history = [{"role": row.role, "content": row.content} for row in recent_rows]
 
+            summary_output_tokens = 0
+            summary_prompt_tokens = 0
             try:
                 est_tokens = _estimate_prompt_tokens(summary_message, history, base_prompt)
                 if est_tokens > settings.MAX_HISTORY_TOKENS:
@@ -321,7 +323,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         summary_input = [
                             {"role": row.role, "content": row.content} for row in to_summarize
                         ]
-                        new_summary, _ = summarize_history(
+                        new_summary, summary_output_tokens, summary_prompt_tokens = summarize_history(
                             session_id=payload.session_id,
                             existing_summary=summary_text,
                             messages=summary_input,
@@ -577,7 +579,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
             last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
 
-            reply, output_tokens = chat_with_history_with_system(
+            reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
                 session_id=payload.session_id,
                 history=history,
                 user_message=normalized_message,
@@ -593,11 +595,11 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 ]
                 # Keep the default title until the 3rd user message is sent.
                 if len(user_msgs_for_title) >= TITLE_CHECK_MIN_USER_MESSAGES:
-                    suggested_title, title_conf, title_reason, gen_title_tokens = generate_conversation_title(
+                    suggested_title, title_conf, title_reason, gen_title_output, gen_title_prompt = generate_conversation_title(
                         session_id=payload.session_id,
                         user_messages=user_msgs_for_title,
                     )
-                    title_tokens = gen_title_tokens
+                    title_tokens = gen_title_output + gen_title_prompt
                     if suggested_title and suggested_title.strip() and title_conf >= TITLE_MIN_CONFIDENCE:
                         conversation_title = suggested_title.strip()[:80]
                         with conn.cursor() as cur:
@@ -656,8 +658,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         user_id=str(user_id),
                         conversation_id=payload.conversation_id,
                         message_id=payload.message_id,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
+                        input_tokens=chat_prompt_tokens,
+                        output_tokens=output_tokens + summary_output_tokens + summary_prompt_tokens,
                         classifier_tokens=classifier_tokens,
                         title_tokens=title_tokens,
                     )
