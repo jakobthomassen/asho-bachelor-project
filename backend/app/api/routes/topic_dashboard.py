@@ -3,6 +3,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
+from pydantic import BaseModel
 import psycopg
 
 from app.core.config import settings
@@ -16,6 +17,7 @@ from app.schemas.topic_dashboard import (
     SecurityRejectionItem,
     SecurityRejectionListResponse,
 )
+from app.services.app_config_store import fetch_app_config, upsert_app_config
 from app.services.google_auth import get_session_principal, parse_bearer_token
 from app.services.llm_client import create_text_embedding
 
@@ -591,4 +593,45 @@ def list_security_rejections(
     except HTTPException:
         raise
     except Exception as exc:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+class BaseSystemPromptResponse(BaseModel):
+    value: str
+
+
+class BaseSystemPromptUpdateRequest(BaseModel):
+    value: str
+
+
+@router.get("/topic-dashboard/app-config/base-system-prompt", response_model=BaseSystemPromptResponse)
+def get_base_system_prompt(authorization: str | None = Header(default=None)):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            value = fetch_app_config(conn, "base_system_prompt") or ""
+            return BaseSystemPromptResponse(value=value)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.put("/topic-dashboard/app-config/base-system-prompt", response_model=BaseSystemPromptResponse)
+def update_base_system_prompt(
+    payload: BaseSystemPromptUpdateRequest,
+    authorization: str | None = Header(default=None),
+):
+    try:
+        clean_value = (payload.value or "").strip()
+        if not clean_value:
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            with conn.transaction():
+                upsert_app_config(conn, "base_system_prompt", clean_value)
+            return BaseSystemPromptResponse(value=clean_value)
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

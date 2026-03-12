@@ -3,9 +3,11 @@ import { useAuth } from "../../AuthProvider";
 import {
   calculateTopicVector,
   createTopic,
+  getBaseSystemPrompt,
   getTopicDashboardStats,
   getSecurityRejections,
   listTopicDashboardTopics,
+  saveBaseSystemPrompt,
   saveTopicVersion,
   type SecurityRejection,
   type TopicDashboardStats,
@@ -17,6 +19,8 @@ import "./TopicDashboardPage.css";
 
 const LOGO_URL =
   "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
+
+const BASE_PROMPT_KEY = "__base__";
 
 type TabKey = "stats" | "temaer" | "sikkerhet";
 
@@ -239,6 +243,10 @@ export default function TopicDashboardPage() {
   const [securityRejections, setSecurityRejections] = useState<SecurityRejection[]>([]);
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState<string | null>(null);
+  const [basePromptDraft, setBasePromptDraft] = useState("");
+  const [isSavingBasePrompt, setIsSavingBasePrompt] = useState(false);
+  const [basePromptSuccess, setBasePromptSuccess] = useState<string | null>(null);
+  const [basePromptError, setBasePromptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionToken) return;
@@ -249,9 +257,13 @@ export default function TopicDashboardPage() {
       setError(null);
       setSuccess(null);
       try {
-        const data = await listTopicDashboardTopics(sessionToken);
+        const [data, basePromptValue] = await Promise.all([
+          listTopicDashboardTopics(sessionToken),
+          getBaseSystemPrompt(sessionToken),
+        ]);
         if (cancelled) return;
         setTopics(data);
+        setBasePromptDraft(basePromptValue);
         const firstKey = data[0]?.topic_key ?? "";
         setSelectedTopicKey((prev) => (prev && data.some((t) => t.topic_key === prev) ? prev : firstKey));
       } catch (err) {
@@ -443,6 +455,27 @@ export default function TopicDashboardPage() {
       setError(err instanceof Error ? err.message : "Kunne ikke lagre.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveBasePrompt = async () => {
+    if (!sessionToken) return;
+    const trimmed = basePromptDraft.trim();
+    if (!trimmed) {
+      setBasePromptError("Prompt kan ikke være tom.");
+      return;
+    }
+    setBasePromptError(null);
+    setBasePromptSuccess(null);
+    setIsSavingBasePrompt(true);
+    try {
+      const saved = await saveBaseSystemPrompt(sessionToken, trimmed);
+      setBasePromptDraft(saved);
+      setBasePromptSuccess("Grunnprompt lagret.");
+    } catch (err) {
+      setBasePromptError(err instanceof Error ? err.message : "Kunne ikke lagre.");
+    } finally {
+      setIsSavingBasePrompt(false);
     }
   };
 
@@ -711,6 +744,24 @@ export default function TopicDashboardPage() {
                 + Legg til nytt tema
               </button>
 
+              <div
+                className={`topicDashboard__topicItem topicDashboard__topicItem--base ${!isCreatingNew && selectedTopicKey === BASE_PROMPT_KEY ? "is-active" : ""}`}
+              >
+                <button
+                  className="topicDashboard__topicSelect"
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingNew(false);
+                    setNewTopicKey("");
+                    setSelectedTopicKey(BASE_PROMPT_KEY);
+                    setActiveTab("temaer");
+                  }}
+                >
+                  <div className="topicDashboard__topicTitle">Grunnprompt</div>
+                  <div className="topicDashboard__topicStatus is-ok">Global</div>
+                </button>
+              </div>
+
               {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
               {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
 
@@ -761,7 +812,34 @@ export default function TopicDashboardPage() {
 
             <section className="topicDashboard__formPane">
               <div className="topicDashboard__formInner">
-            {!form ? (
+            {selectedTopicKey === BASE_PROMPT_KEY ? (
+              <>
+                <div className="topicDashboard__statusRow">
+                  <div className="topicDashboard__selectedMeta">Grunnprompt</div>
+                  {basePromptSuccess ? <div className="topicDashboard__success">{basePromptSuccess}</div> : null}
+                  {basePromptError ? <div className="topicDashboard__error">{basePromptError}</div> : null}
+                </div>
+                <div className="topicDashboard__formGrid">
+                  <label>
+                    System prompt
+                    <textarea
+                      rows={16}
+                      value={basePromptDraft}
+                      onChange={(e) => {
+                        setBasePromptDraft(e.target.value);
+                        setBasePromptSuccess(null);
+                        setBasePromptError(null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="topicDashboard__actions">
+                  <button disabled={isSavingBasePrompt} onClick={handleSaveBasePrompt} type="button">
+                    {isSavingBasePrompt ? "Lagrer..." : "Lagre grunnprompt"}
+                  </button>
+                </div>
+              </>
+            ) : !form ? (
               <div className="topicDashboard__hint">Velg et tema for aa redigere.</div>
             ) : (
               <>

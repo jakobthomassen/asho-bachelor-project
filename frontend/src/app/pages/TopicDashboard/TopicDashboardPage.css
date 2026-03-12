@@ -391,6 +391,13 @@
   color: var(--danger);
 }
 
+.topicDashboard__topicItem--base {
+  border-bottom: 1px solid var(--border);
+  border-radius: 7px 7px 0 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+}
+
 .topicDashboard__topicVectorBtn {
   margin: 0 0.4rem 0.4rem;
   border: 1px solid var(--border);
