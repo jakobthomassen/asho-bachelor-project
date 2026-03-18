@@ -71,6 +71,11 @@ Standardmodus:
 - Prioriter stabilisering, tydelighet og fremdrift uten å presse.
 """
 
+SOMATIC_NUDGE_APPENDIX = """
+Somatisk tilstedeværelse (etter at kontakt er etablert):
+Hvis brukeren utforsker noe følelsesmessig eller spenningsfylt, og kroppslig tilstedeværelse ikke allerede er nevnt i denne samtalen, kan du én gang – bare én gang per tema – forsiktig invitere til kroppslig tilstedeværelse. Eksempel: "Hva merker du i kroppen nå?" eller "Er det noe i kroppen som reagerer på det?". Gjør dette kun der det faller naturlig inn. Ikke gjentak det for samme tema, og ikke spør om kroppen hvis brukeren nettopp har beskrevet en kroppslig opplevelse.
+"""
+
 LOW_SIGNAL_MESSAGES = {
     "hei",
     "heisann",
@@ -104,7 +109,7 @@ def _run_chat_completion(
     stage: str,
     temperature: float,
     max_tokens: int,
-) -> Tuple[str, int]:
+) -> Tuple[str, int, int]:
     client = get_client()
     prompt_tokens_estimate = 0
     for msg in messages:
@@ -156,16 +161,16 @@ def _run_chat_completion(
     except Exception:
         usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
 
-    return content, usage_tokens
+    return content, usage_tokens, prompt_tokens
 
 
 def chat_with_history(
     session_id: str,
     history: List[Dict[str, Any]],
     user_message: str,
-) -> Tuple[str, int]:
+) -> Tuple[str, int, int]:
     """
-    Returns (assistant_text, assistant_output_tokens_estimate_or_reported)
+    Returns (assistant_text, output_tokens, prompt_tokens)
     """
     return chat_with_history_with_system(
         session_id=session_id,
@@ -182,7 +187,7 @@ def chat_with_history_with_system(
     user_message: str,
     system_prompt: str,
     temperature: float = 0.7,
-) -> Tuple[str, int]:
+) -> Tuple[str, int, int]:
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
     if not (
@@ -366,7 +371,7 @@ def classify_topic(
         {"role": "system", "content": CLASSIFIER_SYSTEM_PROMPT},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
-    raw, output_tokens = _run_chat_completion(
+    raw, output_tokens, _ = _run_chat_completion(
         session_id=session_id,
         messages=messages,
         stage="classifier",
@@ -439,7 +444,7 @@ def generate_conversation_title(
     *,
     session_id: str,
     user_messages: List[str],
-) -> Tuple[str | None, float, str, int]:
+) -> Tuple[str | None, float, str, int, int]:
     payload = {
         "user_messages": user_messages[-8:],
     }
@@ -447,7 +452,7 @@ def generate_conversation_title(
         {"role": "system", "content": TITLE_SYSTEM_PROMPT},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
-    raw, output_tokens = _run_chat_completion(
+    raw, output_tokens, title_prompt_tokens = _run_chat_completion(
         session_id=session_id,
         messages=messages,
         stage="title",
@@ -477,7 +482,7 @@ def generate_conversation_title(
     confidence = max(0.0, min(1.0, confidence))
 
     reason = str(parsed.get("reason", "")).strip()
-    return title, confidence, reason, output_tokens
+    return title, confidence, reason, output_tokens, title_prompt_tokens
 
 
 def summarize_history(
@@ -485,11 +490,11 @@ def summarize_history(
     session_id: str,
     existing_summary: str | None,
     messages: List[Dict[str, Any]],
-) -> Tuple[str, int]:
+) -> Tuple[str, int, int]:
     """
     Summarizes a list of chat messages, optionally extending an existing summary.
 
-    Returns (summary_text, summary_output_tokens_estimate_or_reported)
+    Returns (summary_text, output_tokens, prompt_tokens)
     """
     client = get_client()
 
@@ -559,4 +564,4 @@ def summarize_history(
     except Exception:
         usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
 
-    return content.strip(), usage_tokens
+    return content.strip(), usage_tokens, prompt_tokens

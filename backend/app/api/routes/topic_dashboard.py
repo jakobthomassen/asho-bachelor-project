@@ -3,6 +3,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
+from pydantic import BaseModel
 import psycopg
 
 from app.core.config import settings
@@ -13,7 +14,10 @@ from app.schemas.topic_dashboard import (
     TopicDashboardStatsResponse,
     TopicDashboardTopic,
     TopicDashboardUpdateRequest,
+    SecurityRejectionItem,
+    SecurityRejectionListResponse,
 )
+from app.services.app_config_store import fetch_app_config, upsert_app_config
 from app.services.google_auth import get_session_principal, parse_bearer_token
 from app.services.llm_client import create_text_embedding
 
@@ -91,7 +95,7 @@ def list_topics(authorization: str | None = Header(default=None)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/topic-dashboard/stats", response_model=TopicDashboardStatsResponse)
@@ -216,7 +220,7 @@ def topic_dashboard_stats(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics", response_model=TopicDashboardTopic)
@@ -311,7 +315,7 @@ def create_topic(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics/{topic_key}/versions", response_model=TopicDashboardTopic)
@@ -458,7 +462,7 @@ def create_topic_version(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/topic-dashboard/topics/{topic_key}/calculate-vector", response_model=TopicDashboardTopic)
@@ -541,4 +545,93 @@ def calculate_topic_vector(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/topic-dashboard/security-rejections", response_model=SecurityRejectionListResponse)
+def list_security_rejections(
+    limit: int = Query(default=200, ge=1, le=1000),
+    authorization: str | None = Header(default=None),
+):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                      id,
+                      conversation_id,
+                      session_id,
+                      message_id,
+                      user_id,
+                      message_preview,
+                      rejection_type,
+                      created_at
+                    FROM security_rejections
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall() or []
+
+        rejections = [
+            SecurityRejectionItem(
+                id=int(row[0]),
+                conversation_id=row[1],
+                session_id=row[2],
+                message_id=row[3],
+                user_id=row[4],
+                message_preview=row[5],
+                rejection_type=str(row[6]),
+                created_at=row[7].isoformat() if row[7] else None,
+            )
+            for row in rows
+        ]
+        return SecurityRejectionListResponse(rejections=rejections)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+class BaseSystemPromptResponse(BaseModel):
+    value: str
+
+
+class BaseSystemPromptUpdateRequest(BaseModel):
+    value: str
+
+
+@router.get("/topic-dashboard/app-config/base-system-prompt", response_model=BaseSystemPromptResponse)
+def get_base_system_prompt(authorization: str | None = Header(default=None)):
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            value = fetch_app_config(conn, "base_system_prompt") or ""
+            return BaseSystemPromptResponse(value=value)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.put("/topic-dashboard/app-config/base-system-prompt", response_model=BaseSystemPromptResponse)
+def update_base_system_prompt(
+    payload: BaseSystemPromptUpdateRequest,
+    authorization: str | None = Header(default=None),
+):
+    try:
+        clean_value = (payload.value or "").strip()
+        if not clean_value:
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            _require_admin(conn, authorization)
+            with conn.transaction():
+                upsert_app_config(conn, "base_system_prompt", clean_value)
+            return BaseSystemPromptResponse(value=clean_value)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")

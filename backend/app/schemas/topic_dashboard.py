@@ -57,6 +57,21 @@ class TopicDashboardUpdateRequest(BaseModel):
     created_by: str | None = None
 
 
+class SecurityRejectionItem(BaseModel):
+    id: int
+    conversation_id: str | None = None
+    session_id: str | None = None
+    message_id: str | None = None
+    user_id: str | None = None
+    message_preview: str | None = None
+    rejection_type: str
+    created_at: str | None = None
+
+
+class SecurityRejectionListResponse(BaseModel):
+    rejections: list[SecurityRejectionItem]
+
+
 class TopicDashboardCreateRequest(BaseModel):
     topic_key: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1)

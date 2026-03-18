@@ -41,6 +41,17 @@ type DebugChatResponse = {
   } | null;
 };
 
+const STAGE_COLORS: Record<string, string> = {
+  chat: "#4ade80",
+  classifier: "#f59e0b",
+  summary: "#a78bfa",
+  title: "#38bdf8",
+};
+
+function stageColor(stage: string | undefined) {
+  return STAGE_COLORS[stage ?? ""] ?? "#94a3b8";
+}
+
 export default function Chat() {
   const { sessionToken } = useAuth();
   const [sessionId] = useState(uuidv4());
@@ -53,6 +64,7 @@ export default function Chat() {
   const [conversationTokens, setConversationTokens] = useState<number | null>(null);
   const [classification, setClassification] = useState<DebugChatResponse["classification"]>(null);
   const streamRef = useRef<{ cancelled: boolean } | null>(null);
+  const consoleBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
@@ -62,6 +74,10 @@ export default function Chat() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [consoleLog]);
 
   function log(text: string) {
     setConsoleLog((prev) => [...prev, { timestamp: Date.now(), text }]);
@@ -94,8 +110,15 @@ export default function Chat() {
   };
 
   async function fetchPromptTraces() {
+    if (!sessionToken) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/prompt-trace/${sessionId}`);
+      const res = await fetch(`${API_BASE_URL}/api/prompt-trace/${sessionId}`, {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      if (!res.ok) {
+        log(`Prompt trace fetch failed: ${res.status}`);
+        return;
+      }
       const data = await res.json();
       const raw = Array.isArray(data.traces) ? data.traces : [];
       const mapped: PromptTrace[] = raw.map((t: any) => {
@@ -194,138 +217,146 @@ export default function Chat() {
   }
 
   return (
-    <div
-      style={{ display: "flex", height: "90vh", padding: "20px 40px", gap: 16 }}
-    >
-      {/* Chat Trace */}
-      <div
-        style={{
-          flex: 2,
-          border: "1px solid #d1d5db",
-          borderRadius: 12,
-          padding: 12,
-        }}
-      >
-        <div style={{ overflowY: "auto", height: "75%" }}>
+    <div style={styles.root}>
+      {/* ── Chat Trace ── */}
+      <section style={styles.panel}>
+        <h2 style={styles.panelTitle}>Chat Trace</h2>
+
+        <div style={styles.chatMessages}>
+          {messages.length === 0 && (
+            <p style={styles.emptyHint}>No messages yet. Send something below.</p>
+          )}
           {messages.map((m, i) => (
             <div
               key={i}
               style={{
-                marginBottom: 12,
-                padding: 10,
-                borderRadius: 10,
-                background: m.role === "user" ? "#f3f4f6" : "#e0f2fe",
+                ...styles.chatBubble,
+                background: m.role === "user" ? "#1e293b" : "#0f2d40",
+                borderLeft: `3px solid ${m.role === "user" ? "#64748b" : "#38bdf8"}`,
               }}
             >
-              <div style={{ fontWeight: 600, color: "#000" }}>
+              <div style={{ ...styles.bubbleRole, color: m.role === "user" ? "#94a3b8" : "#38bdf8" }}>
                 {m.role.toUpperCase()}
               </div>
-              <div style={{ margin: "6px 0", color: "#000" }}>{m.text}</div>
-              <div style={{ fontSize: 12, color: "#4b5563" }}>
-                session_id: {m.session_id}
-                <br />
-                message_id: {m.message_id}
-                <br />
-                method: {m.method}
-                <br />
-                timestamp: {new Date(m.timestamp).toLocaleTimeString()}
+              <div style={styles.bubbleText}>{m.text}</div>
+              <div style={styles.bubbleMeta}>
+                <span>session: {m.session_id.slice(0, 8)}…</span>
+                <span>msg: {m.message_id.slice(0, 8)}…</span>
+                <span>{m.method}</span>
+                <span>{new Date(m.timestamp).toLocaleTimeString()}</span>
               </div>
             </div>
           ))}
         </div>
 
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder='Type debug message'
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            marginTop: 10,
-            padding: 10,
-            borderRadius: 8,
-            border: "1px solid #9ca3af",
-          }}
-        />
-      </div>
+        <div style={styles.inputRow}>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            placeholder="Type debug message and press Enter"
+            style={styles.input}
+          />
+          <button onClick={sendMessage} style={styles.sendBtn}>Send</button>
+        </div>
+      </section>
 
-      {/* Console */}
-      <div
-        style={{
-          flex: 1.1,
-          border: "1px solid #111827",
-          borderRadius: 12,
-          padding: 12,
-          background: "#020617",
-          color: "#e5e7eb",
-          fontFamily: "monospace",
-          fontSize: 12,
-        }}
-      >
-        <h3 style={{ color: "#93c5fd" }}>Console</h3>
-        <div
-          style={{
-            marginBottom: 10,
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid #334155",
-            background: "#0b1220",
-            color: "#cbd5e1",
-          }}
-        >
-          <div>last prompt tokens: {lastPromptTokens ?? "n/a"}</div>
-          <div>conversation tokens: {conversationTokens ?? "n/a"}</div>
-          <div>pipeline prompts: {promptTraces.length}</div>
-          <div>classification method: {classification?.method ?? "n/a"}</div>
-          <div>classification event: {classification?.event ?? "n/a"}</div>
-          <div>route mode: {classification?.route_mode ?? "n/a"}</div>
-          <div>selected topic: {classification?.selected_topic_key ?? "default"}</div>
-          <div>candidate topic: {classification?.candidate_topic_key ?? "n/a"}</div>
-          <div>
-            confidence:{" "}
-            {typeof classification?.confidence === "number"
-              ? classification.confidence.toFixed(4)
-              : "n/a"}
+      {/* ── Right column: Console + Classification ── */}
+      <div style={styles.rightColumn}>
+        {/* Classification */}
+        <section style={{ ...styles.panel, ...styles.classificationPanel }}>
+          <h2 style={styles.panelTitle}>Classification</h2>
+          <div style={styles.classGrid}>
+            <ClassRow label="method" value={classification?.method} />
+            <ClassRow label="event" value={classification?.event} />
+            <ClassRow label="route_mode" value={classification?.route_mode} />
+            <ClassRow label="selected_topic" value={classification?.selected_topic_key ?? "default"} />
+            <ClassRow label="candidate_topic" value={classification?.candidate_topic_key} />
+            <ClassRow
+              label="confidence"
+              value={
+                typeof classification?.confidence === "number"
+                  ? classification.confidence.toFixed(4)
+                  : undefined
+              }
+            />
+            <ClassRow label="reason" value={classification?.reason} span />
+            <ClassRow label="last_prompt_tokens" value={lastPromptTokens?.toString()} />
+            <ClassRow label="conversation_tokens" value={conversationTokens?.toString()} />
+            <ClassRow label="pipeline_calls" value={promptTraces.length.toString()} />
           </div>
-          <div>reason: {classification?.reason ?? "n/a"}</div>
-        </div>
-        <div style={{ overflowY: "auto", height: "85%" }}>
-          {consoleLog.map((c, i) => (
-            <div key={i}>
-              [{new Date(c.timestamp).toLocaleTimeString()}] {c.text}
-            </div>
-          ))}
-        </div>
+        </section>
+
+        {/* Console */}
+        <section style={{ ...styles.panel, ...styles.consolePanel }}>
+          <h2 style={{ ...styles.panelTitle, color: "#93c5fd" }}>Console</h2>
+          <div style={styles.consoleLog}>
+            {consoleLog.map((c, i) => (
+              <div key={i} style={styles.consoleLine}>
+                <span style={styles.consoleTime}>[{new Date(c.timestamp).toLocaleTimeString()}]</span>
+                {" "}{c.text}
+              </div>
+            ))}
+            <div ref={consoleBottomRef} />
+          </div>
+        </section>
       </div>
 
-      {/* Prompt Payloads */}
-      <div
-        style={{
-          flex: 1.2,
-          border: "1px solid #334155",
-          borderRadius: 12,
-          padding: 12,
-          background: "#020617",
-          color: "#e5e7eb",
-          fontFamily: "monospace",
-          fontSize: 11,
-        }}
-      >
-        <h3 style={{ color: "#38bdf8" }}>LLM Prompt Payloads</h3>
-        <div style={{ overflowY: "auto", height: "85%" }}>
+      {/* ── LLM API Calls ── */}
+      <section style={{ ...styles.panel, ...styles.tracePanel }}>
+        <h2 style={{ ...styles.panelTitle, color: "#38bdf8" }}>
+          LLM API Calls
+          {promptTraces.length > 0 && (
+            <span style={styles.traceBadge}>{promptTraces.length}</span>
+          )}
+        </h2>
+        <div style={styles.traceScroll}>
+          {promptTraces.length === 0 && (
+            <p style={styles.emptyHint}>No traces yet. Send a message to populate.</p>
+          )}
           {promptTraces.map((t, i) => (
-            <div key={i} style={{ marginBottom: 12, borderBottom: "1px solid #1e293b", paddingBottom: 8 }}>
-              <div style={{ marginBottom: 4, color: "#93c5fd" }}>
-                #{i + 1} stage={t.stage ?? "chat"} prompt_tokens={t.prompt_tokens ?? "n/a"}
-                {t.created_at ? ` at ${new Date(t.created_at).toLocaleTimeString()}` : ""}
+            <div key={i} style={styles.traceCall}>
+              {/* Call header */}
+              <div style={{ ...styles.traceHeader, borderColor: stageColor(t.stage) }}>
+                <span style={{ ...styles.traceStageTag, background: stageColor(t.stage) }}>
+                  {(t.stage ?? "chat").toUpperCase()}
+                </span>
+                <span style={styles.traceCallNum}>Call #{i + 1}</span>
+                {t.prompt_tokens != null && (
+                  <span style={styles.traceMeta}>{t.prompt_tokens} tokens</span>
+                )}
+                {t.created_at && (
+                  <span style={styles.traceMeta}>
+                    {new Date(t.created_at * 1000).toLocaleTimeString()}
+                  </span>
+                )}
               </div>
-              <div style={{ marginBottom: 6, color: "#38bdf8" }}>Prompt</div>
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0, marginBottom: 8 }}>
-                {JSON.stringify(t.messages, null, 2)}
-              </pre>
-              <div style={{ marginBottom: 6, color: "#38bdf8" }}>Response</div>
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+
+              {/* Messages */}
+              <div style={styles.traceMessages}>
+                {t.messages.map((msg, j) => (
+                  <div key={j} style={styles.traceMsg}>
+                    <div
+                      style={{
+                        ...styles.traceMsgRole,
+                        color:
+                          msg.role === "system"
+                            ? "#f59e0b"
+                            : msg.role === "assistant"
+                            ? "#4ade80"
+                            : "#94a3b8",
+                      }}
+                    >
+                      [{msg.role.toUpperCase()}]
+                    </div>
+                    <pre style={styles.traceMsgContent}>{msg.content}</pre>
+                  </div>
+                ))}
+              </div>
+
+              {/* Response */}
+              <div style={styles.traceResponseHeader}>RESPONSE</div>
+              <pre style={styles.traceResponse}>
                 {t.response_json
                   ? JSON.stringify(t.response_json, null, 2)
                   : String(t.response_text ?? "n/a")}
@@ -333,7 +364,286 @@ export default function Chat() {
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
+
+function ClassRow({
+  label,
+  value,
+  span,
+}: {
+  label: string;
+  value?: string | null;
+  span?: boolean;
+}) {
+  return (
+    <>
+      <span style={styles.classLabel}>{label}</span>
+      <span style={{ ...styles.classValue, ...(span ? { gridColumn: "2 / -1" } : {}) }}>
+        {value ?? <span style={{ color: "#475569" }}>n/a</span>}
+      </span>
+    </>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  root: {
+    display: "grid",
+    gridTemplateColumns: "minmax(300px, 2fr) minmax(220px, 1.1fr) minmax(340px, 2.4fr)",
+    gridTemplateRows: "1fr",
+    gap: 12,
+    height: "calc(100vh - 56px)",
+    padding: "12px 20px",
+    boxSizing: "border-box",
+    background: "#020617",
+    color: "#e2e8f0",
+    fontFamily: "'Inter', system-ui, sans-serif",
+    fontSize: 13,
+  },
+  panel: {
+    display: "flex",
+    flexDirection: "column",
+    background: "#0f172a",
+    border: "1px solid #1e293b",
+    borderRadius: 10,
+    padding: "12px 14px",
+    overflow: "hidden",
+    minHeight: 0,
+  },
+  panelTitle: {
+    margin: "0 0 10px 0",
+    fontSize: 13,
+    fontWeight: 600,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "#94a3b8",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  // Chat
+  chatMessages: {
+    flex: 1,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minHeight: 0,
+  },
+  chatBubble: {
+    borderRadius: 8,
+    padding: "8px 10px",
+    flexShrink: 0,
+  },
+  bubbleRole: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    marginBottom: 4,
+  },
+  bubbleText: {
+    color: "#e2e8f0",
+    lineHeight: 1.5,
+    marginBottom: 6,
+  },
+  bubbleMeta: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "4px 12px",
+    fontSize: 10,
+    color: "#475569",
+    fontFamily: "monospace",
+  },
+  inputRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 10,
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    padding: "8px 10px",
+    borderRadius: 6,
+    border: "1px solid #334155",
+    background: "#1e293b",
+    color: "#e2e8f0",
+    fontSize: 13,
+    outline: "none",
+  },
+  sendBtn: {
+    padding: "8px 14px",
+    borderRadius: 6,
+    border: "none",
+    background: "#2563eb",
+    color: "#fff",
+    fontWeight: 600,
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  emptyHint: {
+    color: "#334155",
+    fontStyle: "italic",
+    margin: "auto",
+    textAlign: "center",
+  },
+  // Right column
+  rightColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    minHeight: 0,
+    overflow: "hidden",
+  },
+  classificationPanel: {
+    flexShrink: 0,
+  },
+  classGrid: {
+    display: "grid",
+    gridTemplateColumns: "auto 1fr",
+    gap: "4px 10px",
+    alignItems: "start",
+  },
+  classLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontFamily: "monospace",
+    whiteSpace: "nowrap",
+    paddingTop: 1,
+  },
+  classValue: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontFamily: "monospace",
+    wordBreak: "break-all",
+  },
+  // Console
+  consolePanel: {
+    flex: 1,
+    background: "#020617",
+    border: "1px solid #0f172a",
+    minHeight: 0,
+  },
+  consoleLog: {
+    flex: 1,
+    overflowY: "auto",
+    fontFamily: "monospace",
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: "#64748b",
+    minHeight: 0,
+  },
+  consoleLine: {
+    borderBottom: "1px solid #0f172a",
+    padding: "2px 0",
+    wordBreak: "break-all",
+  },
+  consoleTime: {
+    color: "#334155",
+  },
+  // Trace panel
+  tracePanel: {
+    minHeight: 0,
+  },
+  traceBadge: {
+    background: "#1e3a5f",
+    color: "#38bdf8",
+    borderRadius: 10,
+    padding: "1px 7px",
+    fontSize: 11,
+    fontWeight: 700,
+  },
+  traceScroll: {
+    flex: 1,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    minHeight: 0,
+    paddingRight: 2,
+  },
+  traceCall: {
+    border: "1px solid #1e293b",
+    borderRadius: 8,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  traceHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "6px 10px",
+    background: "#0b1628",
+    borderBottom: "2px solid",
+  },
+  traceStageTag: {
+    borderRadius: 4,
+    padding: "1px 6px",
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#000",
+    letterSpacing: "0.05em",
+  },
+  traceCallNum: {
+    color: "#94a3b8",
+    fontFamily: "monospace",
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  traceMeta: {
+    color: "#475569",
+    fontFamily: "monospace",
+    fontSize: 11,
+  },
+  traceMessages: {
+    padding: "8px 10px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    background: "#080f1e",
+  },
+  traceMsg: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  traceMsgRole: {
+    fontSize: 10,
+    fontWeight: 700,
+    fontFamily: "monospace",
+    letterSpacing: "0.06em",
+  },
+  traceMsgContent: {
+    margin: 0,
+    fontFamily: "monospace",
+    fontSize: 11,
+    color: "#cbd5e1",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    background: "#0f1a2e",
+    borderRadius: 4,
+    padding: "5px 8px",
+    borderLeft: "2px solid #1e293b",
+  },
+  traceResponseHeader: {
+    fontSize: 10,
+    fontWeight: 700,
+    fontFamily: "monospace",
+    letterSpacing: "0.06em",
+    color: "#4ade80",
+    padding: "5px 10px 2px",
+    background: "#080f1e",
+  },
+  traceResponse: {
+    margin: 0,
+    fontFamily: "monospace",
+    fontSize: 11,
+    color: "#a7f3d0",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    background: "#061810",
+    padding: "6px 10px 10px",
+    borderTop: "1px solid #0f2d1e",
+  },
+};

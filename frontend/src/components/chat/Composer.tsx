@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import "./Composer.css";
 
 type Props = {
@@ -17,12 +18,22 @@ export default function Composer({
   isSending,
   disabled,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasSendingRef = useRef(isSending);
   const sendDisabled = disabled || isSending || !input.trim();
+
+  useEffect(() => {
+    if (wasSendingRef.current && !isSending && !disabled) {
+      inputRef.current?.focus();
+    }
+    wasSendingRef.current = isSending;
+  }, [disabled, isSending]);
 
   return (
     <div className="composerShell">
       <div className="composer">
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}

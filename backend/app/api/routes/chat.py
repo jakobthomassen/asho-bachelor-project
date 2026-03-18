@@ -13,9 +13,12 @@ from app.services.llm_client import (
     summarize_history,
     SYSTEM_PROMPT,
     DEFAULT_DIALOGUE_APPENDIX,
+    SOMATIC_NUDGE_APPENDIX,
 )
+from app.services.app_config_store import fetch_app_config
 from app.core.config import settings
-from app.services.security import validate_and_count
+from app.services.security import SecurityRejectionError, validate_and_count
+from app.services.security_rejection_store import insert_security_rejection
 from app.services.session_budget import add_tokens_and_check_budget
 from app.services.google_auth import get_user_id_for_session, parse_bearer_token
 
@@ -42,12 +45,14 @@ router = APIRouter()
 if not settings.DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required for idempotency protection")
 
-EARLY_CLASSIFY_TURNS = 4
+INITIAL_CLASSIFY_TURNS = 2   # Classify on every turn up to this for fast detection
+CORRECTION_WINDOW_TURNS = 2  # After topic set, re-evaluate but keep topic if inconclusive
 DEFAULT_RECLASSIFY_TURN_THRESHOLD = 12
 TITLE_MIN_CONFIDENCE = 0.60
 TITLE_CHECK_MIN_USER_MESSAGES = 3
 GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 GLOBAL_PACING_RULES = {"tempo": "slow", "max_questions_per_turn": 1}
+SOMATIC_NUDGE_TURN_THRESHOLD = 5
 
 
 @router.options("/chat")
@@ -64,8 +69,8 @@ def _req_hash(conversation_id: str, normalized_message: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def _estimate_prompt_tokens(summary_text: str | None, history) -> int:
-    total = count_tokens(SYSTEM_PROMPT, model=settings.MODEL_NAME)
+def _estimate_prompt_tokens(summary_text: str | None, history, base_prompt: str = SYSTEM_PROMPT) -> int:
+    total = count_tokens(base_prompt, model=settings.MODEL_NAME)
     if summary_text:
         total += count_tokens(summary_text, model=settings.MODEL_NAME)
     for msg in history:
@@ -93,9 +98,9 @@ def _needs_reclassify_from_user_text(message: str) -> bool:
     return any(t in msg for t in triggers)
 
 
-def _build_topic_system_prompt(topic) -> str:
+def _build_topic_system_prompt(topic, base_prompt: str = SYSTEM_PROMPT) -> str:
     sections = [
-        SYSTEM_PROMPT.strip(),
+        base_prompt.strip(),
         f"Valgt tema: {topic.topic_key}",
         f"Tematittel: {topic.title}",
         "Tema-spesifikk systeminstruksjon:",
@@ -121,7 +126,22 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
     # 1) Security: normalize + per-message token cap
     try:
         sec = validate_and_count(payload.message, model_name=settings.MODEL_NAME)
-    except ValueError as e:
+    except SecurityRejectionError as e:
+        try:
+            session_token = parse_bearer_token(authorization)
+            with psycopg.connect(settings.DATABASE_URL or "") as log_conn:
+                user_id = get_user_id_for_session(log_conn, session_token) if session_token else None
+                insert_security_rejection(
+                    log_conn,
+                    conversation_id=payload.conversation_id,
+                    session_id=payload.session_id,
+                    message_id=payload.message_id,
+                    user_id=user_id,
+                    message_preview=payload.message[:500],
+                    rejection_type=e.rejection_type,
+                )
+        except Exception:
+            pass
         raise HTTPException(status_code=400, detail=str(e))
 
     normalized_message = sec.normalized_message
@@ -136,6 +156,9 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             user_id = get_user_id_for_session(conn, session_token)
             if not user_id:
                 raise HTTPException(status_code=401, detail="Invalid session token")
+
+            # 1b) Fetch base system prompt from DB (falls back to hardcoded constant)
+            base_prompt = fetch_app_config(conn, "base_system_prompt") or SYSTEM_PROMPT
 
             # 2) Ensure conversation exists and is owned by user
             conversation_title = "Ny samtale"
@@ -283,8 +306,10 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             recent_rows.reverse()
             history = [{"role": row.role, "content": row.content} for row in recent_rows]
 
+            summary_output_tokens = 0
+            summary_prompt_tokens = 0
             try:
-                est_tokens = _estimate_prompt_tokens(summary_message, history)
+                est_tokens = _estimate_prompt_tokens(summary_message, history, base_prompt)
                 if est_tokens > settings.MAX_HISTORY_TOKENS:
                     candidate_rows = fetch_messages_after(
                         conn,
@@ -298,7 +323,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         summary_input = [
                             {"role": row.role, "content": row.content} for row in to_summarize
                         ]
-                        new_summary, _ = summarize_history(
+                        new_summary, summary_output_tokens, summary_prompt_tokens = summarize_history(
                             session_id=payload.session_id,
                             existing_summary=summary_text,
                             messages=summary_input,
@@ -347,7 +372,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
             # 7) Route + call LLM (topic-specific or default handling)
             classifier_tokens = 0
-            runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+            _somatic = SOMATIC_NUDGE_APPENDIX if total_user_turns >= SOMATIC_NUDGE_TURN_THRESHOLD else ""
+            runtime_system_prompt = base_prompt + "\n\n" + DEFAULT_DIALOGUE_APPENDIX + ("\n\n" + _somatic if _somatic else "")
             classification_debug: Dict[str, object] = {
                 "method": "embedding",
                 "event": "none",
@@ -366,14 +392,17 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 if active_topics:
                     if state is None:
                         needs_classify = True
-                    elif total_user_turns <= EARLY_CLASSIFY_TURNS:
-                        # Always re-evaluate in early turns so first-message noise
-                        # does not lock the route.
+                    elif total_user_turns <= INITIAL_CLASSIFY_TURNS:
+                        # Always classify in early turns for fast topic detection.
                         needs_classify = True
                     elif force_reclassify:
                         needs_classify = True
                     elif state.route_mode == "default":
-                        if state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
+                        # Keep trying to find a topic during the correction window,
+                        # then fall back to periodic re-checks.
+                        if total_user_turns <= INITIAL_CLASSIFY_TURNS + CORRECTION_WINDOW_TURNS:
+                            needs_classify = True
+                        elif state.turns_in_default >= DEFAULT_RECLASSIFY_TURN_THRESHOLD:
                             needs_classify = True
                     elif state.route_mode == "topic":
                         selected_topic = topic_by_key.get(state.current_topic_key or "")
@@ -382,7 +411,11 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                             if selected_topic is not None
                             else DEFAULT_RECLASSIFY_TURN_THRESHOLD
                         )
-                        if state.turns_since_classify >= topic_reclassify_threshold:
+                        # Correction window: re-evaluate shortly after first classification
+                        # so wrong initial picks can be corrected.
+                        if state.turns_since_classify <= CORRECTION_WINDOW_TURNS:
+                            needs_classify = True
+                        elif state.turns_since_classify >= topic_reclassify_threshold:
                             needs_classify = True
 
                 selected_topic_key = None
@@ -407,11 +440,25 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     classifier_tokens = cls_tokens
                     last_confidence = cls_conf
 
+                    in_correction_window = (
+                        state is not None
+                        and state.route_mode == "topic"
+                        and state.turns_since_classify <= CORRECTION_WINDOW_TURNS
+                    )
+
                     if cls_topic_key and cls_topic_key in topic_by_key:
                         threshold = float(topic_by_key[cls_topic_key].min_confidence)
                         if cls_conf >= threshold:
                             selected_topic_key = cls_topic_key
                             route_mode = "topic"
+                        elif in_correction_window and state is not None:
+                            # Inconclusive during correction window — keep current topic.
+                            selected_topic_key = state.current_topic_key
+                            route_mode = "topic"
+                    elif in_correction_window and state is not None:
+                        # No topic matched during correction window — keep current topic.
+                        selected_topic_key = state.current_topic_key
+                        route_mode = "topic"
 
                     event_type = "reclassify" if force_reclassify and state is not None else "classify"
                     next_turns_in_default = 0 if route_mode == "topic" else ((state.turns_in_default + 1) if state else 1)
@@ -504,11 +551,11 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     }
 
                 if selected_topic_key and selected_topic_key in topic_by_key:
-                    runtime_system_prompt = _build_topic_system_prompt(topic_by_key[selected_topic_key])
+                    runtime_system_prompt = _build_topic_system_prompt(topic_by_key[selected_topic_key], base_prompt)
                 else:
-                    runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+                    runtime_system_prompt = base_prompt + "\n\n" + DEFAULT_DIALOGUE_APPENDIX + ("\n\n" + _somatic if _somatic else "")
             except Exception:
-                runtime_system_prompt = SYSTEM_PROMPT + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
+                runtime_system_prompt = base_prompt + "\n\n" + DEFAULT_DIALOGUE_APPENDIX
                 classifier_tokens = 0
                 classification_debug = {
                     "method": "embedding",
@@ -532,7 +579,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
             last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
 
-            reply, output_tokens = chat_with_history_with_system(
+            reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
                 session_id=payload.session_id,
                 history=history,
                 user_message=normalized_message,
@@ -548,11 +595,11 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 ]
                 # Keep the default title until the 3rd user message is sent.
                 if len(user_msgs_for_title) >= TITLE_CHECK_MIN_USER_MESSAGES:
-                    suggested_title, title_conf, title_reason, gen_title_tokens = generate_conversation_title(
+                    suggested_title, title_conf, title_reason, gen_title_output, gen_title_prompt = generate_conversation_title(
                         session_id=payload.session_id,
                         user_messages=user_msgs_for_title,
                     )
-                    title_tokens = gen_title_tokens
+                    title_tokens = gen_title_output + gen_title_prompt
                     if suggested_title and suggested_title.strip() and title_conf >= TITLE_MIN_CONFIDENCE:
                         conversation_title = suggested_title.strip()[:80]
                         with conn.cursor() as cur:
@@ -611,8 +658,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         user_id=str(user_id),
                         conversation_id=payload.conversation_id,
                         message_id=payload.message_id,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
+                        input_tokens=chat_prompt_tokens,
+                        output_tokens=output_tokens + summary_output_tokens + summary_prompt_tokens,
                         classifier_tokens=classifier_tokens,
                         title_tokens=title_tokens,
                     )
@@ -644,4 +691,4 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

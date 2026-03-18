@@ -133,7 +133,7 @@ def auth_google(payload: GoogleAuthRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/auth/apple/start")
@@ -150,7 +150,7 @@ def auth_apple_start(request: Request, return_to: str | None = None):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/apple/callback")
@@ -204,7 +204,29 @@ async def auth_apple_callback(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/auth/session", response_model=GoogleAuthResponse)
+def auth_session(request: Request):
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="No session cookie")
+
+    try:
+        with psycopg.connect(settings.DATABASE_URL) as conn:
+            principal = get_session_principal(conn, session_token)
+            if not principal:
+                raise HTTPException(status_code=401, detail="Invalid session token")
+            return {
+                "user_id": principal.user_id,
+                "session_token": session_token,
+                "is_admin": principal.is_admin,
+            }
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/auth/me", response_model=AuthMeResponse)
@@ -225,7 +247,7 @@ def auth_me(authorization: str | None = Header(default=None)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/register", response_model=RegisterResponse)
@@ -247,7 +269,7 @@ def auth_register(payload: RegisterRequest, request: Request):
             raise HTTPException(status_code=409, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/login", response_model=GoogleAuthResponse)
@@ -276,7 +298,7 @@ def auth_login(payload: LoginRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/logout", status_code=204)
@@ -290,7 +312,7 @@ def auth_logout(authorization: str | None = Header(default=None)):
             revoke_session(conn, session_token)
             return Response(status_code=204)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
@@ -308,7 +330,7 @@ def auth_forgot_password(payload: ForgotPasswordRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/reset-password", response_model=GenericAuthMessageResponse)
@@ -326,7 +348,7 @@ def auth_reset_password(payload: ResetPasswordRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/verify-email", response_model=GenericAuthMessageResponse)
@@ -344,7 +366,7 @@ def auth_verify_email(payload: VerifyEmailRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/auth/google/redirect")
@@ -378,4 +400,4 @@ async def auth_google_redirect(request: Request, return_to: str | None = None):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")

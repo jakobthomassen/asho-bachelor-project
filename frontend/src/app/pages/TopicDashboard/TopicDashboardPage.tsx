@@ -3,9 +3,13 @@ import { useAuth } from "../../AuthProvider";
 import {
   calculateTopicVector,
   createTopic,
+  getBaseSystemPrompt,
   getTopicDashboardStats,
+  getSecurityRejections,
   listTopicDashboardTopics,
+  saveBaseSystemPrompt,
   saveTopicVersion,
+  type SecurityRejection,
   type TopicDashboardStats,
   type TopicDashboardTopic,
 } from "../../../features/topicDashboard/api";
@@ -16,14 +20,14 @@ import "./TopicDashboardPage.css";
 const LOGO_URL =
   "https://static.wixstatic.com/media/ce15e3_4878766d65e44a919042edd86151d790~mv2.png/v1/fill/w_133,h_64,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/inf.png";
 
-type TabKey = "stats" | "temaer";
-type JsonValueType = "string" | "number" | "boolean" | "json";
+const BASE_PROMPT_KEY = "__base__";
+
+type TabKey = "stats" | "temaer" | "sikkerhet";
 
 type KeyValueRow = {
   id: string;
   key: string;
   value: string;
-  type: JsonValueType;
 };
 
 type TopicForm = {
@@ -54,30 +58,12 @@ function formatUsd(value: number): string {
   }).format(value || 0);
 }
 
-function valueTypeOf(value: unknown): JsonValueType {
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "string") return "string";
-  return "json";
-}
-
 function rowsFromObject(input: Record<string, unknown>): KeyValueRow[] {
-  return Object.entries(input || {}).map(([key, value]) => {
-    const type = valueTypeOf(value);
-    const normalizedValue =
-      type === "json"
-        ? JSON.stringify(value ?? null)
-        : type === "boolean"
-          ? String(Boolean(value))
-          : String(value ?? "");
-
-    return {
-      id: makeRowId(),
-      key,
-      value: normalizedValue,
-      type,
-    };
-  });
+  return Object.entries(input || {}).map(([key, value]) => ({
+    id: makeRowId(),
+    key,
+    value: typeof value === "object" ? JSON.stringify(value ?? null) : String(value ?? ""),
+  }));
 }
 
 function toInstructionItems(input: Record<string, unknown>): string[] {
@@ -122,37 +108,13 @@ function emptyForm(): TopicForm {
   };
 }
 
-function parseRowValue(fieldLabel: string, row: KeyValueRow): unknown {
-  if (row.type === "string") return row.value;
-
-  if (row.type === "number") {
-    const numberValue = Number(row.value);
-    if (!Number.isFinite(numberValue)) {
-      throw new Error(`${fieldLabel}: "${row.key}" ma vaere et gyldig tall.`);
-    }
-    return numberValue;
-  }
-
-  if (row.type === "boolean") {
-    return row.value === "true";
-  }
-
-  try {
-    return JSON.parse(row.value || "null");
-  } catch {
-    throw new Error(`${fieldLabel}: "${row.key}" inneholder ugyldig JSON.`);
-  }
-}
-
-function rowsToObject(fieldLabel: string, rows: KeyValueRow[]): Record<string, unknown> {
-  const output: Record<string, unknown> = {};
-
+function rowsToObject(rows: KeyValueRow[]): Record<string, string> {
+  const output: Record<string, string> = {};
   for (const row of rows) {
     const cleanKey = row.key.trim();
     if (!cleanKey) continue;
-    output[cleanKey] = parseRowValue(fieldLabel, row);
+    output[cleanKey] = row.value;
   }
-
   return output;
 }
 
@@ -198,15 +160,7 @@ function KeyValueEditor({
   onChange: (nextRows: KeyValueRow[]) => void;
 }) {
   const addRow = () => {
-    onChange([
-      ...rows,
-      {
-        id: makeRowId(),
-        key: "",
-        value: "",
-        type: "string",
-      },
-    ]);
+    onChange([...rows, { id: makeRowId(), key: "", value: "" }]);
   };
 
   const removeRow = (id: string) => {
@@ -237,45 +191,12 @@ function KeyValueEditor({
               value={row.key}
               onChange={(e) => updateRow(row.id, { key: e.target.value })}
             />
-
-            {row.type === "boolean" ? (
-              <select
-                value={row.value}
-                onChange={(e) => updateRow(row.id, { value: e.target.value })}
-                aria-label="Boolean verdi"
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            ) : (
-              <input
-                type="text"
-                placeholder={row.type === "json" ? '{"example": true}' : "Verdi"}
-                value={row.value}
-                onChange={(e) => updateRow(row.id, { value: e.target.value })}
-              />
-            )}
-
-            <select
-              value={row.type}
-              onChange={(e) => {
-                const nextType = e.target.value as JsonValueType;
-                const nextValue =
-                  nextType === "boolean"
-                    ? row.value === "false"
-                      ? "false"
-                      : "true"
-                    : row.value;
-                updateRow(row.id, { type: nextType, value: nextValue });
-              }}
-              aria-label="Verditype"
-            >
-              <option value="string">tekst</option>
-              <option value="number">tall</option>
-              <option value="boolean">bool</option>
-              <option value="json">json</option>
-            </select>
-
+            <input
+              type="text"
+              placeholder="Verdi"
+              value={row.value}
+              onChange={(e) => updateRow(row.id, { value: e.target.value })}
+            />
             <button
               type="button"
               className="topicDashboard__dangerGhostBtn"
@@ -290,6 +211,13 @@ function KeyValueEditor({
     </section>
   );
 }
+
+const REJECTION_TYPE_LABELS: Record<string, string> = {
+  empty: "Tom melding",
+  disallowed_chars: "Ugyldige tegn",
+  token_limit: "For lang melding",
+  prompt_injection: "Prompt-injeksjon",
+};
 
 export default function TopicDashboardPage() {
   const { sessionToken, isAdmin } = useAuth();
@@ -312,6 +240,13 @@ export default function TopicDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; day: string; tokens: number } | null>(null);
+  const [securityRejections, setSecurityRejections] = useState<SecurityRejection[]>([]);
+  const [isSecurityLoading, setIsSecurityLoading] = useState(false);
+  const [securityError, setSecurityError] = useState<string | null>(null);
+  const [basePromptDraft, setBasePromptDraft] = useState("");
+  const [isSavingBasePrompt, setIsSavingBasePrompt] = useState(false);
+  const [basePromptSuccess, setBasePromptSuccess] = useState<string | null>(null);
+  const [basePromptError, setBasePromptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionToken) return;
@@ -322,9 +257,13 @@ export default function TopicDashboardPage() {
       setError(null);
       setSuccess(null);
       try {
-        const data = await listTopicDashboardTopics(sessionToken);
+        const [data, basePromptValue] = await Promise.all([
+          listTopicDashboardTopics(sessionToken),
+          getBaseSystemPrompt(sessionToken),
+        ]);
         if (cancelled) return;
         setTopics(data);
+        setBasePromptDraft(basePromptValue);
         const firstKey = data[0]?.topic_key ?? "";
         setSelectedTopicKey((prev) => (prev && data.some((t) => t.topic_key === prev) ? prev : firstKey));
       } catch (err) {
@@ -365,6 +304,29 @@ export default function TopicDashboardPage() {
       cancelled = true;
     };
   }, [sessionToken, statsDays]);
+
+  useEffect(() => {
+    if (!sessionToken || activeTab !== "sikkerhet") return;
+    let cancelled = false;
+
+    const loadSecurity = async () => {
+      setIsSecurityLoading(true);
+      setSecurityError(null);
+      try {
+        const data = await getSecurityRejections(sessionToken);
+        if (cancelled) return;
+        setSecurityRejections(data);
+      } catch (err) {
+        if (cancelled) return;
+        setSecurityError(err instanceof Error ? err.message : "Kunne ikke laste sikkerhetslogg.");
+      } finally {
+        if (!cancelled) setIsSecurityLoading(false);
+      }
+    };
+
+    void loadSecurity();
+    return () => { cancelled = true; };
+  }, [sessionToken, activeTab]);
 
   const selectedTopic = useMemo(
     () => topics.find((t) => t.topic_key === selectedTopicKey),
@@ -457,9 +419,9 @@ export default function TopicDashboardPage() {
         classifier_description: form.classifier_description.trim(),
         system_prompt: form.system_prompt.trim(),
         micro_instructions: microInstructions,
-        constraints: rowsToObject("Constraints", form.constraints_rows),
-        reclassify_rules: rowsToObject("Reclassify rules", form.reclassify_rows),
-        safety_rules: rowsToObject("Safety rules", form.safety_rows),
+        constraints: rowsToObject(form.constraints_rows),
+        reclassify_rules: rowsToObject(form.reclassify_rows),
+        safety_rules: rowsToObject(form.safety_rows),
         min_confidence: minConfidence,
         reclassify_turn_threshold: reclassifyTurnThreshold,
         max_clarifying_questions: maxClarifyingQuestions,
@@ -493,6 +455,27 @@ export default function TopicDashboardPage() {
       setError(err instanceof Error ? err.message : "Kunne ikke lagre.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveBasePrompt = async () => {
+    if (!sessionToken) return;
+    const trimmed = basePromptDraft.trim();
+    if (!trimmed) {
+      setBasePromptError("Prompt kan ikke være tom.");
+      return;
+    }
+    setBasePromptError(null);
+    setBasePromptSuccess(null);
+    setIsSavingBasePrompt(true);
+    try {
+      const saved = await saveBaseSystemPrompt(sessionToken, trimmed);
+      setBasePromptDraft(saved);
+      setBasePromptSuccess("Grunnprompt lagret.");
+    } catch (err) {
+      setBasePromptError(err instanceof Error ? err.message : "Kunne ikke lagre.");
+    } finally {
+      setIsSavingBasePrompt(false);
     }
   };
 
@@ -533,7 +516,7 @@ export default function TopicDashboardPage() {
           <img src={LOGO_URL} alt="ASHO logo" className="topicDashboard__logo" />
           <div className="topicDashboard__brandName">ASHO</div>
         </a>
-        <div className="topicDashboard__tabs" role="tablist" aria-label="Dashboard tabs">
+        <div className="topicDashboard__tabs" role="tablist" aria-label="Dashbord-faner">
           <button
             className={`topicDashboard__tab ${activeTab === "stats" ? "is-active" : ""}`}
             onClick={() => setActiveTab("stats")}
@@ -552,6 +535,15 @@ export default function TopicDashboardPage() {
           >
             Temaer
           </button>
+          <button
+            className={`topicDashboard__tab ${activeTab === "sikkerhet" ? "is-active" : ""}`}
+            onClick={() => setActiveTab("sikkerhet")}
+            role="tab"
+            aria-selected={activeTab === "sikkerhet"}
+            type="button"
+          >
+            Sikkerhet
+          </button>
         </div>
         <button
           className="topicDashboard__settingsBtn"
@@ -563,7 +555,45 @@ export default function TopicDashboardPage() {
       </header>
 
       <main className="topicDashboard__main">
-        {activeTab === "stats" ? (
+        {activeTab === "sikkerhet" ? (
+          <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
+            <div className="topicDashboard__statsHeader">
+              <h2>Sikkerhetslogg</h2>
+            </div>
+            {isSecurityLoading ? <div className="topicDashboard__hint">Laster sikkerhetslogg...</div> : null}
+            {securityError ? <div className="topicDashboard__error">{securityError}</div> : null}
+            {!isSecurityLoading && !securityError ? (
+              securityRejections.length === 0 ? (
+                <div className="topicDashboard__hint">Ingen avviste meldinger funnet.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="topicDashboard__securityTable">
+                    <thead>
+                      <tr>
+                        <th>Tidspunkt</th>
+                        <th>Bruker-ID</th>
+                        <th>Aarsak</th>
+                        <th>Melding (forhandsvisning)</th>
+                        <th>Samtale-ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {securityRejections.map((r) => (
+                        <tr key={r.id}>
+                          <td style={{ whiteSpace: "nowrap" }}>{r.created_at ? new Date(r.created_at).toLocaleString("nb-NO") : "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: "0.8em" }}>{r.user_id ?? "Ukjent"}</td>
+                          <td>{REJECTION_TYPE_LABELS[r.rejection_type] ?? r.rejection_type}</td>
+                          <td style={{ maxWidth: "320px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.message_preview ?? "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: "0.8em" }}>{r.conversation_id ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : null}
+          </section>
+        ) : activeTab === "stats" ? (
           <section className="topicDashboard__statsPane topicDashboard__statsPane--constrained">
             <div className="topicDashboard__statsHeader">
               <h2>Nokkelstatistikk</h2>
@@ -714,6 +744,24 @@ export default function TopicDashboardPage() {
                 + Legg til nytt tema
               </button>
 
+              <div
+                className={`topicDashboard__topicItem topicDashboard__topicItem--base ${!isCreatingNew && selectedTopicKey === BASE_PROMPT_KEY ? "is-active" : ""}`}
+              >
+                <button
+                  className="topicDashboard__topicSelect"
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingNew(false);
+                    setNewTopicKey("");
+                    setSelectedTopicKey(BASE_PROMPT_KEY);
+                    setActiveTab("temaer");
+                  }}
+                >
+                  <div className="topicDashboard__topicTitle">Grunnprompt</div>
+                  <div className="topicDashboard__topicStatus is-ok">Global</div>
+                </button>
+              </div>
+
               {isLoading ? <div className="topicDashboard__hint">Laster temaer...</div> : null}
               {!isLoading && topics.length === 0 ? <div className="topicDashboard__hint">Ingen temaer funnet.</div> : null}
 
@@ -745,7 +793,7 @@ export default function TopicDashboardPage() {
                     >
                       <div className="topicDashboard__topicTitle">{topic.title}</div>
                       <div className={`topicDashboard__topicStatus ${hasVector ? "is-ok" : "is-missing"}`}>
-                        {hasVector ? "Vector OK" : "Vector missing"}
+                        {hasVector ? "Vektor OK" : "Vektor mangler"}
                       </div>
                     </button>
 
@@ -755,7 +803,7 @@ export default function TopicDashboardPage() {
                       disabled={isCalculatingTopicKey === topic.topic_key}
                       onClick={() => handleCalculateVector(topic.topic_key)}
                     >
-                      {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Calculate"}
+                      {isCalculatingTopicKey === topic.topic_key ? "Kalkulerer..." : "Kalkuler"}
                     </button>
                   </div>
                 );
@@ -764,7 +812,34 @@ export default function TopicDashboardPage() {
 
             <section className="topicDashboard__formPane">
               <div className="topicDashboard__formInner">
-            {!form ? (
+            {selectedTopicKey === BASE_PROMPT_KEY ? (
+              <>
+                <div className="topicDashboard__statusRow">
+                  <div className="topicDashboard__selectedMeta">Grunnprompt</div>
+                  {basePromptSuccess ? <div className="topicDashboard__success">{basePromptSuccess}</div> : null}
+                  {basePromptError ? <div className="topicDashboard__error">{basePromptError}</div> : null}
+                </div>
+                <div className="topicDashboard__formGrid">
+                  <label>
+                    System prompt
+                    <textarea
+                      rows={16}
+                      value={basePromptDraft}
+                      onChange={(e) => {
+                        setBasePromptDraft(e.target.value);
+                        setBasePromptSuccess(null);
+                        setBasePromptError(null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="topicDashboard__actions">
+                  <button disabled={isSavingBasePrompt} onClick={handleSaveBasePrompt} type="button">
+                    {isSavingBasePrompt ? "Lagrer..." : "Lagre grunnprompt"}
+                  </button>
+                </div>
+              </>
+            ) : !form ? (
               <div className="topicDashboard__hint">Velg et tema for aa redigere.</div>
             ) : (
               <>
@@ -898,19 +973,19 @@ export default function TopicDashboardPage() {
                       </section>
 
                       <KeyValueEditor
-                        title="Constraints"
+                        title="Begrensninger"
                         rows={form.constraints_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, constraints_rows: nextRows } : prev))}
                       />
 
                       <KeyValueEditor
-                        title="Reclassify rules"
+                        title="Omklassifiseringsregler"
                         rows={form.reclassify_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, reclassify_rows: nextRows } : prev))}
                       />
 
                       <KeyValueEditor
-                        title="Safety rules"
+                        title="Sikkerhetsregler"
                         rows={form.safety_rows}
                         onChange={(nextRows) => setForm((prev) => (prev ? { ...prev, safety_rows: nextRows } : prev))}
                       />
@@ -930,6 +1005,7 @@ export default function TopicDashboardPage() {
           </div>
         )}
       </main>
+
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}

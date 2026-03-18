@@ -123,6 +123,29 @@ export async function createTopic(
   );
 }
 
+export type SecurityRejection = {
+  id: number;
+  conversation_id: string | null;
+  session_id: string | null;
+  message_id: string | null;
+  user_id: string | null;
+  message_preview: string | null;
+  rejection_type: string;
+  created_at: string | null;
+};
+
+export async function getSecurityRejections(
+  sessionToken: string,
+  limit = 200
+): Promise<SecurityRejection[]> {
+  const data = await apiFetch<{ rejections: SecurityRejection[] }>(
+    `${API_BASE_URL}/api/topic-dashboard/security-rejections?limit=${limit}`,
+    { method: "GET", headers: authHeaders(sessionToken) },
+    "Failed to load security rejections"
+  );
+  return data.rejections ?? [];
+}
+
 export async function calculateTopicVector(
   sessionToken: string,
   topicKey: string
@@ -132,4 +155,22 @@ export async function calculateTopicVector(
     { method: "POST", headers: authHeaders(sessionToken) },
     "Failed to calculate vector"
   );
+}
+
+export async function getBaseSystemPrompt(sessionToken: string): Promise<string> {
+  const data = await apiFetch<{ value: string }>(
+    `${API_BASE_URL}/api/topic-dashboard/app-config/base-system-prompt`,
+    { method: "GET", headers: authHeaders(sessionToken) },
+    "Failed to load base system prompt"
+  );
+  return data.value;
+}
+
+export async function saveBaseSystemPrompt(sessionToken: string, value: string): Promise<string> {
+  const data = await apiFetch<{ value: string }>(
+    `${API_BASE_URL}/api/topic-dashboard/app-config/base-system-prompt`,
+    { method: "PUT", headers: authHeaders(sessionToken), body: JSON.stringify({ value }) },
+    "Failed to save base system prompt"
+  );
+  return data.value;
 }

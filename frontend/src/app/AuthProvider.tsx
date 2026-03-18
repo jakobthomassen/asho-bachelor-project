@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const hash = window.location.hash || "";
-    if (!hash.startsWith("#auth=google")) {
+    if (!hash.startsWith("#auth=")) {
       markBootstrapped();
       return;
     }
@@ -115,8 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isBootstrapped: true,
         error: null,
       }));
-    } else {
-      markBootstrapped();
     }
 
     const storedNextPath = sessionStorage.getItem(AUTH_NEXT_PATH_KEY);
