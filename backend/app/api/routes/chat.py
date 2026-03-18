@@ -39,6 +39,8 @@ from app.services.topic_routing_store import (
 from app.services.token_usage_store import (
     insert_daily_token_usage,
 )
+from app.topics.asho_engine import handle_asho_turn
+from app.topics.asho_state_store import get_or_create_asho_state, save_asho_state
 
 router = APIRouter()
 
@@ -119,6 +121,18 @@ def _build_topic_system_prompt(topic, base_prompt: str = SYSTEM_PROMPT) -> str:
         "Behandle tema-instruksjonene som en utvidelse av grunnprompten. Ved konflikt gjelder trygghet og nøkternhet først.",
     ]
     return "\n\n".join(sections)
+
+
+def _topic_config_to_dict(topic) -> Dict[str, object]:
+    return {
+        "topic_key": topic.topic_key,
+        "title": topic.title,
+        "system_prompt": topic.system_prompt,
+        "micro_instructions": topic.micro_instructions,
+        "constraints": topic.constraints,
+        "reclassify_rules": topic.reclassify_rules,
+        "safety_rules": topic.safety_rules,
+    }
 
 
 @router.post("/chat", response_model=SimpleChatResponse)
@@ -579,12 +593,35 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
             last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
 
-            reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
-                session_id=payload.session_id,
-                history=history,
-                user_message=normalized_message,
-                system_prompt=runtime_system_prompt,
-            )
+            if selected_topic_key == "asho_uroguide":
+                topic_config = (
+                    _topic_config_to_dict(topic_by_key[selected_topic_key])
+                    if selected_topic_key in topic_by_key
+                    else None
+                )
+                with conn.transaction():
+                    asho_state = get_or_create_asho_state(
+                        conn,
+                        payload.conversation_id,
+                        selected_topic_key,
+                    )
+                    reply, asho_state = handle_asho_turn(
+                        asho_state,
+                        normalized_message,
+                        payload.message_id,
+                        topic_config=topic_config,
+                        session_id=payload.session_id,
+                    )
+                    save_asho_state(conn, asho_state)
+                output_tokens = count_tokens(reply, model=settings.MODEL_NAME)
+                chat_prompt_tokens = last_prompt_tokens
+            else:
+                reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
+                    session_id=payload.session_id,
+                    history=history,
+                    user_message=normalized_message,
+                    system_prompt=runtime_system_prompt,
+                )
 
             title_tokens = 0
             if (conversation_title or "") in GENERIC_TITLES:
