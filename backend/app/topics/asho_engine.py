@@ -244,6 +244,79 @@ def _question_for_type(question_type: str) -> str:
     return "Hva er det viktigste å få tydeligere fram her?"
 
 
+def build_asho_framework_prompt(
+    state: dict[str, Any],
+    user_message: str,
+    topic_config: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    state = update_state_from_user_message(state, user_message, state.get("last_user_message_id") or "")
+    if state.get("needs_external_support"):
+        prompt = (
+            "ASHO-ramme for denne turen:\n"
+            "- Meldingen inneholder mulig risiko eller behov for støtte utenfor chat.\n"
+            "- Ikke fortsett vanlig utforsking.\n"
+            "- Svar kort, støttende og avgrensende.\n"
+            "- Oppfordre rolig til kontakt med nær person eller lokal akutt hjelp hvis brukeren ikke er trygg."
+        )
+        return prompt, state
+
+    state = maybe_advance_phase(state, user_message)
+    question_type = pick_question_type(state)
+    question = _question_for_type(question_type)
+    reflection = _brief_reflection(state)
+
+    timing_rule = (
+        "Situasjonen ser ut til å skje nå eller underveis; du kan formulere deg i presens."
+        if state.get("context_timing") in {"now", "during"}
+        else "Ikke skriv som om situasjonen skjer akkurat nå hvis bruker beskriver noe tidligere eller generelt."
+    )
+
+    covered = state.get("covered_flags") or {}
+    active_topic = str((topic_config or {}).get("topic_key") or "").strip()
+    topic_system_prompt = str((topic_config or {}).get("system_prompt") or "").strip()
+    topic_constraints = (topic_config or {}).get("constraints") or {}
+    topic_micro = (topic_config or {}).get("micro_instructions") or {}
+
+    lines = [
+        "ASHO-ramme for denne turen:",
+        f"- Aktiv fase: {state.get('phase') or 'situation'}",
+        "- Følg rekkefølgen: situation -> body -> discomfort -> for_against -> willingness -> exploration -> practice.",
+        "- Maks ett kort spørsmål i denne turen.",
+        "- Ikke gjenta samme spørsmålstype med ny ordlyd.",
+        "- Hvis body eller discomfort allerede er tydelig, gå videre.",
+        f"- {timing_rule}",
+        "- Før practice: ikke gi løsninger, pusteteknikker, grounding, reassurance eller generiske råd.",
+    ]
+    if reflection:
+        lines.append(f"- Kort refleksjon er lov: {reflection}")
+    lines.append(f"- Neste naturlige fokus nå: {question_type}")
+    lines.append(f"- Hvis du trenger et spørsmål, bruk denne retningen: {question}")
+    lines.append(
+        "- Dekkede felt så langt: "
+        + ", ".join([key for key, value in covered.items() if value]) if covered else "- Dekkede felt så langt: none"
+    )
+    if active_topic:
+        lines.append(f"- Aktiv topic-spesialisering: {active_topic}")
+    if topic_system_prompt:
+        lines.append("- Tema-spesifikk instruksjon: " + topic_system_prompt.replace("\n", " ")[:400])
+    if topic_micro or topic_constraints:
+        lines.append(
+            "- Tema-tillegg: "
+            + json.dumps(
+                {
+                    "micro_instructions": topic_micro,
+                    "constraints": topic_constraints,
+                },
+                ensure_ascii=False,
+            )[:500]
+        )
+
+    state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
+    state["last_question_type"] = question_type
+    state["last_question_text"] = question
+    return "\n".join(lines), state
+
+
 def _build_style_system_prompt(topic_config: dict[str, Any] | None = None) -> str:
     topic_config = topic_config or {}
     base_prompt = str(topic_config.get("base_prompt") or SYSTEM_PROMPT).strip()

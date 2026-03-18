@@ -35,6 +35,13 @@ STATE_FIELDS = (
 )
 
 
+def _table_exists(conn: psycopg.Connection) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('asho_conversation_state')")
+        row = cur.fetchone()
+    return bool(row and row[0])
+
+
 def _normalize_state(row: tuple[Any, ...] | None) -> dict[str, Any] | None:
     if not row:
         return None
@@ -81,6 +88,8 @@ def get_asho_state(
     conn: psycopg.Connection,
     conversation_id: str,
 ) -> dict[str, Any] | None:
+    if not _table_exists(conn):
+        return None
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -122,7 +131,8 @@ def create_asho_state(
     topic_key: str = DEFAULT_TOPIC_KEY,
 ) -> dict[str, Any]:
     state = _default_state(conversation_id, topic_key)
-    save_asho_state(conn, state)
+    if _table_exists(conn):
+        save_asho_state(conn, state)
     return state
 
 
@@ -138,6 +148,8 @@ def get_or_create_asho_state(
 
 
 def save_asho_state(conn: psycopg.Connection, state: Dict[str, Any]) -> None:
+    if not _table_exists(conn):
+        return
     payload = _default_state(
         conversation_id=str(state["conversation_id"]),
         topic_key=str(state.get("topic_key") or DEFAULT_TOPIC_KEY),
@@ -238,6 +250,8 @@ def save_asho_state(conn: psycopg.Connection, state: Dict[str, Any]) -> None:
 
 
 def delete_asho_state(conn: psycopg.Connection, conversation_id: str) -> None:
+    if not _table_exists(conn):
+        return
     with conn.cursor() as cur:
         cur.execute(
             """

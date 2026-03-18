@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
 from app.services.llm_client import (
+    chat_with_history_with_system,
     classify_topic_by_embedding,
     generate_conversation_title,
     summarize_history,
@@ -38,7 +39,7 @@ from app.services.topic_routing_store import (
 from app.services.token_usage_store import (
     insert_daily_token_usage,
 )
-from app.topics.asho_engine import handle_asho_turn
+from app.topics.asho_engine import build_asho_framework_prompt
 from app.topics.asho_state_store import get_or_create_asho_state, save_asho_state
 
 router = APIRouter()
@@ -136,7 +137,7 @@ def _topic_config_to_dict(topic) -> Dict[str, object]:
 
 def _base_framework_config(base_prompt: str) -> Dict[str, object]:
     return {
-        "topic_key": "asho_uroguide",
+        "topic_key": None,
         "title": "ASHO framework",
         "system_prompt": "",
         "micro_instructions": {},
@@ -610,23 +611,30 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 topic_config.update(_topic_config_to_dict(topic_by_key[selected_topic_key]))
                 topic_config["base_prompt"] = base_prompt
 
-            with conn.transaction():
-                asho_state = get_or_create_asho_state(
-                    conn,
-                    payload.conversation_id,
-                    str(topic_config.get("topic_key") or "asho_uroguide"),
-                )
-                asho_state["topic_key"] = str(topic_config.get("topic_key") or "asho_uroguide")
-                reply, asho_state = handle_asho_turn(
-                    asho_state,
-                    normalized_message,
-                    payload.message_id,
-                    topic_config=topic_config,
-                    session_id=payload.session_id,
-                )
-                save_asho_state(conn, asho_state)
-            output_tokens = count_tokens(reply, model=settings.MODEL_NAME)
-            chat_prompt_tokens = last_prompt_tokens
+            try:
+                with conn.transaction():
+                    asho_state = get_or_create_asho_state(
+                        conn,
+                        payload.conversation_id,
+                        str(topic_config.get("topic_key") or "asho_uroguide"),
+                    )
+                    asho_state["last_user_message_id"] = payload.message_id
+                    framework_prompt, asho_state = build_asho_framework_prompt(
+                        asho_state,
+                        normalized_message,
+                        topic_config=topic_config,
+                    )
+                    save_asho_state(conn, asho_state)
+                runtime_system_prompt = runtime_system_prompt + "\n\n" + framework_prompt
+            except Exception:
+                pass
+
+            reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
+                session_id=payload.session_id,
+                history=history,
+                user_message=normalized_message,
+                system_prompt=runtime_system_prompt,
+            )
 
             title_tokens = 0
             if (conversation_title or "") in GENERIC_TITLES:
