@@ -623,6 +623,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         asho_state,
                         normalized_message,
                         topic_config=topic_config,
+                        session_id=payload.session_id,
                     )
                     save_asho_state(conn, asho_state)
                 runtime_system_prompt = runtime_system_prompt + "\n\n" + framework_prompt

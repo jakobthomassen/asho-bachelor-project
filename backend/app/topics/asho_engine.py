@@ -4,9 +4,8 @@ import json
 import re
 from typing import Any
 
-from app.core.config import settings
-from app.services.llm_client import SYSTEM_PROMPT
 from app.services.llm_client import _run_chat_completion
+
 
 PHASES = [
     "situation",
@@ -34,8 +33,17 @@ QUESTION_TEXT = {
     "exploration": "Hva legger du merke til om mønsteret ditt når dette skjer?",
 }
 
+PHASE_SUMMARY_FIELD = {
+    "situation": "situation_summary",
+    "body": "body_summary",
+    "discomfort": "discomfort_summary",
+    "for_against": "for_against_summary",
+    "willingness": "willingness_summary",
+    "exploration": "exploration_summary",
+}
 
-def merge_summary(current: str, addition: str, max_len: int = 280) -> str:
+
+def merge_summary(current: str, addition: str, max_len: int = 220) -> str:
     current_clean = str(current or "").strip()
     addition_clean = str(addition or "").strip()
     if not addition_clean:
@@ -44,8 +52,7 @@ def merge_summary(current: str, addition: str, max_len: int = 280) -> str:
         return addition_clean[:max_len]
     if addition_clean.lower() in current_clean.lower():
         return current_clean[:max_len]
-    merged = f"{current_clean} {addition_clean}".strip()
-    return merged[:max_len]
+    return f"{current_clean} {addition_clean}".strip()[:max_len]
 
 
 def detect_context_timing(user_message: str) -> str:
@@ -62,37 +69,26 @@ def detect_context_timing(user_message: str) -> str:
 def extract_signals(user_message: str) -> dict[str, Any]:
     text = str(user_message or "").strip()
     lowered = text.lower()
-    signals: dict[str, Any] = {
+    snippets: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        sentence = sentence.strip()
+        if len(sentence) >= 12:
+            snippets.append(sentence[:140])
+        if len(snippets) >= 2:
+            break
+    return {
         "has_body_signal": bool(re.search(r"\b(kropp|bryst|mage|hjerte|pust|spenning|trykk|svimmel|kvalm|rist|skjelv)\b", lowered)),
         "has_discomfort_signal": bool(re.search(r"\b(ubehag|vanskelig|skummelt|flaut|pinlig|redd|uro|angst|stress)\b", lowered)),
         "has_avoidance_signal": bool(re.search(r"\b(unngå|slippe|komme meg bort|trekke meg|avlyse|utsette)\b", lowered)),
         "has_willingness_signal": bool(re.search(r"\b(villig|kan prøve|klarer kanskje|tåler litt|kan stå i)\b", lowered)),
         "references_now": detect_context_timing(text) in {"now", "during"},
         "message_length": len(text),
+        "snippets": snippets,
     }
-    snippets: list[str] = []
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-        sentence = sentence.strip()
-        if len(sentence) >= 12:
-            snippets.append(sentence[:160])
-        if len(snippets) >= 2:
-            break
-    if snippets:
-        signals["snippets"] = snippets
-    return signals
 
 
-def compute_covered_flags(state: dict[str, Any]) -> dict[str, bool]:
-    signals = dict(state.get("extracted_signals") or {})
-    return {
-        "situation": bool(state.get("situation_summary")),
-        "body": bool(state.get("body_summary")) or bool(signals.get("has_body_signal")),
-        "discomfort": bool(state.get("discomfort_summary")) or bool(signals.get("has_discomfort_signal")),
-        "for_against": bool(state.get("for_against_summary")) or bool(signals.get("has_avoidance_signal")),
-        "willingness": bool(state.get("willingness_summary")) or bool(signals.get("has_willingness_signal")),
-        "exploration": bool(state.get("exploration_summary")) or bool(state.get("reactive_pattern")),
-        "practice": bool(state.get("generated_practice_text")),
-    }
+def _is_substantial(text: str, min_len: int = 18) -> bool:
+    return len(str(text or "").strip()) >= min_len
 
 
 def infer_reactive_pattern(state: dict[str, Any]) -> str:
@@ -110,12 +106,53 @@ def infer_reactive_pattern(state: dict[str, Any]) -> str:
         return "control"
     if re.search(r"\b(stivne|låse|bli helt stille)\b", text):
         return "freeze"
-    return state.get("reactive_pattern") or ""
+    return str(state.get("reactive_pattern") or "")
+
+
+def _phase_resolved_flag(phase: str) -> str:
+    return f"{phase}_resolved"
+
+
+def compute_covered_flags(state: dict[str, Any]) -> dict[str, bool]:
+    existing = dict(state.get("covered_flags") or {})
+    signals = dict(state.get("extracted_signals") or {})
+    situation = _is_substantial(str(state.get("situation_summary") or ""), 24)
+    body = _is_substantial(str(state.get("body_summary") or ""), 12) or bool(signals.get("has_body_signal"))
+    discomfort = _is_substantial(str(state.get("discomfort_summary") or ""), 12) or bool(signals.get("has_discomfort_signal"))
+    for_against = _is_substantial(str(state.get("for_against_summary") or ""), 16) or bool(signals.get("has_avoidance_signal"))
+    willingness = _is_substantial(str(state.get("willingness_summary") or ""), 10) or bool(signals.get("has_willingness_signal"))
+    reactive_pattern_identified = bool(state.get("reactive_pattern"))
+    exploration = _is_substantial(str(state.get("exploration_summary") or ""), 16) or reactive_pattern_identified
+    validated = bool(existing.get("validated")) or bool(state.get("last_question_text"))
+    covered = {
+        "situation": situation,
+        "body": body,
+        "discomfort": discomfort,
+        "for_against": for_against,
+        "willingness": willingness,
+        "exploration": exploration,
+        "practice": bool(state.get("generated_practice_text")),
+        "situation_understood": situation,
+        "body_contact": body,
+        "reactive_pattern_identified": reactive_pattern_identified,
+        "validated": validated,
+    }
+    for phase in ("situation", "body", "discomfort", "for_against", "willingness", "exploration"):
+        covered[_phase_resolved_flag(phase)] = bool(existing.get(_phase_resolved_flag(phase)))
+    return covered
 
 
 def ready_for_practice(state: dict[str, Any]) -> bool:
     covered = compute_covered_flags(state)
-    required = ["situation", "body", "discomfort", "for_against", "willingness", "exploration"]
+    required = [
+        _phase_resolved_flag("situation"),
+        _phase_resolved_flag("body"),
+        _phase_resolved_flag("discomfort"),
+        _phase_resolved_flag("for_against"),
+        _phase_resolved_flag("willingness"),
+        _phase_resolved_flag("exploration"),
+        "validated",
+    ]
     return all(covered.get(key) for key in required) and not state.get("needs_external_support")
 
 
@@ -124,28 +161,116 @@ def next_phase(phase: str) -> str:
         idx = PHASES.index(phase)
     except ValueError:
         return PHASES[0]
-    if idx >= len(PHASES) - 1:
-        return PHASES[-1]
-    return PHASES[idx + 1]
+    return PHASES[min(idx + 1, len(PHASES) - 1)]
 
 
-def should_progress_phase(state: dict[str, Any], current_phase: str, user_message: str) -> bool:
+def _phase_summary(state: dict[str, Any], phase: str) -> str:
+    field = PHASE_SUMMARY_FIELD.get(phase)
+    return str(state.get(field) or "").strip()
+
+
+def _heuristic_phase_resolved(state: dict[str, Any], phase: str) -> bool:
     flags = compute_covered_flags(state)
-    text = str(user_message or "").strip()
+    mapping = {
+        "situation": flags.get("situation_understood"),
+        "body": flags.get("body_contact"),
+        "discomfort": flags.get("discomfort"),
+        "for_against": flags.get("for_against"),
+        "willingness": flags.get("willingness"),
+        "exploration": flags.get("reactive_pattern_identified") or flags.get("exploration"),
+    }
+    return bool(mapping.get(phase))
+
+
+def _evaluate_active_phase(
+    state: dict[str, Any],
+    user_message: str,
+    phase: str,
+    *,
+    session_id: str | None = None,
+) -> tuple[bool, str]:
+    summary = _phase_summary(state, phase)
+    if not session_id:
+        return _heuristic_phase_resolved(state, phase), ""
+    if not summary and not _heuristic_phase_resolved(state, phase):
+        return False, ""
+
+    payload = {
+        "phase": phase,
+        "summary": summary[:160],
+        "last_user_message": str(user_message or "").strip()[:220],
+        "reactive_pattern": str(state.get("reactive_pattern") or "")[:80],
+    }
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Vurder kun om aktiv ASHO-fase er avklart nok til å gå videre. "
+                "Svar kun med JSON: {\"resolved\": true|false, \"missing\": \"kort tekst\"}. "
+                "Bruk false hvis fasen fortsatt er vag eller bare delvis besvart."
+            ),
+        },
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    try:
+        raw, _, _ = _run_chat_completion(
+            session_id=session_id,
+            messages=messages,
+            stage="classifier",
+            temperature=0.0,
+            max_tokens=40,
+        )
+        parsed = json.loads(raw)
+        resolved = bool(parsed.get("resolved"))
+        missing = str(parsed.get("missing") or "").strip()[:80]
+        return resolved, missing
+    except Exception:
+        return _heuristic_phase_resolved(state, phase), ""
+
+
+def should_progress_phase(
+    state: dict[str, Any],
+    current_phase: str,
+    user_message: str,
+    *,
+    session_id: str | None = None,
+) -> bool:
+    phase_question_count = int(state.get("phase_question_count") or 0)
+    text_len = len(str(user_message or "").strip())
     if current_phase == "practice":
         return False
-    if flags.get(current_phase):
+    if phase_question_count <= 0:
+        return False
+
+    resolved, missing = _evaluate_active_phase(
+        state,
+        user_message,
+        current_phase,
+        session_id=session_id,
+    )
+    flags = compute_covered_flags(state)
+    flags[_phase_resolved_flag(current_phase)] = resolved
+    if missing:
+        flags[f"{current_phase}_missing"] = missing
+    state["covered_flags"] = flags
+
+    if resolved:
         return True
-    if len(text) >= 40 and state.get("phase_question_count", 0) >= 1:
+    if phase_question_count >= 2:
         return True
-    if state.get("phase_question_count", 0) >= 2:
+    if text_len >= 120 and phase_question_count >= 1:
         return True
     return False
 
 
-def maybe_advance_phase(state: dict[str, Any], user_message: str) -> dict[str, Any]:
+def maybe_advance_phase(
+    state: dict[str, Any],
+    user_message: str,
+    *,
+    session_id: str | None = None,
+) -> dict[str, Any]:
     current_phase = str(state.get("phase") or PHASES[0])
-    if should_progress_phase(state, current_phase, user_message):
+    if should_progress_phase(state, current_phase, user_message, session_id=session_id):
         new_phase = next_phase(current_phase)
         if new_phase != current_phase:
             state["phase"] = new_phase
@@ -163,8 +288,8 @@ def pick_question_type(state: dict[str, Any]) -> str:
         candidate = "situation_now" if context_timing in {"now", "during"} else "situation_past"
     else:
         candidate = phase
-    if state.get("last_question_type") == candidate:
-        return next_phase(phase) if phase != "practice" else "practice"
+    if state.get("last_question_type") == candidate and phase != "practice":
+        return next_phase(phase)
     return candidate
 
 
@@ -174,17 +299,14 @@ def detect_need_for_external_support(user_message: str) -> bool:
 
 
 def build_supportive_boundary_response() -> str:
-    return (
-        "Dette virker mer alvorlig enn det jeg bør håndtere i chat. "
-        "Ta kontakt med noen nær deg eller lokal akutt hjelp nå hvis du ikke er trygg."
-    )
+    return "Dette virker mer alvorlig enn det jeg bør håndtere i chat. Ta kontakt med noen nær deg eller lokal akutt hjelp nå hvis du ikke er trygg."
 
 
 def _extract_snippet(user_message: str) -> str:
     snippets = extract_signals(user_message).get("snippets") or []
     if snippets:
         return str(snippets[0])
-    return str(user_message or "").strip()[:180]
+    return str(user_message or "").strip()[:140]
 
 
 def update_state_from_user_message(
@@ -205,8 +327,8 @@ def update_state_from_user_message(
 
     snippet = _extract_snippet(user_message)
     phase = str(state.get("phase") or PHASES[0])
-    summary_field = f"{phase}_summary"
-    if summary_field in state and snippet:
+    summary_field = PHASE_SUMMARY_FIELD.get(phase)
+    if summary_field and snippet:
         state[summary_field] = merge_summary(state.get(summary_field, ""), snippet)
 
     if not state.get("situation_summary"):
@@ -228,175 +350,90 @@ def update_state_from_user_message(
 
 
 def _brief_reflection(state: dict[str, Any]) -> str:
-    phase = str(state.get("phase") or "")
     snippets = state.get("extracted_signals", {}).get("snippets") or []
-    lead = str(snippets[0]) if snippets else ""
-    if phase == "practice":
-        return "Det gir et tydeligere bilde."
-    if not lead:
-        return ""
-    return f"Det høres ut som: {lead[:120]}"
+    return f"Det høres ut som: {snippets[0][:100]}" if snippets else ""
 
 
 def _question_for_type(question_type: str) -> str:
-    if question_type in QUESTION_TEXT:
-        return QUESTION_TEXT[question_type]
-    return "Hva er det viktigste å få tydeligere fram her?"
+    return QUESTION_TEXT.get(question_type, "Hva er det viktigste å få tydeligere fram her?")
+
+
+def _practice_situation_anchor(state: dict[str, Any]) -> str:
+    for key in ("situation_summary", "exploration_summary", "discomfort_summary"):
+        value = str(state.get(key) or "").strip()
+        if value:
+            return value[:160]
+    return "brukerens faktiske situasjon"
+
+
+def _practice_module_instructions(state: dict[str, Any], topic_config: dict[str, Any] | None = None) -> str:
+    anchor = _practice_situation_anchor(state)
+    topic_key = str((topic_config or {}).get("topic_key") or "").strip()
+    lines = [
+        "Praksisoppgave, ikke råd.",
+        f"Situasjon: {anchor}",
+        "Struktur: situasjon, forkant, underveis, normalisering, etterkant, ny atferd.",
+        "Kroppsnært, utforskende, varmt, ikke generisk.",
+    ]
+    if topic_key:
+        lines.append(f"Topic: {topic_key}")
+    return "\n".join(lines)
 
 
 def build_asho_framework_prompt(
     state: dict[str, Any],
     user_message: str,
     topic_config: dict[str, Any] | None = None,
+    *,
+    session_id: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     state = update_state_from_user_message(state, user_message, state.get("last_user_message_id") or "")
     if state.get("needs_external_support"):
-        prompt = (
-            "ASHO-ramme for denne turen:\n"
-            "- Meldingen inneholder mulig risiko eller behov for støtte utenfor chat.\n"
-            "- Ikke fortsett vanlig utforsking.\n"
-            "- Svar kort, støttende og avgrensende.\n"
-            "- Oppfordre rolig til kontakt med nær person eller lokal akutt hjelp hvis brukeren ikke er trygg."
-        )
-        return prompt, state
+        return "Risiko. Kort støttende avgrensning. Anbefal støtte utenfor chat.", state
 
-    state = maybe_advance_phase(state, user_message)
+    state = maybe_advance_phase(state, user_message, session_id=session_id)
     question_type = pick_question_type(state)
     question = _question_for_type(question_type)
     reflection = _brief_reflection(state)
-
-    timing_rule = (
-        "Situasjonen ser ut til å skje nå eller underveis; du kan formulere deg i presens."
-        if state.get("context_timing") in {"now", "during"}
-        else "Ikke skriv som om situasjonen skjer akkurat nå hvis bruker beskriver noe tidligere eller generelt."
-    )
-
     covered = state.get("covered_flags") or {}
-    active_topic = str((topic_config or {}).get("topic_key") or "").strip()
-    topic_system_prompt = str((topic_config or {}).get("system_prompt") or "").strip()
-    topic_constraints = (topic_config or {}).get("constraints") or {}
-    topic_micro = (topic_config or {}).get("micro_instructions") or {}
+    done_fields = ",".join(
+        key
+        for key in ("situation", "body", "discomfort", "for_against", "willingness", "exploration")
+        if covered.get(key)
+    ) or "none"
+    timing_rule = "Bruk presens." if state.get("context_timing") in {"now", "during"} else "Ikke skriv som om det skjer nå."
 
     lines = [
-        "ASHO-ramme for denne turen:",
-        f"- Aktiv fase: {state.get('phase') or 'situation'}",
-        "- Følg rekkefølgen: situation -> body -> discomfort -> for_against -> willingness -> exploration -> practice.",
-        "- Maks ett kort spørsmål i denne turen.",
-        "- Ikke gjenta samme spørsmålstype med ny ordlyd.",
-        "- Hvis body eller discomfort allerede er tydelig, gå videre.",
-        f"- {timing_rule}",
-        "- Før practice: ikke gi løsninger, pusteteknikker, grounding, reassurance eller generiske råd.",
+        f"ASHO fase={state.get('phase') or 'situation'} fokus={question_type}",
+        f"Dekket={done_fields}",
+        "Ett kort spørsmål. Ingen råd før practice.",
+        "Ikke gjenta samme spørsmålstype.",
+        timing_rule,
     ]
+    missing = str(covered.get(f"{state.get('phase')}_missing") or "").strip()
+    if missing:
+        lines.append(f"Mangler: {missing}")
     if reflection:
-        lines.append(f"- Kort refleksjon er lov: {reflection}")
-    lines.append(f"- Neste naturlige fokus nå: {question_type}")
-    lines.append(f"- Hvis du trenger et spørsmål, bruk denne retningen: {question}")
-    lines.append(
-        "- Dekkede felt så langt: "
-        + ", ".join([key for key, value in covered.items() if value]) if covered else "- Dekkede felt så langt: none"
-    )
-    if active_topic:
-        lines.append(f"- Aktiv topic-spesialisering: {active_topic}")
+        lines.append(f"Refleksjon: {reflection}")
+    lines.append(f"Spørsmål: {question}")
+
+    topic_key = str((topic_config or {}).get("topic_key") or "").strip()
+    topic_system_prompt = str((topic_config or {}).get("system_prompt") or "").strip()
+    if topic_key:
+        lines.append(f"Topic: {topic_key}")
     if topic_system_prompt:
-        lines.append("- Tema-spesifikk instruksjon: " + topic_system_prompt.replace("\n", " ")[:400])
-    if topic_micro or topic_constraints:
-        lines.append(
-            "- Tema-tillegg: "
-            + json.dumps(
-                {
-                    "micro_instructions": topic_micro,
-                    "constraints": topic_constraints,
-                },
-                ensure_ascii=False,
-            )[:500]
-        )
+        lines.append("Tema: " + topic_system_prompt.replace("\n", " ")[:140])
+    if state.get("phase") == "practice":
+        lines.append("Avslutt med situasjonstilpasset arbeidsoppgave.")
+        lines.append(_practice_module_instructions(state, topic_config))
 
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
     state["last_question_type"] = question_type
     state["last_question_text"] = question
-    return "\n".join(lines), state
-
-
-def _build_style_system_prompt(topic_config: dict[str, Any] | None = None) -> str:
-    topic_config = topic_config or {}
-    base_prompt = str(topic_config.get("base_prompt") or SYSTEM_PROMPT).strip()
-    sections = [
-        base_prompt,
-        (
-            "Du svarer gjennom ASHO-rammen. "
-            "Hold svaret kort, nøkternt og strukturert. "
-            "Still ett fokusert spørsmål om gangen. "
-            "Ikke gi løsninger, pusteteknikker, grounding eller generell beroligelse før praksisfasen."
-        ),
-    ]
-    topic_key = str(topic_config.get("topic_key") or "").strip()
-    system_prompt = str(topic_config.get("system_prompt") or "").strip()
-    constraints = topic_config.get("constraints") or {}
-    micro_instructions = topic_config.get("micro_instructions") or {}
-    if topic_key:
-        sections.append(f"Aktiv spesialisering: {topic_key}")
-    if system_prompt:
-        sections.append("Tema-spesifikk instruksjon:\n" + system_prompt)
-    if micro_instructions or constraints:
-        sections.append(
-            "Tema-spesifikke tillegg:\n"
-            + json.dumps(
-                {
-                    "micro_instructions": micro_instructions,
-                    "constraints": constraints,
-                },
-                ensure_ascii=False,
-            )
-        )
-    return "\n\n".join([section for section in sections if section])
-
-
-def _render_structured_turn(
-    state: dict[str, Any],
-    reflection: str,
-    question: str,
-    question_type: str,
-    topic_config: dict[str, Any] | None = None,
-    session_id: str | None = None,
-) -> str:
-    fallback = f"{reflection} {question}".strip() if reflection else question
-    if not session_id:
-        return fallback
-
-    payload = {
-        "phase": state.get("phase"),
-        "question_type": question_type,
-        "context_timing": state.get("context_timing"),
-        "reflection": reflection,
-        "question": question,
-        "covered_flags": state.get("covered_flags") or {},
-        "last_question_type": state.get("last_question_type"),
-        "last_question_text": state.get("last_question_text"),
-        "summaries": {
-            "situation": state.get("situation_summary"),
-            "body": state.get("body_summary"),
-            "discomfort": state.get("discomfort_summary"),
-            "for_against": state.get("for_against_summary"),
-            "willingness": state.get("willingness_summary"),
-            "exploration": state.get("exploration_summary"),
-        },
+    state["covered_flags"] = compute_covered_flags(state) | {
+        key: value for key, value in covered.items() if key.endswith("_resolved") or key.endswith("_missing")
     }
-    messages = [
-        {"role": "system", "content": _build_style_system_prompt(topic_config)},
-        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-    ]
-    try:
-        text, _, _ = _run_chat_completion(
-            session_id=session_id,
-            messages=messages,
-            stage="chat",
-            temperature=0.25,
-            max_tokens=min(120, settings.MAX_OUTPUT_TOKENS),
-        )
-        clean = str(text or "").strip()
-        return clean or fallback
-    except Exception:
-        return fallback
+    return "\n".join(lines), state
 
 
 def generate_practice_task(
@@ -404,53 +441,12 @@ def generate_practice_task(
     topic_config: dict[str, Any] | None = None,
     session_id: str | None = None,
 ) -> str:
-    direction = state.get("practice_direction") or state.get("reactive_pattern") or "avoidance"
-    fallback = (
-        "Neste steg: velg én liten handling i den aktuelle situasjonen som er litt mindre unnvikende enn vanlig."
-    )
-    if not session_id:
-        return fallback
-
-    prompt_payload = {
-        "topic_key": state.get("topic_key") or "asho_uroguide",
-        "phase": state.get("phase"),
-        "context_timing": state.get("context_timing"),
-        "situation_summary": state.get("situation_summary"),
-        "body_summary": state.get("body_summary"),
-        "discomfort_summary": state.get("discomfort_summary"),
-        "for_against_summary": state.get("for_against_summary"),
-        "willingness_summary": state.get("willingness_summary"),
-        "exploration_summary": state.get("exploration_summary"),
-        "reactive_pattern": state.get("reactive_pattern"),
-        "practice_direction": direction,
-        "topic_constraints": (topic_config or {}).get("constraints") or {},
-    }
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                _build_style_system_prompt(topic_config)
-                + "\n\n"
-                + "Du er i praksisfasen. "
-                "Lag ett kort, konkret neste steg. "
-                "Ikke bruk pusteteknikker, grounding, generell trygging eller terapeutisk språk. "
-                "Steget skal være realistisk, lite og mindre unngående enn brukerens vanlige mønster."
-            ),
-        },
-        {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
-    ]
-    try:
-        text, _, _ = _run_chat_completion(
-            session_id=session_id,
-            messages=messages,
-            stage="chat",
-            temperature=0.2,
-            max_tokens=min(140, settings.MAX_OUTPUT_TOKENS),
-        )
-        clean = str(text or "").strip()
-        return clean or fallback
-    except Exception:
-        return fallback
+    anchor = _practice_situation_anchor(state)
+    return (
+        f"Neste gang i situasjonen «{anchor}»: stopp opp litt før, legg merke til hva som allerede er aktivert i kroppen, "
+        "og se hva som skjer i kroppen mens du går inn i situasjonen. Hvis mønsteret tar over, er det ikke feil, bare noe å registrere. "
+        "Når det er over, kom tilbake til kroppen og merk hva som fortsatt er der. Legg merke til om det oppstår litt mer rom for en mindre unnvikende respons."
+    )[:420]
 
 
 def handle_asho_turn(
@@ -458,7 +454,6 @@ def handle_asho_turn(
     user_message: str,
     user_message_id: str,
     topic_config: dict[str, Any] | None = None,
-    session_id: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     state = update_state_from_user_message(state, user_message, user_message_id)
     if state.get("needs_external_support"):
@@ -471,34 +466,16 @@ def handle_asho_turn(
     reflection = _brief_reflection(state)
 
     if state.get("phase") == "practice":
-        practice_text = generate_practice_task(state, topic_config=topic_config, session_id=session_id)
+        practice_text = generate_practice_task(state, topic_config=topic_config)
         state["generated_practice_text"] = practice_text
         state["practice_direction"] = state.get("reactive_pattern") or state.get("practice_direction") or "less_avoidance"
         state["last_question_type"] = "practice"
         state["last_question_text"] = practice_text
-        prefix = f"{reflection} " if reflection else ""
-        return f"{prefix}{practice_text}".strip(), state
+        return (f"{reflection} {practice_text}".strip(), state) if reflection else (practice_text, state)
 
     question_type = pick_question_type(state)
     question = _question_for_type(question_type)
-    if question_type == "body" and state.get("covered_flags", {}).get("body"):
-        state["phase"] = "discomfort"
-        question_type = "discomfort"
-        question = _question_for_type(question_type)
-    if question_type == "discomfort" and state.get("covered_flags", {}).get("discomfort"):
-        state["phase"] = "for_against"
-        question_type = "for_against"
-        question = _question_for_type(question_type)
-
-    reply = _render_structured_turn(
-        state,
-        reflection,
-        question,
-        question_type,
-        topic_config=topic_config,
-        session_id=session_id,
-    )
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
     state["last_question_type"] = question_type
     state["last_question_text"] = question
-    return reply, state
+    return (f"{reflection} {question}".strip(), state) if reflection else (question, state)
