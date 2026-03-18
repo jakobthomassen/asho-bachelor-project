@@ -5,8 +5,8 @@ import re
 from typing import Any
 
 from app.core.config import settings
+from app.services.llm_client import SYSTEM_PROMPT
 from app.services.llm_client import _run_chat_completion
-from app.services.token_count import count_tokens
 
 PHASES = [
     "situation",
@@ -244,6 +244,88 @@ def _question_for_type(question_type: str) -> str:
     return "Hva er det viktigste å få tydeligere fram her?"
 
 
+def _build_style_system_prompt(topic_config: dict[str, Any] | None = None) -> str:
+    topic_config = topic_config or {}
+    base_prompt = str(topic_config.get("base_prompt") or SYSTEM_PROMPT).strip()
+    sections = [
+        base_prompt,
+        (
+            "Du svarer gjennom ASHO-rammen. "
+            "Hold svaret kort, nøkternt og strukturert. "
+            "Still ett fokusert spørsmål om gangen. "
+            "Ikke gi løsninger, pusteteknikker, grounding eller generell beroligelse før praksisfasen."
+        ),
+    ]
+    topic_key = str(topic_config.get("topic_key") or "").strip()
+    system_prompt = str(topic_config.get("system_prompt") or "").strip()
+    constraints = topic_config.get("constraints") or {}
+    micro_instructions = topic_config.get("micro_instructions") or {}
+    if topic_key:
+        sections.append(f"Aktiv spesialisering: {topic_key}")
+    if system_prompt:
+        sections.append("Tema-spesifikk instruksjon:\n" + system_prompt)
+    if micro_instructions or constraints:
+        sections.append(
+            "Tema-spesifikke tillegg:\n"
+            + json.dumps(
+                {
+                    "micro_instructions": micro_instructions,
+                    "constraints": constraints,
+                },
+                ensure_ascii=False,
+            )
+        )
+    return "\n\n".join([section for section in sections if section])
+
+
+def _render_structured_turn(
+    state: dict[str, Any],
+    reflection: str,
+    question: str,
+    question_type: str,
+    topic_config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> str:
+    fallback = f"{reflection} {question}".strip() if reflection else question
+    if not session_id:
+        return fallback
+
+    payload = {
+        "phase": state.get("phase"),
+        "question_type": question_type,
+        "context_timing": state.get("context_timing"),
+        "reflection": reflection,
+        "question": question,
+        "covered_flags": state.get("covered_flags") or {},
+        "last_question_type": state.get("last_question_type"),
+        "last_question_text": state.get("last_question_text"),
+        "summaries": {
+            "situation": state.get("situation_summary"),
+            "body": state.get("body_summary"),
+            "discomfort": state.get("discomfort_summary"),
+            "for_against": state.get("for_against_summary"),
+            "willingness": state.get("willingness_summary"),
+            "exploration": state.get("exploration_summary"),
+        },
+    }
+    messages = [
+        {"role": "system", "content": _build_style_system_prompt(topic_config)},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    try:
+        text, _, _ = _run_chat_completion(
+            session_id=session_id,
+            messages=messages,
+            stage="chat",
+            temperature=0.25,
+            max_tokens=min(120, settings.MAX_OUTPUT_TOKENS),
+        )
+        clean = str(text or "").strip()
+        return clean or fallback
+    except Exception:
+        return fallback
+
+
 def generate_practice_task(
     state: dict[str, Any],
     topic_config: dict[str, Any] | None = None,
@@ -274,7 +356,9 @@ def generate_practice_task(
         {
             "role": "system",
             "content": (
-                "Du er ASHO, en strukturert uro-guide. "
+                _build_style_system_prompt(topic_config)
+                + "\n\n"
+                + "Du er i praksisfasen. "
                 "Lag ett kort, konkret neste steg. "
                 "Ikke bruk pusteteknikker, grounding, generell trygging eller terapeutisk språk. "
                 "Steget skal være realistisk, lite og mindre unngående enn brukerens vanlige mønster."
@@ -333,10 +417,15 @@ def handle_asho_turn(
         question_type = "for_against"
         question = _question_for_type(question_type)
 
+    reply = _render_structured_turn(
+        state,
+        reflection,
+        question,
+        question_type,
+        topic_config=topic_config,
+        session_id=session_id,
+    )
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
     state["last_question_type"] = question_type
     state["last_question_text"] = question
-
-    if reflection:
-        return f"{reflection} {question}".strip(), state
-    return question, state
+    return reply, state
