@@ -48,12 +48,13 @@
   padding: 6px 12px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: var(--surface);
+  background: transparent;
   color: var(--text-primary);
   cursor: pointer;
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 10px;
   text-align: left;
+  transition: background 200ms ease, color 200ms ease;
 }
 
 .chatShell__statusButton {
@@ -91,7 +92,6 @@
 
 .chatShell__navButton:hover {
   background: var(--surface-muted);
-  border-color: var(--accent-soft);
 }
 
 .chatShell__auth {
@@ -108,13 +108,18 @@
   padding: 6px 12px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: var(--surface);
+  background: transparent;
   color: var(--text-primary);
   border-radius: 10px;
-  border: 1px solid var(--border);
+  border: none;
   justify-self: stretch;
   text-align: left;
   cursor: pointer;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.chatShell__authButton:hover {
+  background: var(--surface-muted);
 }
 
 .chatShell__authButton:disabled {

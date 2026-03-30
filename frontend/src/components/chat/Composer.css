@@ -23,7 +23,7 @@
   color: var(--text-primary);
   box-sizing: border-box;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   max-height: 5.8rem;
   line-height: 1.5;
   font-family: inherit;
@@ -39,6 +39,11 @@
   gap: 2px;
 }
 
+.composer__micWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .composer__mic {
   width: 30px;
   height: 30px;
@@ -50,11 +55,68 @@
   justify-content: center;
   cursor: pointer;
   color: var(--text-muted);
+  position: relative;
 }
 
 .composer__mic:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+.composer__mic--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.composer__mic--unsupported {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer__micSlash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer__micSlash::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  height: 1.5px;
+  background: var(--text-muted);
+  transform: translate(-50%, -50%) rotate(-45deg);
+  border-radius: 1px;
+}
+
+.composer__sttNote {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  animation: sttNoteIn 0.15s ease;
+  z-index: 10;
+}
+
+@keyframes sttNoteIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .composer__send {

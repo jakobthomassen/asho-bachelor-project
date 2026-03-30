@@ -1,5 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./Composer.css";
+
+const SpeechRecognitionAPI =
+  typeof window !== "undefined" &&
+  ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+const sttSupported = !!SpeechRecognitionAPI;
 
 type Props = {
   input: string;
@@ -18,7 +24,11 @@ export default function Composer({
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wasSendingRef = useRef(isSending);
+  const recognitionRef = useRef<any>(null);
   const sendDisabled = disabled || isSending || !input.trim();
+
+  const [isListening, setIsListening] = useState(false);
+  const [sttNote, setSttNote] = useState(false);
 
   // Refocus after send
   useEffect(() => {
@@ -28,13 +38,56 @@ export default function Composer({
     wasSendingRef.current = isSending;
   }, [disabled, isSending]);
 
-  // Auto-resize up to CSS max-height
+  // Auto-resize up to CSS max-height; show scrollbar only when capped
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+    el.style.overflowY = el.scrollHeight > el.clientHeight ? "auto" : "hidden";
   }, [input]);
+
+  // Stop recognition when component unmounts or input is disabled
+  useEffect(() => {
+    if ((disabled || isSending) && isListening) {
+      recognitionRef.current?.stop();
+    }
+  }, [disabled, isSending]);
+
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop(); };
+  }, []);
+
+  const toggleListening = () => {
+    if (!sttSupported) {
+      setSttNote(true);
+      setTimeout(() => setSttNote(false), 3500);
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "nb-NO";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = (e: any) => {
+      const transcript: string = e.results[0][0].transcript;
+      setInput(input ? `${input} ${transcript}` : transcript);
+    };
+
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -42,6 +95,12 @@ export default function Composer({
       if (!sendDisabled) onSend();
     }
   };
+
+  const micLabel = !sttSupported
+    ? "Talegjenkjenning støttes ikke i denne nettleseren"
+    : isListening
+      ? "Stopp opptak"
+      : "Start taleopptak";
 
   return (
     <div className="composerShell">
@@ -62,31 +121,43 @@ export default function Composer({
             }}
           />
           <div className="composer__inputActions">
-            <button
-              type="button"
-              onClick={() => window.alert("WIP")}
-              disabled={disabled || isSending}
-              className="composer__mic"
-              title="Mikrofon"
-              aria-label="Mikrofon"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+            <div className="composer__micWrap">
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={disabled || isSending}
+                className={[
+                  "composer__mic",
+                  !sttSupported ? "composer__mic--unsupported" : "",
+                  isListening ? "composer__mic--active" : "",
+                ].join(" ").trim()}
+                title={micLabel}
+                aria-label={micLabel}
               >
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+                {!sttSupported && <span className="composer__micSlash" aria-hidden="true" />}
+              </button>
+              {sttNote && (
+                <div className="composer__sttNote" role="alert">
+                  Ikke støttet i denne nettleseren
+                </div>
+              )}
+            </div>
             <button
               onClick={onSend}
               disabled={sendDisabled}
