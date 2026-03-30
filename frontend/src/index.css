@@ -13,6 +13,7 @@
   --surface-muted: #f8fafc;
   --sidebar-bg: #eef0f3;
   --border: #e5e7eb;
+  --hover-border: rgba(0, 0, 0, 0.18);
 
   --text-primary: #0f172a;
   --text-secondary: #334155;
@@ -56,6 +57,7 @@
   --surface-muted: #10151b;
   --sidebar-bg: #111520;
   --border: #242b36;
+  --hover-border: rgba(255, 255, 255, 0.18);
 
   --text-primary: #e2e8f0;
   --text-secondary: #cbd5f5;

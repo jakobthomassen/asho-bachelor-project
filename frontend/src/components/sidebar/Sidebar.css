@@ -102,6 +102,12 @@
   background: transparent;
   cursor: pointer;
   margin-bottom: 6px;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+
+.sidebar__item:not(.is-active):hover {
+  background: var(--surface-muted);
+  border-color: var(--hover-border);
 }
 
 .sidebar__item.is-active {
