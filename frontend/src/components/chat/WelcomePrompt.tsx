@@ -15,14 +15,18 @@ const ROTATE_INTERVAL_MS = 8000;
 const FADE_DURATION_MS = 400;
 
 export default function WelcomePrompt() {
-  const [idx, setIdx] = useState(0);
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * PROMPTS.length));
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setIdx((i) => (i + 1) % PROMPTS.length);
+        setIdx((i) => {
+          let next = i;
+          while (next === i) next = Math.floor(Math.random() * PROMPTS.length);
+          return next;
+        });
         setVisible(true);
       }, FADE_DURATION_MS);
     }, ROTATE_INTERVAL_MS);
