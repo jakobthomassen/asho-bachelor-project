@@ -7,43 +7,61 @@
 .composer {
   width: min(100%, var(--chat-container-width));
   margin: 0 auto;
-  display: flex;
-  gap: 10px;
-  align-items: center;
+}
+
+.composer__inputWrap {
+  position: relative;
 }
 
 .composer__input {
-  flex: 1;
-  padding: 0.7rem 0.85rem;
+  width: 100%;
+  padding: 0.7rem 5rem 0.7rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border);
   outline: none;
   font-size: 0.95rem;
   color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.composer__inputActions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .composer__mic {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--text-primary);
+  color: var(--text-muted);
 }
 
 .composer__mic:disabled {
   cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .composer__send {
-  padding: 0.5rem 0.9rem;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: none;
-  font-weight: 800;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .composer__send:disabled {
