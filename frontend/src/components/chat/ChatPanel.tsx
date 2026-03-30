@@ -54,7 +54,12 @@ export default function ChatPanel({
           />
         </div>
       ) : (
-        <>
+        <div className="chatPanel__content">
+          <div className="chatPanel__titleBar">
+            <h1 className="chatPanel__title">
+              {conversation?.title?.trim() || "Ny samtale"}
+            </h1>
+          </div>
           <MessageList
             conversation={conversation}
             clarifyOptions={clarifyOptions}
@@ -70,7 +75,7 @@ export default function ChatPanel({
             isSending={isSending}
             disabled={!conversation}
           />
-        </>
+        </div>
       )}
     </main>
   );

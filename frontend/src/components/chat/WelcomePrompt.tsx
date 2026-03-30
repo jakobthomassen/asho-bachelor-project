@@ -7,11 +7,11 @@ const PROMPTS = [
   "Hva ønsker du å snakke om?",
   "Hva tenker du på?",
   "Hvordan kan jeg støtte deg i dag?",
-  "Hva ligger deg på hjertet?",
+  "Hva har du på hjertet?",
   "Hva ønsker du å utforske?",
 ];
 
-const ROTATE_INTERVAL_MS = 4000;
+const ROTATE_INTERVAL_MS = 8000;
 const FADE_DURATION_MS = 400;
 
 export default function WelcomePrompt() {

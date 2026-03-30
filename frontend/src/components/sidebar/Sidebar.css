@@ -11,7 +11,12 @@
 }
 
 .sidebar.is-collapsed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
   width: 72px;
+  z-index: 10;
   border-right: none;
   background: transparent;
 }
@@ -19,6 +24,11 @@
 .sidebar.is-collapsed .sidebar__top {
   border-bottom: none;
   background: transparent;
+}
+
+.sidebar.is-collapsed .sidebar__toggleButton,
+.sidebar.is-collapsed .sidebar__newButton {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
 }
 
 .sidebar__top {

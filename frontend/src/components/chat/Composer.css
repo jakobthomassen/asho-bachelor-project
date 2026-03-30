@@ -1,6 +1,7 @@
 .composerShell {
-  padding: 0.65rem 1rem;
+  padding: 0.85rem 1rem 0.75rem;
   background: var(--surface);
+  margin-top: auto;
 }
 
 .composer {
@@ -13,7 +14,7 @@
 
 .composer__input {
   flex: 1;
-  padding: 0.5rem 0.85rem;
+  padding: 0.7rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border);
   outline: none;
