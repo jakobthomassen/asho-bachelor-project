@@ -5,7 +5,7 @@
 }
 
 .composer {
-  width: min(100%, var(--chat-container-width));
+  width: min(100%, calc(var(--chat-container-width) * 0.7));
   margin: 0 auto;
 }
 
@@ -22,13 +22,18 @@
   font-size: 0.95rem;
   color: var(--text-primary);
   box-sizing: border-box;
+  resize: none;
+  overflow-y: auto;
+  max-height: 5.8rem;
+  line-height: 1.5;
+  font-family: inherit;
+  display: block;
 }
 
 .composer__inputActions {
   position: absolute;
   right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 8px;
   display: flex;
   align-items: center;
   gap: 2px;

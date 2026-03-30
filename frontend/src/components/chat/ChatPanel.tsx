@@ -14,7 +14,6 @@ type Props = {
   clarifyOptions: string[];
   onSendText: (text: string) => void;
   onSend: () => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 
   error: ChatUiError | null;
   onDismissError: () => void;
@@ -30,7 +29,6 @@ export default function ChatPanel({
   clarifyOptions,
   onSendText,
   onSend,
-  onKeyDown,
   error,
   onDismissError,
   endRef,
@@ -47,7 +45,7 @@ export default function ChatPanel({
           <Composer
             input={input}
             setInput={setInput}
-            onKeyDown={onKeyDown}
+            
             onSend={onSend}
             isSending={isSending}
             disabled={!conversation}
@@ -70,7 +68,7 @@ export default function ChatPanel({
           <Composer
             input={input}
             setInput={setInput}
-            onKeyDown={onKeyDown}
+            
             onSend={onSend}
             isSending={isSending}
             disabled={!conversation}

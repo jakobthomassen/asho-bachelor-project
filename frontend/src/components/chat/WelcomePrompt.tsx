@@ -11,11 +11,13 @@ const PROMPTS = [
   "Hva ønsker du å utforske?",
 ];
 
-const ROTATE_INTERVAL_MS = 8000;
+const ROTATE_INTERVAL_MS = 6000;
 const FADE_DURATION_MS = 400;
 
 export default function WelcomePrompt() {
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * PROMPTS.length));
+  const [idx, setIdx] = useState(() =>
+    Math.floor(Math.random() * PROMPTS.length),
+  );
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {

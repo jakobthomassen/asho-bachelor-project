@@ -4,7 +4,6 @@ import "./Composer.css";
 type Props = {
   input: string;
   setInput: (v: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onSend: () => void;
   isSending: boolean;
   disabled: boolean;
@@ -13,31 +12,47 @@ type Props = {
 export default function Composer({
   input,
   setInput,
-  onKeyDown,
   onSend,
   isSending,
   disabled,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wasSendingRef = useRef(isSending);
   const sendDisabled = disabled || isSending || !input.trim();
 
+  // Refocus after send
   useEffect(() => {
     if (wasSendingRef.current && !isSending && !disabled) {
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     }
     wasSendingRef.current = isSending;
   }, [disabled, isSending]);
+
+  // Auto-resize up to CSS max-height
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendDisabled) onSend();
+    }
+  };
 
   return (
     <div className="composerShell">
       <div className="composer">
         <div className="composer__inputWrap">
-          <input
-            ref={inputRef}
+          <textarea
+            ref={textareaRef}
             value={input}
+            rows={1}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
+            onKeyDown={handleKeyDown}
             placeholder="Skriv en melding…"
             disabled={disabled || isSending}
             className="composer__input"
