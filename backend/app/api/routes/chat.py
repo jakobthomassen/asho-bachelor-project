@@ -339,6 +339,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 summary_text = None
                 initial_summary_text = None
                 summary_last_id = 0
+                conn.rollback()
 
             recent_rows = fetch_messages_after(
                 conn,
