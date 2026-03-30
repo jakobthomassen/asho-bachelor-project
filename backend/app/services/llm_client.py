@@ -43,6 +43,12 @@ Fokuser på: brukerens mål, viktige fakta, preferanser, beslutninger og åpne s
 Hold det kort, i ren tekst, og unngå ordrette sitater. Ikke legg til ny informasjon.
 """
 
+INITIAL_SUMMARY_SYSTEM_PROMPT = """
+Du er en kortfattet oppsummerer. Lag en kort beskrivelse av samtalestart.
+Fokuser på: brukerens utgangssituasjon, overordnet tema, og viktige fakta eller følelser de delte tidlig.
+Hold det kort, i ren tekst, og unngå ordrette sitater. Ikke legg til ny informasjon eller tolkninger.
+"""
+
 CLASSIFIER_SYSTEM_PROMPT = """
 Velg best passende topic for meldingen.
 Returner KUN gyldig JSON i formen:
@@ -506,7 +512,7 @@ def summarize_history(
         summary_messages.append(
             {
                 "role": "user",
-                "content": "Existing summary:\n" + existing_summary,
+                "content": "Eksisterende oppsummering:\n" + existing_summary,
             }
         )
 
@@ -519,7 +525,7 @@ def summarize_history(
     summary_messages.append(
         {
             "role": "user",
-            "content": "New conversation turns:\n" + "\n".join(lines),
+            "content": "Nye samtalerunder:\n" + "\n".join(lines),
         }
     )
 
@@ -550,6 +556,72 @@ def summarize_history(
         session_id,
         summary_messages,
         stage="summary",
+        prompt_tokens=prompt_tokens,
+        response_text=content,
+        response_json=None,
+    )
+
+    usage_tokens = 0
+    try:
+        if getattr(response, "usage", None) and getattr(response.usage, "completion_tokens", None) is not None:
+            usage_tokens = int(response.usage.completion_tokens)
+        else:
+            usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
+    except Exception:
+        usage_tokens = count_tokens(content, model=settings.MODEL_NAME)
+
+    return content.strip(), usage_tokens, prompt_tokens
+
+
+def create_initial_summary(
+    *,
+    session_id: str,
+    messages: List[Dict[str, Any]],
+) -> Tuple[str, int, int]:
+    """
+    Creates a one-time summary capturing the opening context of the conversation.
+    Returns (summary_text, output_tokens, prompt_tokens)
+    """
+    client = get_client()
+
+    lines = []
+    for msg in messages:
+        role = str(msg.get("role") or "")
+        content = str(msg.get("content") or "")
+        lines.append(f"{role}: {content}")
+
+    summary_messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": INITIAL_SUMMARY_SYSTEM_PROMPT},
+        {"role": "user", "content": "Samtalestart:\n" + "\n".join(lines)},
+    ]
+
+    try:
+        response = client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=summary_messages,
+            temperature=0.2,
+            max_tokens=settings.SUMMARY_MAX_TOKENS,
+        )
+    except OpenAIError as e:
+        raise RuntimeError(f"OpenAI initial summarization failed: {e}") from e
+
+    content = response.choices[0].message.content or ""
+
+    prompt_tokens_estimate = sum(
+        count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
+        for msg in summary_messages
+    )
+    prompt_tokens = prompt_tokens_estimate
+    try:
+        if getattr(response, "usage", None) and getattr(response.usage, "prompt_tokens", None) is not None:
+            prompt_tokens = int(response.usage.prompt_tokens)
+    except Exception:
+        prompt_tokens = prompt_tokens_estimate
+
+    store_prompt(
+        session_id,
+        summary_messages,
+        stage="initial_summary",
         prompt_tokens=prompt_tokens,
         response_text=content,
         response_json=None,

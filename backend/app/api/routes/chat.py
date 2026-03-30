@@ -1,5 +1,6 @@
 import json
 import hashlib
+import threading
 from fastapi import APIRouter, HTTPException, Response, Header
 import psycopg
 import time
@@ -9,6 +10,7 @@ from app.schemas.chat import SimpleChatRequest, SimpleChatResponse
 from app.services.llm_client import (
     chat_with_history_with_system,
     classify_topic_by_embedding,
+    create_initial_summary,
     generate_conversation_title,
     summarize_history,
     SYSTEM_PROMPT,
@@ -53,6 +55,49 @@ TITLE_CHECK_MIN_USER_MESSAGES = 3
 GENERIC_TITLES = {"Samtale", "Ny samtale", ""}
 GLOBAL_PACING_RULES = {"tempo": "slow", "max_questions_per_turn": 1}
 SOMATIC_NUDGE_TURN_THRESHOLD = 5
+
+
+def _run_background_summarization(
+    conversation_id: str,
+    session_id: str,
+    existing_summary: str | None,
+    existing_initial_summary: str | None,
+    messages: list,
+    last_message_id: int,
+) -> None:
+    try:
+        if existing_initial_summary is None:
+            new_summary, _, _ = create_initial_summary(
+                session_id=session_id,
+                messages=messages,
+            )
+            if new_summary:
+                with psycopg.connect(settings.DATABASE_URL or "") as bg_conn:
+                    with bg_conn.transaction():
+                        upsert_summary(
+                            bg_conn,
+                            conversation_id=conversation_id,
+                            summary_text="",
+                            initial_summary_text=new_summary,
+                            last_message_id=last_message_id,
+                        )
+        else:
+            new_summary, _, _ = summarize_history(
+                session_id=session_id,
+                existing_summary=existing_summary,
+                messages=messages,
+            )
+            if new_summary:
+                with psycopg.connect(settings.DATABASE_URL or "") as bg_conn:
+                    with bg_conn.transaction():
+                        upsert_summary(
+                            bg_conn,
+                            conversation_id=conversation_id,
+                            summary_text=new_summary,
+                            last_message_id=last_message_id,
+                        )
+    except Exception:
+        pass
 
 
 @router.options("/chat")
@@ -282,19 +327,18 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
             # 6) Rolling summary + bounded history window
             summary_text = None
+            initial_summary_text = None
             summary_last_id = 0
             try:
                 summary_row = get_summary(conn, conversation_id=payload.conversation_id)
                 if summary_row:
-                    summary_text = summary_row.summary_text
+                    summary_text = summary_row.summary_text or None
+                    initial_summary_text = summary_row.initial_summary_text
                     summary_last_id = summary_row.last_message_id
             except Exception:
                 summary_text = None
+                initial_summary_text = None
                 summary_last_id = 0
-
-            summary_message = None
-            if summary_text:
-                summary_message = "Summary so far:\n" + summary_text
 
             recent_rows = fetch_messages_after(
                 conn,
@@ -309,8 +353,9 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             summary_output_tokens = 0
             summary_prompt_tokens = 0
             try:
-                est_tokens = _estimate_prompt_tokens(summary_message, history, base_prompt)
-                if est_tokens > settings.MAX_HISTORY_TOKENS:
+                combined_summary = "\n\n".join(s for s in [initial_summary_text, summary_text] if s)
+                est_tokens = _estimate_prompt_tokens(combined_summary or None, history, base_prompt)
+                if est_tokens > settings.MAX_HISTORY_TOKENS or len(recent_rows) >= settings.MAX_HISTORY_MESSAGES - 1:
                     candidate_rows = fetch_messages_after(
                         conn,
                         conversation_id=payload.conversation_id,
@@ -323,38 +368,28 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         summary_input = [
                             {"role": row.role, "content": row.content} for row in to_summarize
                         ]
-                        new_summary, summary_output_tokens, summary_prompt_tokens = summarize_history(
-                            session_id=payload.session_id,
-                            existing_summary=summary_text,
-                            messages=summary_input,
-                        )
-                        if new_summary:
-                            with conn.transaction():
-                                upsert_summary(
-                                    conn,
-                                    conversation_id=payload.conversation_id,
-                                    summary_text=new_summary,
-                                    last_message_id=to_summarize[-1].id,
-                                )
-                            summary_text = new_summary
-                            summary_last_id = to_summarize[-1].id
-                            summary_message = "Summary so far:\n" + summary_text
-                            recent_rows = fetch_messages_after(
-                                conn,
-                                conversation_id=payload.conversation_id,
-                                after_message_id=summary_last_id,
-                                limit_messages=settings.MAX_HISTORY_MESSAGES,
-                                newest_first=True,
-                            )
-                            recent_rows.reverse()
-                            history = [
-                                {"role": row.role, "content": row.content} for row in recent_rows
-                            ]
+                        threading.Thread(
+                            target=_run_background_summarization,
+                            args=(
+                                payload.conversation_id,
+                                payload.session_id,
+                                summary_text,
+                                initial_summary_text,
+                                summary_input,
+                                to_summarize[-1].id,
+                            ),
+                            daemon=True,
+                        ).start()
             except Exception:
                 pass
 
-            if summary_message:
-                history = [{"role": "system", "content": summary_message}] + history
+            prepend = []
+            if initial_summary_text:
+                prepend.append({"role": "assistant", "content": "Samtalestart:\n" + initial_summary_text})
+            if summary_text:
+                prepend.append({"role": "assistant", "content": "Senere i samtalen:\n" + summary_text})
+            if prepend:
+                history = prepend + history
 
             total_user_turns = 0
             with conn.cursor() as cur:

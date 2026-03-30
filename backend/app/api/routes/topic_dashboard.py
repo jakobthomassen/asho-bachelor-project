@@ -103,8 +103,8 @@ def topic_dashboard_stats(
     days: int = Query(default=7, ge=1, le=90),
     authorization: str | None = Header(default=None),
 ):
-    input_price_per_million = 4.0
-    output_price_per_million = 16.0
+    input_price_per_million = 0.15
+    output_price_per_million = 0.60
 
     def _estimated_cost_usd(input_tokens: int, output_tokens: int) -> float:
         return (float(input_tokens) / 1_000_000.0) * input_price_per_million + (

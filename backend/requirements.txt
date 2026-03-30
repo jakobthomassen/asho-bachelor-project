@@ -4,6 +4,7 @@ gunicorn
 python-dotenv
 pydantic
 openai
+tiktoken
 psycopg[binary]
 python-multipart
 google-auth
