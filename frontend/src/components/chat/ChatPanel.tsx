@@ -1,8 +1,10 @@
 import type { Conversation } from "../../features/conversations/types";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
+import WelcomePrompt from "./WelcomePrompt";
 import ErrorBanner from "./ErrorBanner";
 import type { ChatUiError } from "./ErrorBanner";
+import "./ChatPanel.css";
 
 type Props = {
   conversation: Conversation | undefined;
@@ -33,26 +35,43 @@ export default function ChatPanel({
   onDismissError,
   endRef,
 }: Props) {
+  const isEmpty = !conversation?.messages?.length;
+
   return (
     <main className="chatPanel">
       {error && <ErrorBanner error={error} onDismiss={onDismissError} />}
 
-      <MessageList
-        conversation={conversation}
-        clarifyOptions={clarifyOptions}
-        isSending={isSending}
-        onSendText={onSendText}
-        endRef={endRef}
-      />
-
-      <Composer
-        input={input}
-        setInput={setInput}
-        onKeyDown={onKeyDown}
-        onSend={onSend}
-        isSending={isSending}
-        disabled={!conversation}
-      />
+      {isEmpty ? (
+        <div className="chatPanel__welcome">
+          <WelcomePrompt />
+          <Composer
+            input={input}
+            setInput={setInput}
+            onKeyDown={onKeyDown}
+            onSend={onSend}
+            isSending={isSending}
+            disabled={!conversation}
+          />
+        </div>
+      ) : (
+        <>
+          <MessageList
+            conversation={conversation}
+            clarifyOptions={clarifyOptions}
+            isSending={isSending}
+            onSendText={onSendText}
+            endRef={endRef}
+          />
+          <Composer
+            input={input}
+            setInput={setInput}
+            onKeyDown={onKeyDown}
+            onSend={onSend}
+            isSending={isSending}
+            disabled={!conversation}
+          />
+        </>
+      )}
     </main>
   );
 }

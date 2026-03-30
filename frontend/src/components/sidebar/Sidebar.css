@@ -1,7 +1,7 @@
 .sidebar {
   width: 280px;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--sidebar-bg);
   transition: width 180ms ease;
 
   height: 100%;
@@ -12,6 +12,13 @@
 
 .sidebar.is-collapsed {
   width: 72px;
+  border-right: none;
+  background: transparent;
+}
+
+.sidebar.is-collapsed .sidebar__top {
+  border-bottom: none;
+  background: transparent;
 }
 
 .sidebar__top {

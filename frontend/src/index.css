@@ -11,6 +11,7 @@
   --app-bg: #f3f4f6;
   --surface: #ffffff;
   --surface-muted: #f8fafc;
+  --sidebar-bg: #eef0f3;
   --border: #e5e7eb;
 
   --text-primary: #0f172a;
@@ -53,6 +54,7 @@
   --app-bg: #0f1115;
   --surface: #151a21;
   --surface-muted: #10151b;
+  --sidebar-bg: #111520;
   --border: #242b36;
 
   --text-primary: #e2e8f0;
