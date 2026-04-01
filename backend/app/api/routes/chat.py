@@ -41,6 +41,8 @@ from app.services.topic_routing_store import (
 from app.services.token_usage_store import (
     insert_daily_token_usage,
 )
+from app.topics.asho_engine import handle_asho_turn
+from app.topics.asho_state_store import get_or_create_asho_state, save_asho_state
 
 router = APIRouter()
 
@@ -128,6 +130,29 @@ def _estimate_messages_prompt_tokens(messages: List[Dict[str, str]]) -> int:
     for msg in messages:
         total += count_tokens(str(msg.get("content") or ""), model=settings.MODEL_NAME)
     return total
+
+
+def _fetch_latest_chat_message_id(
+    conn: psycopg.Connection,
+    *,
+    conversation_id: str,
+    role: str,
+) -> str | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM chat_messages
+            WHERE conversation_id = %s AND role = %s
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (conversation_id, role),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    return str(row[0])
 
 
 def _needs_reclassify_from_user_text(message: str) -> bool:
@@ -410,6 +435,8 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
             classifier_tokens = 0
             _somatic = SOMATIC_NUDGE_APPENDIX if total_user_turns >= SOMATIC_NUDGE_TURN_THRESHOLD else ""
             runtime_system_prompt = base_prompt + "\n\n" + DEFAULT_DIALOGUE_APPENDIX + ("\n\n" + _somatic if _somatic else "")
+            topic_by_key = {}
+            selected_topic_key = None
             classification_debug: Dict[str, object] = {
                 "method": "embedding",
                 "event": "none",
@@ -454,7 +481,6 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                         elif state.turns_since_classify >= topic_reclassify_threshold:
                             needs_classify = True
 
-                selected_topic_key = None
                 route_mode = "default"
                 last_confidence = state.last_confidence if state else None
 
@@ -603,24 +629,61 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     "reason": "classification pipeline failed",
                 }
 
-            prompt_messages_for_last_call: List[Dict[str, str]] = [
-                {"role": "system", "content": runtime_system_prompt}
-            ]
-            prompt_messages_for_last_call.extend(history)
-            if not (
-                history
-                and history[-1].get("role") == "user"
-                and history[-1].get("content") == normalized_message
-            ):
-                prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
-            last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
+            is_asho_topic = selected_topic_key == "asho_uroguide" and selected_topic_key in topic_by_key
+            if is_asho_topic:
+                selected_topic = topic_by_key[selected_topic_key]
+                asho_topic_config = {
+                    "topic_key": selected_topic.topic_key,
+                    "title": selected_topic.title,
+                    "system_prompt": selected_topic.system_prompt,
+                    "micro_instructions": selected_topic.micro_instructions,
+                    "constraints": selected_topic.constraints,
+                    "reclassify_rules": selected_topic.reclassify_rules,
+                    "safety_rules": selected_topic.safety_rules,
+                }
+                asho_state = get_or_create_asho_state(
+                    conversation_id=payload.conversation_id,
+                    topic_key=selected_topic_key,
+                )
+                asho_state["last_user_message_id"] = payload.message_id
+                db_user_message_id = _fetch_latest_chat_message_id(
+                    conn,
+                    conversation_id=payload.conversation_id,
+                    role="user",
+                )
+                if db_user_message_id:
+                    asho_state["last_user_message_id"] = db_user_message_id
 
-            reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
-                session_id=payload.session_id,
-                history=history,
-                user_message=normalized_message,
-                system_prompt=runtime_system_prompt,
-            )
+                reply, asho_state = handle_asho_turn(
+                    asho_state,
+                    normalized_message,
+                    payload.message_id,
+                    topic_config=asho_topic_config,
+                )
+                chat_prompt_tokens = int(asho_state.pop("_asho_prompt_tokens", 0) or 0)
+                output_tokens = int(
+                    asho_state.pop("_asho_output_tokens", count_tokens(reply, model=settings.MODEL_NAME))
+                )
+                last_prompt_tokens = chat_prompt_tokens
+            else:
+                prompt_messages_for_last_call: List[Dict[str, str]] = [
+                    {"role": "system", "content": runtime_system_prompt}
+                ]
+                prompt_messages_for_last_call.extend(history)
+                if not (
+                    history
+                    and history[-1].get("role") == "user"
+                    and history[-1].get("content") == normalized_message
+                ):
+                    prompt_messages_for_last_call.append({"role": "user", "content": normalized_message})
+                last_prompt_tokens = _estimate_messages_prompt_tokens(prompt_messages_for_last_call)
+
+                reply, output_tokens, chat_prompt_tokens = chat_with_history_with_system(
+                    session_id=payload.session_id,
+                    history=history,
+                    user_message=normalized_message,
+                    system_prompt=runtime_system_prompt,
+                )
 
             title_tokens = 0
             if (conversation_title or "") in GENERIC_TITLES:
@@ -660,6 +723,16 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     role="assistant",
                     content=reply,
                 )
+
+            if is_asho_topic:
+                db_assistant_message_id = _fetch_latest_chat_message_id(
+                    conn,
+                    conversation_id=payload.conversation_id,
+                    role="assistant",
+                )
+                if db_assistant_message_id:
+                    asho_state["last_assistant_message_id"] = db_assistant_message_id
+                save_asho_state(asho_state)
 
             with conn.cursor() as cur:
                 cur.execute(

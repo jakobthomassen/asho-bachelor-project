@@ -182,6 +182,7 @@ def delete_conversation(
                     raise HTTPException(status_code=404, detail="Conversation not found")
 
             tables_to_delete = [
+                ("asho_conversation_state", "DELETE FROM asho_conversation_state WHERE conversation_id = %s"),
                 ("topic_routing_events", "DELETE FROM topic_routing_events WHERE conversation_id = %s"),
                 ("conversation_topic_state", "DELETE FROM conversation_topic_state WHERE conversation_id = %s"),
                 ("chat_summaries", "DELETE FROM chat_summaries WHERE conversation_id = %s"),
