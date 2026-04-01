@@ -629,21 +629,24 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     "reason": "classification pipeline failed",
                 }
 
-            is_asho_topic = selected_topic_key == "asho_uroguide" and selected_topic_key in topic_by_key
-            if is_asho_topic:
-                selected_topic = topic_by_key[selected_topic_key]
+            asho_topic = topic_by_key.get("asho_uroguide")
+            asho_topic_config = None
+            if asho_topic is not None:
                 asho_topic_config = {
-                    "topic_key": selected_topic.topic_key,
-                    "title": selected_topic.title,
-                    "system_prompt": selected_topic.system_prompt,
-                    "micro_instructions": selected_topic.micro_instructions,
-                    "constraints": selected_topic.constraints,
-                    "reclassify_rules": selected_topic.reclassify_rules,
-                    "safety_rules": selected_topic.safety_rules,
+                    "topic_key": asho_topic.topic_key,
+                    "title": asho_topic.title,
+                    "system_prompt": asho_topic.system_prompt,
+                    "micro_instructions": asho_topic.micro_instructions,
+                    "constraints": asho_topic.constraints,
+                    "reclassify_rules": asho_topic.reclassify_rules,
+                    "safety_rules": asho_topic.safety_rules,
                 }
+
+            use_asho_by_default = True
+            if use_asho_by_default:
                 asho_state = get_or_create_asho_state(
                     conversation_id=payload.conversation_id,
-                    topic_key=selected_topic_key,
+                    topic_key="asho_uroguide",
                 )
                 asho_state["last_user_message_id"] = payload.message_id
                 db_user_message_id = _fetch_latest_chat_message_id(
@@ -724,7 +727,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     content=reply,
                 )
 
-            if is_asho_topic:
+            if use_asho_by_default:
                 db_assistant_message_id = _fetch_latest_chat_message_id(
                     conn,
                     conversation_id=payload.conversation_id,
