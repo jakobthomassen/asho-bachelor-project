@@ -8,6 +8,7 @@ from app.services.llm_client import chat_with_history_with_system
 from app.services.token_count import count_tokens
 from app.core.config import settings
 
+
 PHASES = [
     "situation",
     "body",
@@ -135,9 +136,11 @@ QUESTION_TEMPLATES = {
     "situation_pattern": "Er dette mest noe som skjer i en bestemt type situasjon, eller mer generelt?",
     "body_signal": "Hva er det tydeligste kroppslige signalet når dette skjer?",
     "body_location": "Hvor i kroppen merker du det tydeligst?",
-    "body_escalation": "Hva skjer videre i kroppen når det først starter?",    "discomfort_meaning": "Hva i dette kjennes mest ubehagelig å være med?",
+    "body_escalation": "Hva skjer videre i kroppen når det først starter?",
+    "discomfort_meaning": "Hva i dette kjennes mest ubehagelig å være med?",
     "for_against_cost": "Hva prøver du å slippe ved å reagere slik?",
-    "for_against_function": "Hva får du mest lyst til å gjøre når det skjer?",    "willingness_edge": "Hva virker mulig å være litt mer villig til å kjenne, uten å presse deg?",
+    "for_against_function": "Hva får du mest lyst til å gjøre når det skjer?",
+    "willingness_edge": "Hva virker mulig å være litt mer villig til å kjenne, uten å presse deg?",
     "exploration_small_shift": "Hvis du ikke skulle gå rett i automatreaksjonen, hva kunne et lite annet steg vært?",
     "practice_commitment": "Hva ville vært et lite, realistisk steg i mindre unngående retning neste gang?",
     "reactive_pattern": "Hva pleier du å gjøre når det blir sånn?",
@@ -148,6 +151,108 @@ FALLBACK_PRACTICE = (
     "før du gjør det vanlige unngåelsessteget."
 )
 
+
+def classify_opening_message(user_message: str) -> str:
+    """
+    Returnerer én av:
+    - "empty"
+    - "greeting_only"
+    - "vague_opening"
+    - "clear_topic"
+    """
+
+    text = (user_message or "").strip().lower()
+    if not text:
+        return "empty"
+
+    normalized = re.sub(r"\s+", " ", text)
+
+    greeting_only_patterns = [
+        r"^hei[!. ]*$",
+        r"^hie[!. ]*$",
+        r"^hallo[!. ]*$",
+        r"^heisann[!. ]*$",
+        r"^hello[!. ]*$",
+        r"^yo[!. ]*$",
+        r"^god morgen[!. ]*$",
+        r"^god kveld[!. ]*$",
+        r"^god dag[!. ]*$",
+    ]
+    for pattern in greeting_only_patterns:
+        if re.match(pattern, normalized):
+            return "greeting_only"
+
+    clear_topic_patterns = [
+        r"\bjeg sliter\b",
+        r"\bjeg har\b",
+        r"\bjeg får\b",
+        r"\bjeg kjenner\b",
+        r"\bjeg opplever\b",
+        r"\bjeg blir\b",
+        r"\bjeg ønsker å snakke om\b",
+        r"\bjeg vil snakke om\b",
+        r"\bjeg vil ta opp\b",
+        r"\bjeg er redd for\b",
+        r"\bjeg gruer meg\b",
+        r"\bubehag\b",
+        r"\buro\b",
+        r"\bstress\b",
+        r"\bstresset\b",
+        r"\bfrykt\b",
+        r"\bangst\b",
+        r"\brengstelig\b",
+        r"\bsøvn\b",
+        r"\bsove\b",
+        r"\bheis\b",
+        r"\bjobb\b",
+        r"\bskole\b",
+        r"\bfamilie\b",
+        r"\bnår jeg\b",
+        r"\bhver gang\b",
+        r"\bdet skjer\b",
+    ]
+    for pattern in clear_topic_patterns:
+        if re.search(pattern, normalized):
+            return "clear_topic"
+
+    vague_opening_patterns = [
+        r"\bkan vi snakke\b",
+        r"\bkan jeg snakke\b",
+        r"\btrenger å snakke\b",
+        r"\bvil snakke\b",
+        r"\bønsker å snakke\b",
+        r"\bhar noe jeg vil ta opp\b",
+        r"\bvet ikke helt\b",
+        r"\busikker på hvordan jeg skal si det\b",
+    ]
+    for pattern in vague_opening_patterns:
+        if re.search(pattern, normalized):
+            return "vague_opening"
+
+    # Hvis meldingen er veldig kort og ikke inneholder tydelig tema,
+    # behandle den som vag åpning.
+    if len(normalized.split()) <= 4:
+        return "vague_opening"
+
+    # Hvis meldingen er litt lengre, men fortsatt ikke treffer klare temaord,
+    # la ASHO få jobbe videre.
+    return "clear_topic"
+
+
+def get_opening_reply(user_message: str) -> str | None:
+    """
+    Returnerer en naturlig åpningsrespons hvis meldingen ikke inneholder
+    et tydelig tema ennå. Returnerer None hvis ASHO bør gå videre i vanlig flyt.
+    """
+    msg_type = classify_opening_message(user_message)
+
+    if msg_type in {"empty", "greeting_only"}:
+        return "Hei. Hva vil du ta opp i dag?"
+
+    if msg_type == "vague_opening":
+        return "Hei. Hva ønsker du å se nærmere på?"
+
+    return None
 
 def merge_summary(existing: str | None, addition: str | None, *, max_length: int = 320) -> str:
     current = str(existing or "").strip()
@@ -237,10 +342,11 @@ def infer_reactive_pattern(state: dict[str, Any], user_message: str) -> str:
     for pattern_name, phrases in REACTIVE_PATTERNS.items():
         if any(phrase in text for phrase in phrases):
             return pattern_name
-        if "må gå ut" in text or "vil gå ut" in text or "må komme meg ut" in text:
+        
+    if "må gå ut" in text or "vil gå ut" in text or "må komme meg ut" in text:
             return "escape"
+    
     return str(state.get("reactive_pattern") or "")
-
 
 def ready_for_practice(state: dict[str, Any]) -> bool:
     flags = dict(state.get("covered_flags") or {})
@@ -374,6 +480,27 @@ def _format_topic_config(topic_config: dict[str, Any] | None) -> str:
     }
     return json.dumps(compact, ensure_ascii=False)
 
+def build_asho_system_prompt(base_system_prompt: str | None = None) -> str:
+    asho_appendix = """
+ASHO-tillegg:
+- Din jobb er å hjelpe brukeren å legge merke til hva som skjer i kroppen når ubehag kommer.
+- Still ett kort spørsmål om gangen.
+- Ikke gjenta samme spørsmål eller informasjonsbehov i ny formulering.
+- Ikke spør videre om noe som allerede er tydelig nok.
+- Ett til to spørsmål om samme kroppssignal er som regel nok.
+- Når kroppsmønsteret er tydelig, gå videre til hva som skjer videre eller hva brukeren gjør når det kommer.
+- Ikke gi råd, løsninger, teknikker, beroligelse eller mestringsforslag før praksisfasen.
+- Ikke opptre som en generell terapeut.
+- Ikke snakk som om situasjonen skjer akkurat nå hvis brukeren beskriver et mønster eller en bestemt situasjon.
+- Når brukeren går opp i tanker eller forklaringer, før oppmerksomheten rolig tilbake til det som merkes direkte i kroppen.
+- Når brukeren ikke har mer språk, ikke press fram mer beskrivelse. Speil kort og gå videre.
+- Svar på norsk.
+""".strip()
+
+    base = (base_system_prompt or "").strip()
+    if base:
+        return base + "\n\n" + asho_appendix
+    return asho_appendix
 
 def _llm_turn(
     *,
@@ -383,19 +510,9 @@ def _llm_turn(
     state: dict[str, Any],
     topic_config: dict[str, Any] | None,
     mode: str,
+    base_system_prompt: str | None = None,
 ) -> tuple[str, int, int]:
-    system_prompt = (
-        "Du er ASHO. Jobben din er avgrenset: hjelp brukeren å legge merke til hva som skjer i kroppen "
-        "når ubehag eller uro kommer.\n"
-        "Skriv på norsk, enkelt og kort.\n"
-        "Still høyst ett kort spørsmål.\n"
-        "Ikke gi råd, løsninger, trøst, pusteteknikker, grounding, forklaringer eller analyse før praksisfasen.\n"
-        "Ikke gjenta samme informasjonsbehov i ny ordlyd.\n"
-        "Hvis brukeren beskriver tanker eller forklaringer, led oppmerksomheten rolig tilbake til det som merkes.\n"
-        "Snakk ikke som om alt skjer akkurat nå hvis konteksten er generell eller fra tidligere.\n"
-        "I praksisfasen: gi ett lite, konkret, realistisk steg i mindre unngående retning.\n"
-        "Svar kun med selve teksten til brukeren."
-    )
+    system_prompt = build_asho_system_prompt(base_system_prompt)
 
     prompt_payload = {
         "mode": mode,
@@ -435,6 +552,7 @@ def _llm_turn(
 def generate_practice_task(
     state: dict[str, Any],
     topic_config: dict[str, Any] | None = None,
+    base_system_prompt: str | None = None,
 ) -> tuple[str, int, int]:
     reply, output_tokens, prompt_tokens = _llm_turn(
         conversation_id=str(state.get("conversation_id") or ""),
@@ -443,6 +561,7 @@ def generate_practice_task(
         state=state,
         topic_config=topic_config,
         mode="practice",
+        base_system_prompt = base_system_prompt
     )
     clean = (reply or "").strip()
     if not clean:
@@ -472,6 +591,7 @@ def update_state_from_user_message(
         "mentions_willingness": bool(signals.get("mentions_willingness") or new_signals.get("mentions_willingness")),
         "mentions_avoidance": bool(signals.get("mentions_avoidance") or new_signals.get("mentions_avoidance")),
         "last_excerpt": new_signals.get("raw_excerpt") or signals.get("last_excerpt"),
+        "mentions_discomfort": bool(signals.get("mentions_discomfort") or new_signals.get("mentions_discomfort")),
     }
 
     if merged_signals["mentions_body_signal"] and not signals.get("body_signal_text"):
@@ -521,7 +641,18 @@ def handle_asho_turn(
     user_message: str,
     user_message_id: str,
     topic_config: dict[str, Any] | None = None,
+    base_system_prompt: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
+    pre_turn_count = int(state.get("total_turn_count") or 0)
+    if pre_turn_count == 0:
+        opening_reply = get_opening_reply(user_message)
+        if opening_reply is not None:
+            state["last_question_type"] = "opening"
+            state["last_question_text"] = opening_reply
+            state["_asho_output_tokens"] = count_tokens(opening_reply, model=settings.MODEL_NAME)
+            state["_asho_prompt_tokens"] = 0
+            return opening_reply, state
+    
     state = update_state_from_user_message(dict(state), user_message, user_message_id)
 
     if state.get("needs_external_support"):
@@ -533,7 +664,11 @@ def handle_asho_turn(
     state = maybe_advance_phase(state)
 
     if state.get("phase") == "practice" and state.get("can_generate_practice"):
-        reply, output_tokens, prompt_tokens = generate_practice_task(state, topic_config)
+        reply, output_tokens, prompt_tokens = generate_practice_task(
+            state,
+            topic_config,
+            base_system_prompt,
+        )
         state["generated_practice_text"] = reply
         state["last_question_type"] = "practice_commitment"
         state["last_question_text"] = reply
@@ -542,7 +677,6 @@ def handle_asho_turn(
         return reply, state
 
     question_type = pick_question_type(state)
-    mode = "redirect" if question_type == "body_signal" and not state.get("context_timing") else "question"
     clean_reply = QUESTION_TEMPLATES.get(question_type, "Hva merker du?")
     output_tokens = count_tokens(clean_reply, model=settings.MODEL_NAME)
     prompt_tokens = 0

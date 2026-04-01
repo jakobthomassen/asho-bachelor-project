@@ -662,6 +662,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     normalized_message,
                     payload.message_id,
                     topic_config=asho_topic_config,
+                    base_system_prompt=base_prompt,
                 )
                 chat_prompt_tokens = int(asho_state.pop("_asho_prompt_tokens", 0) or 0)
                 output_tokens = int(
@@ -687,6 +688,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     user_message=normalized_message,
                     system_prompt=runtime_system_prompt,
                 )
+
 
             title_tokens = 0
             if (conversation_title or "") in GENERIC_TITLES:
@@ -777,7 +779,13 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                     )
             except Exception:
                 pass
-
+            
+            if use_asho_by_default:
+                classification_debug["asho_default_engine"] = True
+            if use_asho_by_default:
+                classification_debug["selected_topic_key"] = "asho_uroguide"
+                classification_debug["route_mode"] = "asho_default"
+            
             response = {
                 "reply": reply,
                 "last_prompt_tokens": last_prompt_tokens,
@@ -785,7 +793,7 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
                 "conversation_title": conversation_title,
                 "classification": classification_debug,
             }
-
+            
             # 10) Store idempotent result
             with conn.cursor() as cur:
                 cur.execute(
