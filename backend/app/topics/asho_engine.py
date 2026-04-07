@@ -400,19 +400,17 @@ def infer_reactive_pattern(state: dict[str, Any], user_message: str) -> str:
 
 def ready_for_practice(state: dict[str, Any]) -> bool:
     flags = dict(state.get("covered_flags") or {})
-    body_clear = (
-        flags.get("body_signal")
-        and flags.get("escalation")
-        and flags.get("reactive_pattern")
-    )
     return bool(
         flags.get("situation")
-        and body_clear
         and flags.get("discomfort")
+        and flags.get("body_signal")
+        and (flags.get("body_location") or flags.get("body_quality"))
+        and flags.get("escalation")
+        and flags.get("reactive_pattern")
+        and flags.get("for_against")
         and (flags.get("willingness") or flags.get("exploration"))
     )
-
-
+    
 def next_phase(phase: str) -> str:
     if phase not in PHASES:
         return PHASES[0]
@@ -523,18 +521,34 @@ def pick_question_type(state: dict[str, Any]) -> str:
             return candidate
 
     return candidates[0]
+
 def should_simplify_after_low_info(state: dict[str, Any]) -> bool:
     signals = dict(state.get("extracted_signals") or {})
     last_question_type = str(state.get("last_question_type") or "")
     return bool(
         signals.get("low_information")
-        and last_question_type in {"for_against_cost", "for_against_function", "willingness_edge"}
+        and last_question_type in {
+            "for_against_cost",
+            "for_against_function",
+            "willingness_edge",
+            "exploration_small_shift",
+            "practice_commitment",
+        }
     )
 
 def detect_need_for_external_support(user_message: str) -> bool:
     lower = (user_message or "").lower()
     return any(re.search(pattern, lower) for pattern in RISK_PATTERNS)
 
+def is_clarification_request(user_message: str) -> bool:
+    text = (user_message or "").strip().lower()
+    return text in {
+        "hva mener du",
+        "kan du utdype",
+        "kan du forklare",
+        "skjønner ikke",
+        "forstår ikke",
+    }
 
 def build_supportive_boundary_response() -> str:
     return (
@@ -762,6 +776,39 @@ def update_state_from_user_message(
     state["can_generate_practice"] = ready_for_practice(state)
     return state
 
+def is_low_information_reply(state: dict[str, Any]) -> bool:
+    signals = dict(state.get("extracted_signals") or {})
+    return bool(signals.get("low_information"))
+
+def fallback_question_type_after_low_info(state: dict[str, Any]) -> str:
+    last_question_type = str(state.get("last_question_type") or "")
+    phase = str(state.get("phase") or "")
+
+    fallback_map = {
+        "for_against_cost": "reactive_pattern",
+        "for_against_function": "reactive_pattern",
+        "willingness_edge": "discomfort_meaning",
+        "exploration_small_shift": "discomfort_meaning",
+        "practice_commitment": "discomfort_meaning",
+    }
+
+    if last_question_type in fallback_map:
+        return fallback_map[last_question_type]
+
+    if phase == "body":
+        return "reactive_pattern"
+    if phase == "for_against":
+        return "reactive_pattern"
+    if phase in {"willingness", "exploration"}:
+        return "discomfort_meaning"
+
+    return "discomfort_meaning"
+
+def has_repeated_question_type_too_much(state: dict[str, Any], question_type: str) -> bool:
+    used = list(state.get("used_question_angles") or [])
+    
+    return used.count(question_type) >= 2
+    
 
 def handle_asho_turn(
     state: dict[str, Any],
@@ -771,6 +818,7 @@ def handle_asho_turn(
     base_system_prompt: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     pre_turn_count = int(state.get("total_turn_count") or 0)
+    
     if is_clarification_request(user_message):
         last_q = str(state.get("last_question_type") or "")
         explanation = CLARIFICATION_FALLBACKS.get(last_q)
@@ -815,14 +863,21 @@ def handle_asho_turn(
         question_type = "reactive_pattern"
     else:
         question_type = pick_question_type(state)
+        last_question_type = str(state.get("last_question_type") or "")
 
-    reply, output_tokens, prompt_tokens = render_question_with_llm(
-        conversation_id=str(state.get("conversation_id") or ""),
-        question_type=question_type,
-        state=state,
-        topic_config=topic_config,
-        base_system_prompt=base_system_prompt,
-    )
+        if is_low_information_reply(state) and question_type == last_question_type:
+            question_type = fallback_question_type_after_low_info(state)
+
+        if has_repeated_question_type_too_much(state, question_type):
+            question_type = fallback_question_type_after_low_info(state)
+
+        reply, output_tokens, prompt_tokens = render_question_with_llm(
+            conversation_id=str(state.get("conversation_id") or ""),
+            question_type=question_type,
+            state=state,
+            topic_config=topic_config,
+            base_system_prompt=base_system_prompt,
+        )
 
     clean_reply = sanitize_llm_question(reply, question_type)
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
@@ -830,6 +885,14 @@ def handle_asho_turn(
     state["last_question_text"] = clean_reply
     state["_asho_output_tokens"] = output_tokens or count_tokens(clean_reply, model=settings.MODEL_NAME)
     state["_asho_prompt_tokens"] = prompt_tokens
+
+    used = list(state.get("used_question_angles") or [])
+    used.append(question_type)
+    state["used_question_angles"] = used[-6:]
+
+    state["_asho_output_tokens"] = output_tokens or count_tokens(clean_reply, model=settings.MODEL_NAME)
+    state["_asho_prompt_tokens"] = prompt_tokens
+    
     print("ASHO DEBUG", {
         "phase": state.get("phase"),
         "question_type": question_type,
@@ -841,14 +904,6 @@ def handle_asho_turn(
     return clean_reply, state
     
 
-def is_clarification_request(user_message: str) -> bool:
-    text = (user_message or "").strip().lower()
-    return text in {
-        "hva mener du",
-        "kan du utdype",
-        "kan du forklare",
-        "skjønner ikke",
-        "forstår ikke",
-    }
+
 
 
