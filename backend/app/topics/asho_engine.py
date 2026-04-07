@@ -133,17 +133,37 @@ REACTIVE_PATTERNS = {
 
 QUESTION_GOALS = {
     "situation_when": "Hva pleier å skje rett før uroen kommer i denne situasjonen?",
-    "situation_pattern": "Er dette mest noe som skjer i en bestemt type situasjon, eller mer generelt?",
+    "situation_pattern": "Er dette noe som skjer i en bestemt type situasjon, eller mer generelt?",
     "body_signal": "Hva er det tydeligste kroppslige signalet når dette skjer?",
     "body_location": "Hvor i kroppen merker du det tydeligst?",
+    "reactive_pattern": "Hva får du mest lyst til å gjøre når det blir sånn?",
     "body_escalation": "Hva skjer videre i kroppen når det først starter?",
     "discomfort_meaning": "Hva i dette kjennes mest ubehagelig å være med?",
-    "for_against_cost": "Hva prøver du å slippe ved å reagere slik?",
+    "for_against_cost": "Hva er det som blir så vanskelig akkurat da at du vil bort fra det?",
     "for_against_function": "Hva får du mest lyst til å gjøre når det skjer?",
-    "willingness_edge": "Hva virker mulig å være litt mer villig til å kjenne, uten å presse deg?",
+    "willingness_edge": "Hva klarer du å legge merke til, uten å måtte presse deg?",
     "exploration_small_shift": "Hvis du ikke skulle gå rett i automatreaksjonen, hva kunne et lite annet steg vært?",
     "practice_commitment": "Hva ville vært et lite, realistisk steg i mindre unngående retning neste gang?",
     "reactive_pattern": "Hva pleier du å gjøre når det blir sånn?",
+}
+
+QUESTION_FALLBACKS = {
+    "body_signal": "Hva merker du tydeligst i kroppen når dette skjer?",
+    "body_location": "Hvor i kroppen merker du det tydeligst?",
+    "body_escalation": "Hva skjer videre i kroppen når det først starter?",
+    "reactive_pattern": "Hva får du mest lyst til å gjøre når det blir sånn?",
+    "discomfort_meaning": "Hva er det vanskeligste ved å være i dette akkurat da?",
+    "for_against_cost": "Hva er det som blir så vanskelig da at du vil bort fra det?",
+    "for_against_function": "Hva prøver kroppen å få til der og da?",
+    "willingness_edge": "Er det noe av dette du kanskje kunne lagt merke til litt lenger, uten å presse deg?",
+    "exploration_small_shift": "Hva kunne vært et lite annet steg enn det du pleier å gjøre?",
+    "practice_commitment": "Hva kunne vært et lite, realistisk steg neste gang?",
+}
+
+CLARIFICATION_FALLBACKS = {
+    "for_against_cost": "Jeg mener hva som blir så vanskelig i det øyeblikket at du får lyst til å slippe unna det.",
+    "for_against_function": "Jeg mener hva kroppen prøver å få til der og da.",
+    "willingness_edge": "Jeg mener om det finnes noe i kroppen du kunne lagt merke til litt lenger før du reagerer.",
 }
 
 FALLBACK_PRACTICE = (
@@ -156,15 +176,15 @@ def sanitize_llm_question(reply: str | None, question_type: str) -> str:
     text = (reply or "").strip()
 
     if not text:
-        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+        return QUESTION_FALLBACKS.get(question_type, "Hva merker du?")
 
     text = " ".join(text.split())
 
     if len(text) > 180:
-        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+        return QUESTION_FALLBACKS.get(question_type, "Hva merker du?")
 
     if "\n" in text:
-        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+        return QUESTION_FALLBACKS.get(question_type, "Hva merker du?")
 
     if not text.endswith("?"):
         if text.endswith("."):
@@ -471,6 +491,8 @@ def pick_question_type(state: dict[str, Any]) -> str:
             candidates = ["body_location"]
         elif not flags.get("body_quality") and not signals.get("unknown_description"):
             candidates = ["body_signal"]
+        elif not flags.get("reactive_pattern"):
+            candidates = ["reactive_pattern"]
         else:
             return "discomfort_meaning"
     elif phase == "discomfort":
@@ -491,6 +513,13 @@ def pick_question_type(state: dict[str, Any]) -> str:
             return candidate
     return candidates[0]
 
+def should_simplify_after_low_info(state: dict[str, Any]) -> bool:
+    signals = dict(state.get("extracted_signals") or {})
+    last_question_type = str(state.get("last_question_type") or "")
+    return bool(
+        signals.get("low_information")
+        and last_question_type in {"for_against_cost", "for_against_function", "willingness_edge"}
+    )
 
 def detect_need_for_external_support(user_message: str) -> bool:
     lower = (user_message or "").lower()
@@ -611,11 +640,13 @@ def render_question_with_llm(
         "covered_flags": state.get("covered_flags"),
         },
         "rules": [
-            "Formuler ett kort og naturlig spørsmål på norsk.",
-            "Spørsmålet skal dekke målet i question_goal.",
+            "Formuler ett kort, naturlig og enkelt spørsmål på norsk.",
+            "Spørsmålet skal passe godt til det brukeren nettopp sa.",
+            "Hold språket muntlig og klart.",
+            "Ikke bruk stivt metode- eller fagspråk.",
             "Ikke gi råd, løsninger eller beroligelse.",
             "Ikke gjenta samme informasjonsbehov som i last_question_type eller last_question_text.",
-            "Ikke spør om noe som allerede er tydelig nok i already_known.",
+            "Ikke spør om noe som already_known viser er tydelig nok.",
             "Svar kun med selve spørsmålet.",
         ],
         "topic_config": _format_topic_config(topic_config),
@@ -730,6 +761,14 @@ def handle_asho_turn(
     base_system_prompt: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     pre_turn_count = int(state.get("total_turn_count") or 0)
+    if is_clarification_request(user_message):
+        last_q = str(state.get("last_question_type") or "")
+        explanation = CLARIFICATION_FALLBACKS.get(last_q)
+        if explanation:
+            state["_asho_output_tokens"] = count_tokens(explanation, model=settings.MODEL_NAME)
+            state["_asho_prompt_tokens"] = 0
+            state["last_question_text"] = explanation
+            return explanation, state
     if pre_turn_count == 0:
         opening_reply = get_opening_reply(user_message)
         if opening_reply is not None:
@@ -761,8 +800,11 @@ def handle_asho_turn(
         state["_asho_output_tokens"] = output_tokens
         state["_asho_prompt_tokens"] = prompt_tokens
         return reply, state
-
-    question_type = pick_question_type(state)
+    
+    if should_simplify_after_low_info(state):
+        question_type = "reactive_pattern"
+    else:
+        question_type = pick_question_type(state)
 
     reply, output_tokens, prompt_tokens = render_question_with_llm(
         conversation_id=str(state.get("conversation_id") or ""),
@@ -779,3 +821,16 @@ def handle_asho_turn(
     state["_asho_output_tokens"] = output_tokens or count_tokens(clean_reply, model=settings.MODEL_NAME)
     state["_asho_prompt_tokens"] = prompt_tokens
     return clean_reply, state
+    
+
+def is_clarification_request(user_message: str) -> bool:
+    text = (user_message or "").strip().lower()
+    return text in {
+        "hva mener du",
+        "kan du utdype",
+        "kan du forklare",
+        "skjønner ikke",
+        "forstår ikke",
+    }
+
+
