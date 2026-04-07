@@ -39,7 +39,12 @@ DEFAULT_STATE: dict[str, Any] = {
     "used_question_angles": [],
 }
 
-JSON_LIKE_COLUMNS = {"covered_flags", "extracted_signals"}
+JSON_LIKE_COLUMNS = {
+    "covered_flags",
+    "extracted_signals",
+    "covered_subtopics",
+    "used_question_angles",
+}
 SYSTEM_COLUMNS = {"created_at", "updated_at"}
 
 

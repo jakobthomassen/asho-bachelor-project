@@ -131,7 +131,7 @@ REACTIVE_PATTERNS = {
     "appease": ["må skjerpe meg", "må virke rolig", "ikke vise", "please", "tilpasse meg"],
 }
 
-QUESTION_TEMPLATES = {
+QUESTION_GOALS = {
     "situation_when": "Hva pleier å skje rett før uroen kommer i denne situasjonen?",
     "situation_pattern": "Er dette mest noe som skjer i en bestemt type situasjon, eller mer generelt?",
     "body_signal": "Hva er det tydeligste kroppslige signalet når dette skjer?",
@@ -151,6 +151,28 @@ FALLBACK_PRACTICE = (
     "før du gjør det vanlige unngåelsessteget."
 )
 
+
+def sanitize_llm_question(reply: str | None, question_type: str) -> str:
+    text = (reply or "").strip()
+
+    if not text:
+        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+
+    text = " ".join(text.split())
+
+    if len(text) > 180:
+        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+
+    if "\n" in text:
+        return QUESTION_GOALS.get(question_type, "Hva merker du?")
+
+    if not text.endswith("?"):
+        if text.endswith("."):
+            text = text[:-1] + "?"
+        else:
+            text = text + "?"
+
+    return text
 
 def classify_opening_message(user_message: str) -> str:
     """
@@ -288,7 +310,13 @@ def extract_signals(user_message: str) -> dict[str, Any]:
     escalation = [word for word in ESCALATION_WORDS if word in lower]
     low_information = lower in LOW_INFORMATION_RESPONSES or len(tokens) <= 2
     unknown = "vet ikke" in lower or "usikker" in lower or "aner ikke" in lower
-    body_signal = bool(locations or qualities or "kropp" in lower or "hjertet" in lower)
+    body_signal = bool(
+        locations
+        or qualities
+        or "kropp" in lower
+        or "hjertet" in lower
+        or any(word in lower for word in DISCOMFORT_WORDS)
+    )
 
     return {
         "locations": locations,
@@ -317,7 +345,7 @@ def compute_covered_flags(state: dict[str, Any]) -> dict[str, bool]:
         "situation": bool(state.get("situation_summary")),
         "body_signal": bool(signals.get("body_signal_text") or signals.get("mentions_body_signal")),
         "body_location": bool(signals.get("locations")),
-        "body_quality": bool(signals.get("qualities")),
+        "body_quality": bool(signals.get("qualities")) or bool(signals.get("mentions_discomfort")),
         "escalation": bool(signals.get("escalation_markers") or signals.get("escalation_text")),
         "discomfort": bool(state.get("discomfort_summary")) or bool(signals.get("mentions_discomfort")),
         "for_against": bool(state.get("for_against_summary")),
@@ -426,6 +454,13 @@ def pick_question_type(state: dict[str, Any]) -> str:
     if phase == "situation":
         candidates = ["situation_when", "situation_pattern"]
     elif phase == "body":
+        if last_question_type == "body_signal" and flags.get("body_signal"):
+            if not flags.get("body_location") and not signals.get("unknown_description"):
+                return "body_location"
+            if not flags.get("escalation"):
+                return "body_escalation"
+            return "discomfort_meaning"
+        
         if flags.get("reactive_pattern"):
             return "discomfort_meaning"
         if flags.get("body_signal") and flags.get("escalation"):
@@ -528,7 +563,7 @@ def _llm_turn(
         "willingness_summary": state.get("willingness_summary"),
         "exploration_summary": state.get("exploration_summary"),
         "practice_direction": state.get("practice_direction"),
-        "suggested_template": QUESTION_TEMPLATES.get(question_type, ""),
+        "suggested_template": QUESTION_GOALS.get(question_type, ""),
         "topic_config": _format_topic_config(topic_config),
     }
 
@@ -546,6 +581,57 @@ def _llm_turn(
         user_message=user_prompt,
         system_prompt=system_prompt,
         temperature=0.3,
+    )
+
+def render_question_with_llm(
+    *,
+    conversation_id: str,
+    question_type: str,
+    state: dict[str, Any],
+    topic_config: dict[str, Any] | None = None,
+    base_system_prompt: str | None = None,
+) -> tuple[str, int, int]:
+    system_prompt = build_asho_system_prompt(base_system_prompt)
+
+    prompt_payload = {
+        "phase": state.get("phase"),
+        "question_type": question_type,
+        "question_goal": QUESTION_GOALS.get(question_type, ""),
+        "context_timing": state.get("context_timing"),
+        "last_question_type": state.get("last_question_type"),
+        "last_question_text": state.get("last_question_text"),
+        "already_known": {
+            "situation_summary": state.get("situation_summary"),
+            "body_summary": state.get("body_summary"),
+            "discomfort_summary": state.get("discomfort_summary"),
+            "for_against_summary": state.get("for_against_summary"),
+            "willingness_summary": state.get("willingness_summary"),
+            "exploration_summary": state.get("exploration_summary"),
+            "reactive_pattern": state.get("reactive_pattern"),
+        "covered_flags": state.get("covered_flags"),
+        },
+        "rules": [
+            "Formuler ett kort og naturlig spørsmål på norsk.",
+            "Spørsmålet skal dekke målet i question_goal.",
+            "Ikke gi råd, løsninger eller beroligelse.",
+            "Ikke gjenta samme informasjonsbehov som i last_question_type eller last_question_text.",
+            "Ikke spør om noe som allerede er tydelig nok i already_known.",
+            "Svar kun med selve spørsmålet.",
+        ],
+        "topic_config": _format_topic_config(topic_config),
+    }
+
+    user_prompt = (
+        "Formuler neste ASHO-spørsmål naturlig og kort ut fra dette.\n\n"
+        + json.dumps(prompt_payload, ensure_ascii=False)
+    )
+
+    return chat_with_history_with_system(
+        session_id=conversation_id,
+        history=[],
+        user_message=user_prompt,
+        system_prompt=system_prompt,
+        temperature=0.4,
     )
 
 
@@ -677,9 +763,16 @@ def handle_asho_turn(
         return reply, state
 
     question_type = pick_question_type(state)
-    clean_reply = QUESTION_TEMPLATES.get(question_type, "Hva merker du?")
-    output_tokens = count_tokens(clean_reply, model=settings.MODEL_NAME)
-    prompt_tokens = 0
+
+    reply, output_tokens, prompt_tokens = render_question_with_llm(
+        conversation_id=str(state.get("conversation_id") or ""),
+        question_type=question_type,
+        state=state,
+        topic_config=topic_config,
+        base_system_prompt=base_system_prompt,
+    )
+
+    clean_reply = sanitize_llm_question(reply, question_type)
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
     state["last_question_type"] = question_type
     state["last_question_text"] = clean_reply
