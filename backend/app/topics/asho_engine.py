@@ -11,8 +11,8 @@ from app.core.config import settings
 
 PHASES = [
     "situation",
-    "body",
     "discomfort",
+    "body",
     "for_against",
     "willingness",
     "exploration",
@@ -132,6 +132,7 @@ REACTIVE_PATTERNS = {
 }
 
 QUESTION_GOALS = {
+    "discomfort_binary": "Oppleves situasjonen som behagelig eller ubehagelig.",
     "situation_when": "Hva pleier å skje rett før uroen kommer i denne situasjonen?",
     "situation_pattern": "Er dette noe som skjer i en bestemt type situasjon, eller mer generelt?",
     "body_signal": "Hva er det tydeligste kroppslige signalet når dette skjer?",
@@ -148,6 +149,7 @@ QUESTION_GOALS = {
 }
 
 QUESTION_FALLBACKS = {
+    "discomfort_binary": "Når dette skjer, oppleves det som behagelig eller ubehagelig?",
     "body_signal": "Hva merker du tydeligst i kroppen når dette skjer?",
     "body_location": "Hvor i kroppen merker du det tydeligst?",
     "body_escalation": "Hva skjer videre i kroppen når det først starter?",
@@ -471,38 +473,46 @@ def pick_question_type(state: dict[str, Any]) -> str:
     context_timing = str(state.get("context_timing") or "")
 
     candidates: list[str]
+
     if phase == "situation":
         candidates = ["situation_when", "situation_pattern"]
+
+    elif phase == "discomfort":
+        if not flags.get("discomfort"):
+            candidates = ["discomfort_binary"]
+        else:
+            candidates = ["discomfort_meaning"]
+
     elif phase == "body":
         if last_question_type == "body_signal" and flags.get("body_signal"):
             if not flags.get("body_location") and not signals.get("unknown_description"):
                 return "body_location"
             if not flags.get("escalation"):
                 return "body_escalation"
+            if not flags.get("reactive_pattern"):
+                return "reactive_pattern"
             return "discomfort_meaning"
-        
-        if flags.get("reactive_pattern"):
-            return "discomfort_meaning"
-        if flags.get("body_signal") and flags.get("escalation"):
-            return "discomfort_meaning"
+
         if not flags.get("body_signal"):
             candidates = ["body_signal"]
         elif not flags.get("body_location") and not signals.get("unknown_description"):
             candidates = ["body_location"]
-        elif not flags.get("body_quality") and not signals.get("unknown_description"):
-            candidates = ["body_signal"]
+        elif not flags.get("escalation"):
+            candidates = ["body_escalation"]
         elif not flags.get("reactive_pattern"):
             candidates = ["reactive_pattern"]
         else:
             return "discomfort_meaning"
-    elif phase == "discomfort":
-        candidates = ["discomfort_meaning"]
+
     elif phase == "for_against":
-        candidates = ["for_against_cost", "for_against_function"]
+        candidates = ["for_against_function", "for_against_cost"]
+
     elif phase == "willingness":
         candidates = ["willingness_edge"]
+
     elif phase == "exploration":
         candidates = ["exploration_small_shift"]
+
     else:
         candidates = ["practice_commitment"]
 
@@ -511,8 +521,8 @@ def pick_question_type(state: dict[str, Any]) -> str:
             if context_timing not in {"now", "during"} and candidate == "body_signal":
                 return "body_signal"
             return candidate
-    return candidates[0]
 
+    return candidates[0]
 def should_simplify_after_low_info(state: dict[str, Any]) -> bool:
     signals = dict(state.get("extracted_signals") or {})
     last_question_type = str(state.get("last_question_type") or "")
@@ -820,6 +830,14 @@ def handle_asho_turn(
     state["last_question_text"] = clean_reply
     state["_asho_output_tokens"] = output_tokens or count_tokens(clean_reply, model=settings.MODEL_NAME)
     state["_asho_prompt_tokens"] = prompt_tokens
+    print("ASHO DEBUG", {
+        "phase": state.get("phase"),
+        "question_type": question_type,
+        "covered_flags": state.get("covered_flags"),
+        "reactive_pattern": state.get("reactive_pattern"),
+        "last_question_type": state.get("last_question_type"),
+        "last_question_text": state.get("last_question_text"),
+    })
     return clean_reply, state
     
 
