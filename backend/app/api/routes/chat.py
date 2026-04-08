@@ -386,9 +386,9 @@ def chat(payload: SimpleChatRequest, authorization: str | None = Header(default=
 
             prepend = []
             if initial_summary_text:
-                prepend.append({"role": "assistant", "content": "Samtalestart:\n" + initial_summary_text})
+                prepend.append({"role": "system", "content": f"[SAMTALESAMMENDRAG – START]\n{initial_summary_text}"})
             if summary_text:
-                prepend.append({"role": "assistant", "content": "Senere i samtalen:\n" + summary_text})
+                prepend.append({"role": "system", "content": f"[SAMTALESAMMENDRAG – SISTE]\n{summary_text}"})
             if prepend:
                 history = prepend + history
 

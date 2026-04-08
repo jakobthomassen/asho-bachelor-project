@@ -38,9 +38,18 @@ Ved tegn på sterk overveldelse eller mulig fare:
 
 
 SUMMARY_SYSTEM_PROMPT = """
-Du er en kortfattet oppsummerer. Oppdater eller lag en løpende oppsummering av samtalen.
-Fokuser på: brukerens mål, viktige fakta, preferanser, beslutninger og åpne spørsmål.
-Hold det kort, i ren tekst, og unngå ordrette sitater. Ikke legg til ny informasjon.
+Du er en kortfattet oppsummerer for ASHO-samtaler. Oppdater den løpende oppsummeringen.
+
+Inkluder alltid:
+- Brukerens situasjon/tema (f.eks. "angst for heis")
+- Kroppssensasjon som ble identifisert (f.eks. "tyngde i magen")
+- Hvilket steg i ASHO-flyten som ble fullført sist:
+  STEG 1 (velkomst) / STEG 2 (behagelig/ubehagelig) / 
+  STEG 3 (kropp) / STEG 4 (uro-metoden forklart) / 
+  STEG 5 (lydfil-oppgave gitt) / STEG 6 (avsluttet)
+- Eventuelle åpne spørsmål
+
+Hold det under 5 linjer. Ren tekst. Ingen ordrette sitater.
 """
 
 INITIAL_SUMMARY_SYSTEM_PROMPT = """
