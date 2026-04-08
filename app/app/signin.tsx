@@ -10,6 +10,8 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../components/ThemeContext";
+import { loginWithEmailPassword } from "../api/auth";
+import { useAuth } from "../context/AuthContext";
 
 function normalizeHex(hex: string): string {
   let value = hex.trim().replace("#", "");
@@ -116,27 +118,39 @@ function getSignInPalette(backgroundColor: string) {
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { backgroundColor } = useTheme();
+  const { signIn } = useAuth();
 
   const theme = useMemo(
     () => getSignInPalette(backgroundColor),
     [backgroundColor]
   );
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (normalizedEmail === "admin@asho.no" && password === "admin123") {
-      router.replace("/admin");
+    if (!normalizedEmail || !password) {
+      Alert.alert("Feil", "Skriv inn e-post og passord.");
       return;
     }
 
-    if (normalizedEmail && password) {
-      router.replace("/name");
-      return;
-    }
+    setIsLoading(true);
+    try {
+      const result = await loginWithEmailPassword(normalizedEmail, password);
+      await signIn(result.sessionToken, result.userId, result.isAdmin);
 
-    Alert.alert("Feil", "Skriv inn e-post og passord.");
+      if (result.isAdmin) {
+        router.replace("/admin");
+      } else {
+        router.replace("/name");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Innlogging feilet";
+      Alert.alert("Feil", message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleSignIn = () => {};
@@ -188,13 +202,14 @@ export default function SignInScreen() {
           />
 
           <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.primaryButton }]}
+            style={[styles.primaryButton, { backgroundColor: theme.primaryButton }, isLoading && { opacity: 0.6 }]}
             onPress={handleSignIn}
+            disabled={isLoading}
           >
             <Text
               style={[styles.primaryButtonText, { color: theme.primaryButtonText }]}
             >
-              Signer Inn
+              {isLoading ? "Logger inn..." : "Signer Inn"}
             </Text>
           </TouchableOpacity>
         </View>

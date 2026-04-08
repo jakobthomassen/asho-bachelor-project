@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +16,9 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../../components/ThemeContext";
+import { sendChatMessage, uuidv4 } from "../../api/chat";
+import { createConversation } from "../../api/conversations";
+import { useAuth } from "../../context/AuthContext";
 
 type Message = {
   id: string;
@@ -154,81 +158,88 @@ function getChatPalette(backgroundColor: string): ChatPalette {
 export default function ChatScreen() {
   const { name } = useLocalSearchParams<{ name?: string }>();
   const { backgroundColor } = useTheme();
+  const { sessionToken } = useAuth();
   const theme = useMemo(() => getChatPalette(backgroundColor), [backgroundColor]);
   const flatListRef = useRef<FlatList<Message>>(null);
 
   const displayName =
     typeof name === "string" && name.trim() ? name.trim() : "venn";
 
-  const createBotMessage = (): Message => ({
+  const createBotMessage = (text?: string): Message => ({
     id: `${Date.now()}`,
-    text: `Hei ${displayName}. Hvordan har du det akkurat nå?`,
+    text: text ?? `Hei ${displayName}. Hvordan har du det akkurat nå?`,
     sender: "bot",
   });
 
   const [messages, setMessages] = useState<Message[]>([createBotMessage()]);
   const [input, setInput] = useState("");
   const [showFeelingOptions, setShowFeelingOptions] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [sessionId] = useState(() => uuidv4());
 
-  const canSend = useMemo(() => input.trim().length > 0, [input]);
+  const canSend = useMemo(() => input.trim().length > 0 && !isSending, [input, isSending]);
 
   useEffect(() => {
     setMessages([createBotMessage()]);
     setShowFeelingOptions(true);
+    setConversationId(null);
   }, [displayName]);
 
-  const addUserMessage = (text: string) => {
+  const ensureConversation = async (): Promise<string> => {
+    if (conversationId) return conversationId;
+
+    if (sessionToken) {
+      const conv = await createConversation(sessionToken);
+      setConversationId(conv.id);
+      return conv.id;
+    }
+
+    const id = uuidv4();
+    setConversationId(id);
+    return id;
+  };
+
+  const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const newMessage: Message = {
-      id: `${Date.now()}`,
-      text: trimmed,
-      sender: "user",
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
+    const userMsg: Message = { id: uuidv4(), text: trimmed, sender: "user" };
+    setMessages((prev) => [...prev, userMsg]);
     setShowFeelingOptions(false);
+    setIsSending(true);
 
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const saveConversationToHistory = async (conversation: Message[]) => {
-    const userMessages = conversation.filter((m) => m.sender === "user");
-    if (userMessages.length === 0) return;
-
-    const title =
-      userMessages[0].text.length > 40
-        ? `${userMessages[0].text.slice(0, 40)}...`
-        : userMessages[0].text;
-
-    const newConversation: StoredConversation = {
-      id: `${Date.now()}`,
-      title,
-      createdAt: new Date().toISOString(),
-      messages: conversation,
-    };
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const existing = await AsyncStorage.getItem(HISTORY_STORAGE_KEY);
-      const parsed: StoredConversation[] = existing ? JSON.parse(existing) : [];
-      const updated = [newConversation, ...parsed];
-      await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-    } catch (error) {
-      console.log("Kunne ikke lagre historikk:", error);
+      const convId = await ensureConversation();
+      const response = await sendChatMessage({
+        conversationId: convId,
+        sessionId,
+        message: trimmed,
+        sessionToken,
+      });
+      const botMsg: Message = { id: uuidv4(), text: response.reply, sender: "bot" };
+      setMessages((prev) => [...prev, botMsg]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : "Noe gikk galt";
+      const errMsg: Message = { id: uuidv4(), text: `Feil: ${detail}`, sender: "bot" };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsSending(false);
     }
   };
 
   const handleSend = () => {
     if (!canSend) return;
-    addUserMessage(input);
+    const text = input;
     setInput("");
+    sendMessage(text);
   };
 
   const handleFeelingPress = (feeling: string) => {
-    addUserMessage(feeling);
+    sendMessage(feeling);
   };
 
   const handleClarifyPress = (option: string) => {
@@ -239,12 +250,11 @@ export default function ChatScreen() {
     console.log("Mikrofon trykket");
   };
 
-  const handleNewConversation = async () => {
-    await saveConversationToHistory(messages);
-
+  const handleNewConversation = () => {
     setMessages([createBotMessage()]);
     setInput("");
     setShowFeelingOptions(true);
+    setConversationId(null);
 
     setTimeout(() => {
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });

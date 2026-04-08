@@ -50,7 +50,7 @@ Inkluder alltid:
 - Eventuelle åpne spørsmål
 
 Hold det under 5 linjer. Ren tekst. Ingen ordrette sitater.
-"""
+"""rea
 
 INITIAL_SUMMARY_SYSTEM_PROMPT = """
 Du er en kortfattet oppsummerer. Lag en kort beskrivelse av samtalestart.
