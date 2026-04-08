@@ -132,6 +132,7 @@ REACTIVE_PATTERNS = {
 }
 
 QUESTION_GOALS = {
+    "situation_clarify": "Be brukeren si mer om situasjonen slik at ASHO forstår bedre.",
     "discomfort_binary": "Oppleves situasjonen som behagelig eller ubehagelig.",
     "situation_when": "Hva pleier å skje rett før uroen kommer i denne situasjonen?",
     "situation_pattern": "Er dette noe som skjer i en bestemt type situasjon, eller mer generelt?",
@@ -145,10 +146,12 @@ QUESTION_GOALS = {
     "willingness_edge": "Hva klarer du å legge merke til, uten å måtte presse deg?",
     "exploration_small_shift": "Hvis du ikke skulle gå rett i automatreaksjonen, hva kunne et lite annet steg vært?",
     "practice_commitment": "Hva ville vært et lite, realistisk steg i mindre unngående retning neste gang?",
-    "reactive_pattern": "Hva pleier du å gjøre når det blir sånn?",
 }
 
 QUESTION_FALLBACKS = {
+    "situation_clarify": "Kan du utdype litt slik at jeg forstår deg bedre?",
+    "situation_when": "Hva pleier å skje rett før uroen kommer?",
+    "situation_pattern": "Er dette noe som skjer i en bestemt type situasjon?",
     "discomfort_binary": "Når dette skjer, oppleves det som behagelig eller ubehagelig?",
     "body_signal": "Hva merker du tydeligst i kroppen når dette skjer?",
     "body_location": "Hvor i kroppen merker du det tydeligst?",
@@ -169,7 +172,7 @@ CLARIFICATION_FALLBACKS = {
 }
 
 FALLBACK_PRACTICE = (
-    "Neste gang uroen kommer, legg merke til det første kroppssignalet og bli hos det i to rolige pust "
+    "Neste gang uroen kommer, legg merke til det første kroppssignalet og bli hos det et øyeblikk "
     "før du gjør det vanlige unngåelsessteget."
 )
 
@@ -291,10 +294,10 @@ def get_opening_reply(user_message: str) -> str | None:
     msg_type = classify_opening_message(user_message)
 
     if msg_type in {"empty", "greeting_only"}:
-        return "Hei. Hva vil du ta opp i dag?"
+        return "Hei, og takk for at du tar kontakt. Hva vil du ta opp i dag?"
 
     if msg_type == "vague_opening":
-        return "Hei. Hva ønsker du å se nærmere på?"
+        return "Hei, og takk for at du tar kontakt. Hva ønsker du å se nærmere på?"
 
     return None
 
@@ -430,7 +433,7 @@ def should_progress_phase(state: dict[str, Any]) -> bool:
         return False
 
     if phase == "situation":
-        return flags.get("situation") or count >= 2
+        return (flags.get("situation") and count >= 1) or count >= 3
     if phase == "body":
         if flags.get("body_signal") and flags.get("reactive_pattern"):
             return True
@@ -440,7 +443,7 @@ def should_progress_phase(state: dict[str, Any]) -> bool:
             return count >= 1
         return count >= 2
     if phase == "discomfort":
-        return flags.get("discomfort") or count >= 2
+        return flags.get("discomfort") or count >= 1
     if phase == "for_against":
         return flags.get("for_against") or count >= 2
     if phase == "willingness":
@@ -473,13 +476,12 @@ def pick_question_type(state: dict[str, Any]) -> str:
     candidates: list[str]
 
     if phase == "situation":
+        if not last_question_type or last_question_type == "opening":
+            return "situation_clarify"
         candidates = ["situation_when", "situation_pattern"]
 
     elif phase == "discomfort":
-        if not flags.get("discomfort"):
-            candidates = ["discomfort_binary"]
-        else:
-            candidates = ["discomfort_meaning"]
+        candidates = ["discomfort_binary"]
 
     elif phase == "body":
         if last_question_type == "body_signal" and flags.get("body_signal"):
@@ -557,27 +559,61 @@ def build_supportive_boundary_response() -> str:
     )
 
 
+# OFFLINE – ikke aktivert i flyten ennå.
+# Kjernemal v1.2, steg 4: Forklare Uro-metoden.
+# Skal trigges direkte etter body-fasen når dette steget aktiveres.
+def build_uro_method_explanation() -> str:
+    return (
+        "Det vi gjør i urometoden, er litt annerledes enn det mange er vant til. "
+        "Vanligvis prøver vi å bli kvitt ubehaget. "
+        "I dette arbeidet bruker vi ubehaget som en inngang. "
+        "Når du flytter oppmerksomheten fra tankene og inn i kroppen, blir du kjent med det som er aktivert i deg. "
+        "Og det er nettopp der du gradvis får tilgang til ressurser som klarhet, ro og en annen måte å møte situasjonen på. "
+        "Så i stedet for å fjerne ubehaget, øver vi oss på å bli kjent med det."
+    )
+
+
+PHASE_RELEVANT_SUMMARIES: dict[str, list[str]] = {
+    "situation":   ["situation_summary"],
+    "discomfort":  ["situation_summary", "discomfort_summary"],
+    "body":        ["situation_summary", "discomfort_summary", "body_summary"],
+    "for_against": ["situation_summary", "body_summary", "for_against_summary"],
+    "willingness": ["situation_summary", "body_summary", "for_against_summary", "willingness_summary"],
+    "exploration": ["body_summary", "for_against_summary", "willingness_summary", "exploration_summary"],
+    "practice":    ["situation_summary", "body_summary", "for_against_summary", "willingness_summary", "exploration_summary"],
+}
+
+
+def _phase_summaries(state: dict[str, Any]) -> dict[str, str]:
+    phase = str(state.get("phase") or "situation")
+    relevant_keys = PHASE_RELEVANT_SUMMARIES.get(phase, PHASE_RELEVANT_SUMMARIES["situation"])
+    return {k: v for k in relevant_keys if (v := str(state.get(k) or ""))}
+
+
 def _format_topic_config(topic_config: dict[str, Any] | None) -> str:
     if not topic_config:
         return ""
     compact = {
-        "title": topic_config.get("title"),
-        "micro_instructions": topic_config.get("micro_instructions") or {},
-        "constraints": topic_config.get("constraints") or {},
-        "safety_rules": topic_config.get("safety_rules") or {},
+        k: v for k, v in {
+            "micro_instructions": topic_config.get("micro_instructions"),
+            "constraints": topic_config.get("constraints"),
+            "safety_rules": topic_config.get("safety_rules"),
+        }.items() if v
     }
-    return json.dumps(compact, ensure_ascii=False)
+    return json.dumps(compact, ensure_ascii=False) if compact else ""
 
 def build_asho_system_prompt(base_system_prompt: str | None = None) -> str:
     asho_appendix = """
 ASHO-tillegg:
 - Din jobb er å hjelpe brukeren å legge merke til hva som skjer i kroppen når ubehag kommer.
 - Still ett kort spørsmål om gangen.
+- Speile alltid det brukeren sier kort før du stiller neste spørsmål.
 - Ikke gjenta samme spørsmål eller informasjonsbehov i ny formulering.
 - Ikke spør videre om noe som allerede er tydelig nok.
 - Ett til to spørsmål om samme kroppssignal er som regel nok.
 - Når kroppsmønsteret er tydelig, gå videre til hva som skjer videre eller hva brukeren gjør når det kommer.
 - Ikke gi råd, løsninger, teknikker, beroligelse eller mestringsforslag før praksisfasen.
+- Ikke foreslå pusteteknikker.
 - Ikke opptre som en generell terapeut.
 - Ikke snakk som om situasjonen skjer akkurat nå hvis brukeren beskriver et mønster eller en bestemt situasjon.
 - Når brukeren går opp i tanker eller forklaringer, før oppmerksomheten rolig tilbake til det som merkes direkte i kroppen.
@@ -602,23 +638,23 @@ def _llm_turn(
 ) -> tuple[str, int, int]:
     system_prompt = build_asho_system_prompt(base_system_prompt)
 
-    prompt_payload = {
+    _flags = {k: v for k, v in (state.get("covered_flags") or {}).items() if v}
+    _tc = _format_topic_config(topic_config)
+
+    prompt_payload: dict[str, Any] = {
         "mode": mode,
         "phase": phase,
         "question_type": question_type,
-        "context_timing": state.get("context_timing"),
-        "covered_flags": state.get("covered_flags"),
-        "reactive_pattern": state.get("reactive_pattern"),
-        "situation_summary": state.get("situation_summary"),
-        "body_summary": state.get("body_summary"),
-        "discomfort_summary": state.get("discomfort_summary"),
-        "for_against_summary": state.get("for_against_summary"),
-        "willingness_summary": state.get("willingness_summary"),
-        "exploration_summary": state.get("exploration_summary"),
-        "practice_direction": state.get("practice_direction"),
         "suggested_template": QUESTION_GOALS.get(question_type, ""),
-        "topic_config": _format_topic_config(topic_config),
+        **_phase_summaries(state),
     }
+    for _key in ("context_timing", "reactive_pattern", "practice_direction"):
+        if _val := state.get(_key):
+            prompt_payload[_key] = _val
+    if _flags:
+        prompt_payload["covered_flags"] = _flags
+    if _tc:
+        prompt_payload["topic_config"] = _tc
 
     user_prompt = (
         "Lag neste ASHO-svar ut fra denne tilstanden. "
@@ -646,23 +682,20 @@ def render_question_with_llm(
 ) -> tuple[str, int, int]:
     system_prompt = build_asho_system_prompt(base_system_prompt)
 
-    prompt_payload = {
+    _flags = {k: v for k, v in (state.get("covered_flags") or {}).items() if v}
+    _tc = _format_topic_config(topic_config)
+
+    already_known: dict[str, Any] = {**_phase_summaries(state)}
+    if _rp := state.get("reactive_pattern"):
+        already_known["reactive_pattern"] = _rp
+    if _flags:
+        already_known["covered_flags"] = _flags
+
+    prompt_payload: dict[str, Any] = {
         "phase": state.get("phase"),
         "question_type": question_type,
         "question_goal": QUESTION_GOALS.get(question_type, ""),
-        "context_timing": state.get("context_timing"),
-        "last_question_type": state.get("last_question_type"),
-        "last_question_text": state.get("last_question_text"),
-        "already_known": {
-            "situation_summary": state.get("situation_summary"),
-            "body_summary": state.get("body_summary"),
-            "discomfort_summary": state.get("discomfort_summary"),
-            "for_against_summary": state.get("for_against_summary"),
-            "willingness_summary": state.get("willingness_summary"),
-            "exploration_summary": state.get("exploration_summary"),
-            "reactive_pattern": state.get("reactive_pattern"),
-        "covered_flags": state.get("covered_flags"),
-        },
+        "already_known": already_known,
         "rules": [
             "Formuler ett kort, naturlig og enkelt spørsmål på norsk.",
             "Spørsmålet skal passe godt til det brukeren nettopp sa.",
@@ -673,8 +706,12 @@ def render_question_with_llm(
             "Ikke spør om noe som already_known viser er tydelig nok.",
             "Svar kun med selve spørsmålet.",
         ],
-        "topic_config": _format_topic_config(topic_config),
     }
+    for _key in ("context_timing", "last_question_type", "last_question_text"):
+        if _val := state.get(_key):
+            prompt_payload[_key] = _val
+    if _tc:
+        prompt_payload["topic_config"] = _tc
 
     user_prompt = (
         "Formuler neste ASHO-spørsmål naturlig og kort ut fra dette.\n\n"
@@ -844,21 +881,73 @@ def handle_asho_turn(
         state["_asho_prompt_tokens"] = 0
         return reply, state
 
+    signals = dict(state.get("extracted_signals") or {})
+    current_phase = str(state.get("phase") or "situation")
+    last_qt = str(state.get("last_question_type") or "")
+
+    if current_phase == "body" and signals.get("unknown_description"):
+        vetikke_reply = "Det er helt fint. Da kan du legge merke til hvor i kroppen du kjenner det neste gang en slik situasjon oppstår."
+        state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
+        state["last_question_type"] = "body_vetikke"
+        state["last_question_text"] = vetikke_reply
+        state["_asho_output_tokens"] = count_tokens(vetikke_reply, model=settings.MODEL_NAME)
+        state["_asho_prompt_tokens"] = 0
+        return vetikke_reply, state
+
+    _already_redirected = (state.get("used_question_angles") or []).count("body_redirect") >= 1
+    if (
+        current_phase == "body"
+        and last_qt in {"body_signal", "body_location", "body_escalation"}
+        and not _already_redirected
+        and not signals.get("mentions_body_signal")
+        and not signals.get("low_information")
+        and not signals.get("unknown_description")
+    ):
+        redirect = "Jeg hører hva du sier. Samtidig er jeg nysgjerrig på hva som skjer i kroppen din når dette skjer."
+        state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
+        state["last_question_type"] = "body_redirect"
+        state["last_question_text"] = redirect
+        _used = list(state.get("used_question_angles") or [])
+        _used.append("body_redirect")
+        state["used_question_angles"] = _used[-6:]
+        state["_asho_output_tokens"] = count_tokens(redirect, model=settings.MODEL_NAME)
+        state["_asho_prompt_tokens"] = 0
+        return redirect, state
+
     state = maybe_advance_phase(state)
 
     if state.get("phase") == "practice" and state.get("can_generate_practice"):
-        reply, output_tokens, prompt_tokens = generate_practice_task(
-            state,
-            topic_config,
-            base_system_prompt,
-        )
-        state["generated_practice_text"] = reply
-        state["last_question_type"] = "practice_commitment"
-        state["last_question_text"] = reply
-        state["_asho_output_tokens"] = output_tokens
-        state["_asho_prompt_tokens"] = prompt_tokens
-        return reply, state
-    
+        if not state.get("generated_practice_text"):
+            reply, output_tokens, prompt_tokens = generate_practice_task(
+                state,
+                topic_config,
+                base_system_prompt,
+            )
+            state["generated_practice_text"] = reply
+            state["last_question_type"] = "practice_commitment"
+            state["last_question_text"] = reply
+            state["_asho_output_tokens"] = output_tokens
+            state["_asho_prompt_tokens"] = prompt_tokens
+            return reply, state
+        if last_qt == "closing_commitment":
+            final = "Da kan du begynne her. Start med lydfilen i oppmerksomhetstreningen, og la den hjelpe deg å bli mer kjent med kroppen og det som skjer i deg."
+            state["last_question_type"] = "closing_final"
+            state["last_question_text"] = final
+            state["_asho_output_tokens"] = count_tokens(final, model=settings.MODEL_NAME)
+            state["_asho_prompt_tokens"] = 0
+            return final, state
+        if last_qt != "closing_final":
+            closing = "Er du villig til å utforske dette i hverdagen?"
+            state["last_question_type"] = "closing_commitment"
+            state["last_question_text"] = closing
+            state["_asho_output_tokens"] = count_tokens(closing, model=settings.MODEL_NAME)
+            state["_asho_prompt_tokens"] = 0
+            return closing, state
+        final = "Da kan du begynne her. Start med lydfilen i oppmerksomhetstreningen, og la den hjelpe deg å bli mer kjent med kroppen og det som skjer i deg."
+        state["_asho_output_tokens"] = count_tokens(final, model=settings.MODEL_NAME)
+        state["_asho_prompt_tokens"] = 0
+        return final, state
+
     if should_simplify_after_low_info(state):
         question_type = "reactive_pattern"
     else:
@@ -871,13 +960,13 @@ def handle_asho_turn(
         if has_repeated_question_type_too_much(state, question_type):
             question_type = fallback_question_type_after_low_info(state)
 
-        reply, output_tokens, prompt_tokens = render_question_with_llm(
-            conversation_id=str(state.get("conversation_id") or ""),
-            question_type=question_type,
-            state=state,
-            topic_config=topic_config,
-            base_system_prompt=base_system_prompt,
-        )
+    reply, output_tokens, prompt_tokens = render_question_with_llm(
+        conversation_id=str(state.get("conversation_id") or ""),
+        question_type=question_type,
+        state=state,
+        topic_config=topic_config,
+        base_system_prompt=base_system_prompt,
+    )
 
     clean_reply = sanitize_llm_question(reply, question_type)
     state["phase_question_count"] = int(state.get("phase_question_count") or 0) + 1
@@ -890,9 +979,6 @@ def handle_asho_turn(
     used.append(question_type)
     state["used_question_angles"] = used[-6:]
 
-    state["_asho_output_tokens"] = output_tokens or count_tokens(clean_reply, model=settings.MODEL_NAME)
-    state["_asho_prompt_tokens"] = prompt_tokens
-    
     print("ASHO DEBUG", {
         "phase": state.get("phase"),
         "question_type": question_type,
