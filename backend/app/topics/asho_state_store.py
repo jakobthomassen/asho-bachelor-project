@@ -37,6 +37,7 @@ DEFAULT_STATE: dict[str, Any] = {
     "needs_external_support": False,
     "covered_subtopics": {},
     "used_question_angles": [],
+    "recent_question_texts": [],
 }
 
 JSON_LIKE_COLUMNS = {
@@ -44,6 +45,7 @@ JSON_LIKE_COLUMNS = {
     "extracted_signals",
     "covered_subtopics",
     "used_question_angles",
+    "recent_question_texts",
 }
 SYSTEM_COLUMNS = {"created_at", "updated_at"}
 
@@ -94,6 +96,7 @@ def _normalize_state(raw_state: dict[str, Any] | None) -> dict[str, Any] | None:
     merged["context_timing"] = str(merged.get("context_timing") or "general")
     merged["covered_subtopics"] = dict(merged.get("covered_subtopics") or {})
     merged["used_question_angles"] = list(merged.get("used_question_angles") or [])
+    merged["recent_question_texts"] = list(merged.get("recent_question_texts") or [])
     return merged
 
 

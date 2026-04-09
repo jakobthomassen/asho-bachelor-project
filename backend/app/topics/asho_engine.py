@@ -542,6 +542,26 @@ def detect_need_for_external_support(user_message: str) -> bool:
     lower = (user_message or "").lower()
     return any(re.search(pattern, lower) for pattern in RISK_PATTERNS)
 
+META_REQUEST_PATTERNS = [
+    re.compile(r"(hva|hva er det du) mener", re.IGNORECASE),
+    re.compile(r"kan du (utdype|forklare|si mer|fortelle mer|gi et eksempel)", re.IGNORECASE),
+    re.compile(r"(skjønner|forstår) ikke", re.IGNORECASE),
+    re.compile(r"hvorfor (spør|lurer|vil) du", re.IGNORECASE),
+    re.compile(r"oppsummer", re.IGNORECASE),
+    re.compile(r"hva snakker vi om", re.IGNORECASE),
+    re.compile(r"hva handler dette om", re.IGNORECASE),
+    re.compile(r"hva er poenget", re.IGNORECASE),
+    re.compile(r"kan du gjenta", re.IGNORECASE),
+    re.compile(r"hva spurte du", re.IGNORECASE),
+    re.compile(r"hva var spørsmålet", re.IGNORECASE),
+]
+
+def is_meta_request(user_message: str) -> bool:
+    text = (user_message or "").strip().lower()
+    if not text:
+        return False
+    return any(p.search(text) for p in META_REQUEST_PATTERNS)
+
 def is_clarification_request(user_message: str) -> bool:
     text = (user_message or "").strip().lower()
     return text in {
@@ -656,11 +676,15 @@ def _llm_turn(
     if _tc:
         prompt_payload["topic_config"] = _tc
 
+    if recent := list(state.get("recent_question_texts") or []):
+        prompt_payload["recent_questions"] = recent
+
     user_prompt = (
         "Lag neste ASHO-svar ut fra denne tilstanden. "
         "Hvis mode er question: still ett kort spørsmål. "
         "Hvis mode er practice: skriv ett kort forslag til øvelse/steg, ikke flere. "
-        "Hvis mode er redirect: bekreft kort og led tilbake til kroppslig registrering uten å hjelpe.\n\n"
+        "Hvis mode er redirect: bekreft kort og led tilbake til kroppslig registrering uten å hjelpe. "
+        "Ikke still spørsmål som ligner på noe i recent_questions.\n\n"
         + json.dumps(prompt_payload, ensure_ascii=False)
     )
 
@@ -671,6 +695,47 @@ def _llm_turn(
         system_prompt=system_prompt,
         temperature=0.3,
     )
+
+def _llm_meta_turn(
+    *,
+    conversation_id: str,
+    user_message: str,
+    state: dict[str, Any],
+    base_system_prompt: str | None = None,
+) -> tuple[str, int, int]:
+    """Handle meta-requests: user asks why, wants elaboration, summary, etc."""
+    system_prompt = build_asho_system_prompt(base_system_prompt)
+
+    phase = state.get("phase", "situation")
+    last_q = state.get("last_question_text", "")
+    last_qt = state.get("last_question_type", "")
+
+    context: dict[str, Any] = {
+        "phase": phase,
+        "last_question_type": last_qt,
+        "last_question_text": last_q,
+        **_phase_summaries(state),
+    }
+
+    user_prompt = (
+        "Brukeren har et metaspørsmål eller en forespørsel om samtalen. "
+        "Svar kort, varmt og ærlig på det brukeren spør om. "
+        "Du kan forklare hvorfor du stilte spørsmålet, utdype, oppsummere, eller gi kontekst. "
+        "Hold svaret kort (1-3 setninger). "
+        "Etter svaret, still gjerne et nytt relevant spørsmål hvis det passer naturlig — men du trenger ikke. "
+        "Ikke tving fram et nytt spørsmål hvis brukeren bare trenger en avklaring.\n\n"
+        f"Brukerens melding: \"{user_message}\"\n\n"
+        "Kontekst:\n" + json.dumps(context, ensure_ascii=False)
+    )
+
+    return chat_with_history_with_system(
+        session_id=conversation_id,
+        history=[],
+        user_message=user_prompt,
+        system_prompt=system_prompt,
+        temperature=0.4,
+    )
+
 
 def render_question_with_llm(
     *,
@@ -704,8 +769,10 @@ def render_question_with_llm(
             "Ikke gi råd, løsninger eller beroligelse.",
             "Ikke gjenta samme informasjonsbehov som i last_question_type eller last_question_text.",
             "Ikke spør om noe som already_known viser er tydelig nok.",
+            "Ikke still et spørsmål som ligner på noe i recent_questions.",
             "Svar kun med selve spørsmålet.",
         ],
+        "recent_questions": list(state.get("recent_question_texts") or []),
     }
     for _key in ("context_timing", "last_question_type", "last_question_text"):
         if _val := state.get(_key):
@@ -856,14 +923,19 @@ def handle_asho_turn(
 ) -> tuple[str, dict[str, Any]]:
     pre_turn_count = int(state.get("total_turn_count") or 0)
     
-    if is_clarification_request(user_message):
-        last_q = str(state.get("last_question_type") or "")
-        explanation = CLARIFICATION_FALLBACKS.get(last_q)
-        if explanation:
-            state["_asho_output_tokens"] = count_tokens(explanation, model=settings.MODEL_NAME)
-            state["_asho_prompt_tokens"] = 0
-            state["last_question_text"] = explanation
-            return explanation, state
+    if is_meta_request(user_message):
+        reply, output_tokens, prompt_tokens = _llm_meta_turn(
+            conversation_id=str(state.get("conversation_id") or ""),
+            user_message=user_message,
+            state=state,
+            base_system_prompt=base_system_prompt,
+        )
+        clean = (reply or "").strip()
+        if clean:
+            state["last_question_text"] = clean
+            state["_asho_output_tokens"] = output_tokens
+            state["_asho_prompt_tokens"] = prompt_tokens
+            return clean, state
     if pre_turn_count == 0:
         opening_reply = get_opening_reply(user_message)
         if opening_reply is not None:
@@ -978,6 +1050,10 @@ def handle_asho_turn(
     used = list(state.get("used_question_angles") or [])
     used.append(question_type)
     state["used_question_angles"] = used[-6:]
+
+    recent_texts = list(state.get("recent_question_texts") or [])
+    recent_texts.append(clean_reply)
+    state["recent_question_texts"] = recent_texts[-4:]
 
     print("ASHO DEBUG", {
         "phase": state.get("phase"),
