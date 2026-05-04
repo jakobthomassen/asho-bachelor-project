@@ -37,7 +37,7 @@ function TabsContent() {
       <Tabs.Screen
         name="reise"
         options={{
-          title: "Reise",
+          title: "Uropraksis",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="map-outline" size={size} color={color} />
           ),

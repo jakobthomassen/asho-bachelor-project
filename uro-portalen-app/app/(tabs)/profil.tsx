@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  TextInput,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
@@ -39,12 +40,7 @@ function FadeUpSection({
   }, [delay, opacity, translateY]);
 
   return (
-    <Animated.View
-      style={{
-        opacity,
-        transform: [{ translateY }],
-      }}
-    >
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       {children}
     </Animated.View>
   );
@@ -52,7 +48,11 @@ function FadeUpSection({
 
 export default function ProfilScreen() {
   const { isDark, toggleTheme, colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<"progress" | "journal">("progress");
+  const [activeTab, setActiveTab] = useState<"progress" | "reflections">(
+    "progress"
+  );
+  const [reflectionText, setReflectionText] = useState("");
+  const [reflections, setReflections] = useState<string[]>([]);
 
   const palette = useMemo(() => {
     return {
@@ -70,6 +70,15 @@ export default function ProfilScreen() {
       progressTrack: isDark ? "#312F2B" : "#E8E3DA",
     };
   }, [colors, isDark]);
+
+  const handleSaveReflection = () => {
+    const trimmed = reflectionText.trim();
+
+    if (!trimmed) return;
+
+    setReflections((prev) => [trimmed, ...prev]);
+    setReflectionText("");
+  };
 
   return (
     <ScrollView
@@ -139,9 +148,9 @@ export default function ProfilScreen() {
               { backgroundColor: palette.card, borderColor: palette.border },
             ]}
           >
-            <Text style={[styles.statNumber, { color: palette.text }]}>0</Text>
+            <Text style={[styles.statNumber, { color: palette.text }]}>0t</Text>
             <Text style={[styles.statLabel, { color: palette.mutedText }]}>
-              Refleksjoner
+              Timer lyttet
             </Text>
           </View>
 
@@ -185,23 +194,23 @@ export default function ProfilScreen() {
           <TouchableOpacity
             style={[
               styles.segmentButton,
-              activeTab === "journal" && {
+              activeTab === "reflections" && {
                 backgroundColor: palette.activeSegmentBg,
                 borderWidth: 1,
                 borderColor: palette.activeSegmentBorder,
               },
             ]}
             activeOpacity={0.85}
-            onPress={() => setActiveTab("journal")}
+            onPress={() => setActiveTab("reflections")}
           >
             <Text
               style={[
                 styles.segmentText,
                 { color: palette.mutedText },
-                activeTab === "journal" && { color: palette.text },
+                activeTab === "reflections" && { color: palette.text },
               ]}
             >
-              Dagbok
+              Refleksjoner
             </Text>
           </TouchableOpacity>
         </View>
@@ -221,7 +230,7 @@ export default function ProfilScreen() {
               <View style={styles.progressHeader}>
                 <View>
                   <Text style={[styles.progressTitle, { color: palette.text }]}>
-                    Uroreisen
+                    Uropraksis
                   </Text>
                   <Text
                     style={[styles.progressSubtitle, { color: palette.mutedText }]}
@@ -323,16 +332,71 @@ export default function ProfilScreen() {
         <FadeUpSection delay={260}>
           <View
             style={[
-              styles.journalPlaceholder,
+              styles.reflectionCard,
               { backgroundColor: palette.card, borderColor: palette.border },
             ]}
           >
             <Text style={[styles.journalTitle, { color: palette.text }]}>
-              Dagbok
+              Skriv refleksjon
             </Text>
+
             <Text style={[styles.journalText, { color: palette.mutedText }]}>
-              Her kan brukeren senere se og skrive refleksjoner.
+              Skriv ned tanker, følelser eller noe du la merke til i dag.
             </Text>
+
+            <TextInput
+              style={[
+                styles.reflectionInput,
+                {
+                  backgroundColor: palette.background,
+                  borderColor: palette.border,
+                  color: palette.text,
+                },
+              ]}
+              placeholder="Hva legger du merke til?"
+              placeholderTextColor={palette.mutedText}
+              value={reflectionText}
+              onChangeText={setReflectionText}
+              multiline
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: palette.primary }]}
+              activeOpacity={0.9}
+              onPress={handleSaveReflection}
+            >
+              <Text style={[styles.saveButtonText, { color: colors.white }]}>
+                Lagre refleksjon
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.reflectionList}>
+            {reflections.length === 0 ? (
+              <Text style={[styles.emptyText, { color: palette.mutedText }]}>
+                Ingen refleksjoner enda.
+              </Text>
+            ) : (
+              reflections.map((reflection, index) => (
+                <View
+                  key={`${reflection}-${index}`}
+                  style={[
+                    styles.reflectionItem,
+                    { backgroundColor: palette.card, borderColor: palette.border },
+                  ]}
+                >
+                  <Text style={[styles.reflectionItemTitle, { color: palette.text }]}>
+                    Refleksjon {reflections.length - index}
+                  </Text>
+                  <Text
+                    style={[styles.reflectionItemText, { color: palette.mutedText }]}
+                  >
+                    {reflection}
+                  </Text>
+                </View>
+              ))
+            )}
           </View>
         </FadeUpSection>
       )}
@@ -341,9 +405,7 @@ export default function ProfilScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
 
   content: {
     paddingHorizontal: 24,
@@ -373,20 +435,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  avatarText: {
-    fontSize: 28,
-    fontWeight: "700",
-  },
+  avatarText: { fontSize: 28, fontWeight: "700" },
 
-  name: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
+  name: { fontSize: 22, fontWeight: "700", marginBottom: 4 },
 
-  email: {
-    fontSize: 15,
-  },
+  email: { fontSize: 15 },
 
   headerActions: {
     flexDirection: "row",
@@ -394,9 +447,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  iconButton: {
-    padding: 8,
-  },
+  iconButton: { padding: 8 },
 
   statsRow: {
     flexDirection: "row",
@@ -473,9 +524,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  progressSubtitle: {
-    fontSize: 15,
-  },
+  progressSubtitle: { fontSize: 15 },
 
   progressLink: {
     fontSize: 16,
@@ -530,16 +579,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  linkSubtitle: {
-    fontSize: 15,
-  },
+  linkSubtitle: { fontSize: 15 },
 
-  journalPlaceholder: {
+  reflectionCard: {
     borderRadius: 28,
     borderWidth: 1,
-    padding: 24,
-    minHeight: 180,
-    justifyContent: "center",
+    padding: 22,
+    marginBottom: 18,
   },
 
   journalTitle: {
@@ -551,5 +597,55 @@ const styles = StyleSheet.create({
   journalText: {
     fontSize: 16,
     lineHeight: 24,
+    marginBottom: 18,
+  },
+
+  reflectionInput: {
+    minHeight: 140,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+
+  saveButton: {
+    minHeight: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  reflectionList: {
+    gap: 12,
+  },
+
+  emptyText: {
+    fontSize: 15,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  reflectionItem: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 18,
+  },
+
+  reflectionItemTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  reflectionItemText: {
+    fontSize: 15,
+    lineHeight: 23,
   },
 });

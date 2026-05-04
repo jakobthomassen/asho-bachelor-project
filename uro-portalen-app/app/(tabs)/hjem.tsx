@@ -48,12 +48,7 @@ function FadeUpSection({
   }, [delay, opacity, translateY]);
 
   return (
-    <Animated.View
-      style={{
-        opacity,
-        transform: [{ translateY }],
-      }}
-    >
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       {children}
     </Animated.View>
   );
@@ -86,14 +81,17 @@ export default function HjemScreen() {
           onPress={() => router.push("/(tabs)/reise")}
         >
           <View style={styles.cardTopRow}>
-            <Text style={[styles.eyebrow, { color: Colors.white }]}>DIN REISE</Text>
+            <Text style={[styles.eyebrow, { color: Colors.white }]}>
+              Uropraksis
+            </Text>
+
             <View style={styles.circleButton}>
               <Ionicons name="arrow-forward" size={22} color={Colors.white} />
             </View>
           </View>
 
           <Text style={[styles.cardTitle, { color: Colors.white }]}>
-            Uke 1 — Møt uroen
+            Uke 1 - Møt uroen
           </Text>
 
           <Text style={[styles.cardDescription, { color: Colors.white }]}>
@@ -101,7 +99,10 @@ export default function HjemScreen() {
           </Text>
 
           <TouchableOpacity
-            style={[styles.startButton, { backgroundColor: "rgba(255,255,255,0.16)" }]}
+            style={[
+              styles.startButton,
+              { backgroundColor: "rgba(255,255,255,0.16)" },
+            ]}
             activeOpacity={0.9}
             onPress={() => router.push("/(tabs)/reise")}
           >
@@ -125,6 +126,7 @@ export default function HjemScreen() {
           <Text style={[styles.thoughtEyebrow, { color: Colors.primary }]}>
             DAGENS TANKE
           </Text>
+
           <Text style={[styles.thoughtText, { color: Colors.mutedText }]}>
             Sinnet lager historier. Kroppen kjenner sannheten. Begge har noe å si.
           </Text>
@@ -133,7 +135,9 @@ export default function HjemScreen() {
 
       <FadeUpSection delay={240}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: Colors.text }]}>Snarveier</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.text }]}>
+            Snarveier
+          </Text>
         </View>
       </FadeUpSection>
 
@@ -147,12 +151,16 @@ export default function HjemScreen() {
           onPress={() => router.push("/(tabs)/lydbibliotek")}
         >
           <View style={styles.linkLeft}>
-            <View style={[styles.linkIconBox, { backgroundColor: Colors.background }]}>
+            <View
+              style={[styles.linkIconBox, { backgroundColor: Colors.background }]}
+            >
               <Ionicons name="headset-outline" size={24} color={Colors.primary} />
             </View>
 
             <View>
-              <Text style={[styles.linkTitle, { color: Colors.text }]}>Bibliotek</Text>
+              <Text style={[styles.linkTitle, { color: Colors.text }]}>
+                Bibliotek
+              </Text>
               <Text style={[styles.linkSubtitle, { color: Colors.mutedText }]}>
                 Utforsk lydøkter i eget tempo
               </Text>
@@ -170,14 +178,19 @@ export default function HjemScreen() {
             { backgroundColor: Colors.card, borderColor: Colors.border },
           ]}
           activeOpacity={0.9}
+          onPress={() => router.push("/reflections")}
         >
           <View style={styles.linkLeft}>
-            <View style={[styles.linkIconBox, { backgroundColor: Colors.background }]}>
+            <View
+              style={[styles.linkIconBox, { backgroundColor: Colors.background }]}
+            >
               <Ionicons name="create-outline" size={24} color={Colors.primary} />
             </View>
 
             <View>
-              <Text style={[styles.linkTitle, { color: Colors.text }]}>Refleksjon</Text>
+              <Text style={[styles.linkTitle, { color: Colors.text }]}>
+                Refleksjon
+              </Text>
               <Text style={[styles.linkSubtitle, { color: Colors.mutedText }]}>
                 Skriv ned det du legger merke til
               </Text>
@@ -195,14 +208,19 @@ export default function HjemScreen() {
             { backgroundColor: Colors.card, borderColor: Colors.border },
           ]}
           activeOpacity={0.9}
+          onPress={() => router.push("/(tabs)/kurs")}
         >
           <View style={styles.linkLeft}>
-            <View style={[styles.linkIconBox, { backgroundColor: Colors.background }]}>
+            <View
+              style={[styles.linkIconBox, { backgroundColor: Colors.background }]}
+            >
               <Ionicons name="school-outline" size={24} color={Colors.primary} />
             </View>
 
             <View>
-              <Text style={[styles.linkTitle, { color: Colors.text }]}>Uro-skolen</Text>
+              <Text style={[styles.linkTitle, { color: Colors.text }]}>
+                Uro-skolen
+              </Text>
               <Text style={[styles.linkSubtitle, { color: Colors.mutedText }]}>
                 Kunnskap og historier
               </Text>

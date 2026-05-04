@@ -164,7 +164,7 @@ export default function ReiseScreen() {
       showsVerticalScrollIndicator={false}
     >
       <FadeUpSection delay={0}>
-        <Text style={[styles.title, { color: Colors.text }]}>Uroreisen</Text>
+        <Text style={[styles.title, { color: Colors.text }]}>Uropraksis</Text>
         <Text style={[styles.subtitle, { color: Colors.mutedText }]}>
           8 uker mot mer ro
         </Text>
