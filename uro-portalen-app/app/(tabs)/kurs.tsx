@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,68 +12,61 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTheme } from "@/components/ui/ThemeContext";
 
-const sections = [
+const courses = [
   {
-    title: "Urofordypning",
-    cards: [
-      {
-        title: "Én-til-én veiledning",
-        text: "Personlig veiledning online eller fysisk.",
-        icon: "person-outline",
-      },
-      {
-        title: "Kurs",
-        text: "Fordyp praksisen gjennom kurs og retreats.",
-        icon: "calendar-outline",
-      },
-      {
-        title: "Uroskolen",
-        text: "Et fordypningsløp i seks moduler.",
-        icon: "school-outline",
-      },
-    ],
+    title: "Fredagsmøte",
+    type: "Online",
+    date: "8. mai 2026 · 13:30",
+    location: "Google Meets",
+    text: "Ordinært fredagsmøte for internt team.",
   },
   {
-    title: "Kurs",
-    cards: [
-      {
-        title: "Kommende kurs",
-        text: "Se datoer og påmelding.",
-        icon: "time-outline",
-      },
-      {
-        title: "Fysiske kurs",
-        text: "Møt opp og praktiser sammen.",
-        icon: "location-outline",
-      },
-      {
-        title: "Online kurs",
-        text: "Delta hjemmefra i eget tempo.",
-        icon: "laptop-outline",
-      },
-    ],
+    title: "Møte med kongen",
+    type: "Fysisk",
+    date: "9. mai 2026 · 13:30",
+    location: "Slottsplassen 1, Oslo",
+    text: "Test-møte, ignorer.",
   },
   {
-    title: "Uro-skolen",
-    cards: [
-      {
-        title: "Om Uroskolen",
-        text: "Les om fordypningsløpet.",
-        icon: "information-circle-outline",
-      },
-      {
-        title: "Moduler",
-        text: "Utforsk seks moduler.",
-        icon: "layers-outline",
-      },
-      {
-        title: "Neste oppstart",
-        text: "Meld interesse for neste runde.",
-        icon: "sparkles-outline",
-      },
-    ],
+    title: "Avsluttende møte",
+    type: "Online",
+    date: "13. mai 2026 · 13:30",
+    location: "Google Meets",
+    text: "Avsluttende møte for internt team.",
   },
-] as const;
+];
+
+const fordypningCards = [
+  {
+    title: "Én-til-én veiledning",
+    text: "Personlig veiledning online eller fysisk.",
+    action: "Gå til timebestilling →",
+    icon: "person-outline",
+    route: "/veiledning",
+  },
+  {
+    title: "Fordypningsretreat",
+    text: "Fordyp praksisen gjennom retreats og workshops.",
+    action: "Se muligheter →",
+    icon: "calendar-outline",
+    route: "/kurs-liste",
+  },
+];
+
+const skoleCards = [
+  {
+    title: "Værmelding",
+    text: "Et lite rom for å sjekke inn med hvordan du har det akkurat nå.",
+    action: "Yr →",
+    icon: "sunny-outline",
+  },
+  {
+    title: "Testkort",
+    text: "Her kan vi senere legge inn videoer, lyd eller annet innhold fra Uro-skolen.",
+    action: "Gå til Youtube →",
+    icon: "musical-notes-outline",
+  },
+];
 
 function FadeUpSection({
   children,
@@ -110,112 +104,210 @@ function FadeUpSection({
 
 export default function KursScreen() {
   const { colors: Colors } = useTheme();
-
-  const handleCardPress = (sectionTitle: string, cardTitle: string) => {
-    // 🔥 UROFORDYPNING
-    if (sectionTitle === "Urofordypning") {
-      if (cardTitle === "Én-til-én veiledning") {
-        router.push("/veiledning");
-        return;
-      }
-
-      if (cardTitle === "Kurs") {
-        router.push("/kurs-detaljer");
-        return;
-      }
-
-      if (cardTitle === "Uroskolen") {
-        router.push("/uroskolen");
-        return;
-      }
-    }
-
-    // 🔥 ALL KURS → SAME PAGE
-    if (sectionTitle === "Kurs") {
-      router.push("/kurs-liste");
-      return;
-    }
-
-    // (optional later) Uro-skolen section deeper nav
-    console.log("Pressed:", sectionTitle, "-", cardTitle);
-  };
+  const [selectedCourse, setSelectedCourse] = useState<(typeof courses)[number] | null>(
+    null
+  );
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: Colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <FadeUpSection>
-        <Text style={[styles.title, { color: Colors.text }]}>Kurs</Text>
-        <Text style={[styles.subtitle, { color: Colors.mutedText }]}>
-          Veiledning, fordypning og Uro-skolen.
-        </Text>
-      </FadeUpSection>
+    <>
+      <ScrollView
+        style={[styles.container, { backgroundColor: Colors.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <FadeUpSection>
+          <Text style={[styles.title, { color: Colors.text }]}>Kurs</Text>
+          <Text style={[styles.subtitle, { color: Colors.mutedText }]}>
+            Veiledning, fordypning og Uro-skolen.
+          </Text>
+        </FadeUpSection>
 
-      {sections.map((section, sectionIndex) => (
-        <FadeUpSection key={section.title} delay={100 + sectionIndex * 120}>
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.text }]}>
-              {section.title}
-            </Text>
+        <FadeUpSection delay={100}>
+          <Text style={[styles.sectionLabel, { color: Colors.mutedText }]}>KURS</Text>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.cardRow}
-            >
-              {section.cards.map((card) => (
-                <TouchableOpacity
-                  key={card.title}
-                  activeOpacity={0.9}
-                  onPress={() =>
-                    handleCardPress(section.title, card.title)
-                  }
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.courseRow}
+          >
+            {courses.map((course) => (
+              <TouchableOpacity
+                key={course.title}
+                activeOpacity={0.9}
+                onPress={() => setSelectedCourse(course)}
+                style={[
+                  styles.courseCard,
+                  { backgroundColor: Colors.card, borderColor: Colors.border },
+                ]}
+              >
+                <View
                   style={[
-                    styles.card,
+                    styles.badge,
                     {
-                      backgroundColor: Colors.card,
-                      borderColor: Colors.border,
+                      backgroundColor:
+                        course.type === "Online" ? "#E5EFE8" : "#F7E8D8",
                     },
                   ]}
                 >
-                  <View
+                  <Text
                     style={[
-                      styles.iconBox,
-                      { backgroundColor: Colors.background },
+                      styles.badgeText,
+                      {
+                        color:
+                          course.type === "Online" ? Colors.primary : "#B97635",
+                      },
                     ]}
                   >
-                    <Ionicons
-                      name={card.icon}
-                      size={26}
-                      color={Colors.primary}
-                    />
-                  </View>
-
-                  <Text style={[styles.cardTitle, { color: Colors.text }]}>
-                    {card.title}
+                    {course.type}
                   </Text>
+                </View>
 
-                  <Text
-                    style={[styles.cardText, { color: Colors.mutedText }]}
-                    numberOfLines={3}
-                  >
-                    {card.text}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                <Text style={[styles.courseTitle, { color: Colors.text }]}>
+                  {course.title}
+                </Text>
+                <Text style={[styles.courseMeta, { color: Colors.mutedText }]}>
+                  {course.date}
+                </Text>
+                <Text style={[styles.courseMeta, { color: Colors.mutedText }]}>
+                  {course.location}
+                </Text>
+                <Text
+                  style={[styles.courseText, { color: Colors.mutedText }]}
+                  numberOfLines={3}
+                >
+                  {course.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-            {sectionIndex < sections.length - 1 && (
-              <View
-                style={[styles.divider, { backgroundColor: Colors.border }]}
-              />
-            )}
+          <TouchableOpacity onPress={() => router.push("/kurs-liste")}>
+            <Text style={[styles.oldLink, { color: Colors.mutedText }]}>
+              Vis tidligere hendelser
+            </Text>
+          </TouchableOpacity>
+        </FadeUpSection>
+
+        <View style={[styles.divider, { backgroundColor: Colors.border }]} />
+
+        <FadeUpSection delay={180}>
+          <Text style={[styles.sectionLabel, { color: Colors.mutedText }]}>
+            UROFORDYPNING
+          </Text>
+
+          <View style={styles.bigGrid}>
+            {fordypningCards.map((card) => (
+              <TouchableOpacity
+                key={card.title}
+                activeOpacity={0.9}
+                onPress={() => router.push(card.route as any)}
+                style={[
+                  styles.bigCard,
+                  { backgroundColor: Colors.card, borderColor: Colors.border },
+                ]}
+              >
+                <View style={[styles.iconBox, { backgroundColor: Colors.background }]}>
+                  <Ionicons name={card.icon as any} size={24} color={Colors.text} />
+                </View>
+
+                <Text style={[styles.bigCardTitle, { color: Colors.text }]}>
+                  {card.title}
+                </Text>
+                <Text style={[styles.bigCardText, { color: Colors.mutedText }]}>
+                  {card.text}
+                </Text>
+                <Text style={[styles.bigCardAction, { color: Colors.primary }]}>
+                  {card.action}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </FadeUpSection>
-      ))}
-    </ScrollView>
+
+        <View style={[styles.divider, { backgroundColor: Colors.border }]} />
+
+        <FadeUpSection delay={260}>
+          <Text style={[styles.sectionLabel, { color: Colors.mutedText }]}>
+            URO-SKOLEN
+          </Text>
+
+          <View style={styles.bigGrid}>
+            {skoleCards.map((card) => (
+              <TouchableOpacity
+                key={card.title}
+                activeOpacity={0.9}
+                onPress={() => router.push("/uroskolen")}
+                style={[
+                  styles.bigCard,
+                  { backgroundColor: Colors.card, borderColor: Colors.border },
+                ]}
+              >
+                <View style={[styles.iconBox, { backgroundColor: Colors.background }]}>
+                  <Ionicons name={card.icon as any} size={24} color={Colors.text} />
+                </View>
+
+                <Text style={[styles.bigCardTitle, { color: Colors.text }]}>
+                  {card.title}
+                </Text>
+                <Text style={[styles.bigCardText, { color: Colors.mutedText }]}>
+                  {card.text}
+                </Text>
+                <Text style={[styles.bigCardAction, { color: Colors.primary }]}>
+                  {card.action}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </FadeUpSection>
+      </ScrollView>
+
+      <Modal visible={!!selectedCourse} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: Colors.card }]}>
+            <TouchableOpacity
+              style={[styles.closeButton, { borderColor: Colors.border }]}
+              onPress={() => setSelectedCourse(null)}
+            >
+              <Ionicons name="close" size={22} color={Colors.mutedText} />
+            </TouchableOpacity>
+
+            {selectedCourse && (
+              <>
+                <View style={[styles.badge, { backgroundColor: "#E5EFE8" }]}>
+                  <Text style={[styles.badgeText, { color: Colors.primary }]}>
+                    {selectedCourse.type}
+                  </Text>
+                </View>
+
+                <Text style={[styles.modalTitle, { color: Colors.text }]}>
+                  {selectedCourse.title}
+                </Text>
+                <Text style={[styles.modalText, { color: Colors.mutedText }]}>
+                  {selectedCourse.date}
+                </Text>
+                <Text style={[styles.modalText, { color: Colors.mutedText }]}>
+                  📍 {selectedCourse.location}
+                </Text>
+                <Text style={[styles.modalDescription, { color: Colors.mutedText }]}>
+                  {selectedCourse.text}
+                </Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    { backgroundColor: Colors.background, borderColor: Colors.border },
+                  ]}
+                >
+                  <Text style={[styles.modalButtonText, { color: Colors.text }]}>
+                    Gå til arrangement →
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -232,63 +324,170 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 40,
     fontWeight: "700",
-    marginBottom: 6,
     paddingHorizontal: 24,
+    marginBottom: 6,
   },
 
   subtitle: {
     fontSize: 17,
-    marginBottom: 26,
     paddingHorizontal: 24,
+    marginBottom: 34,
   },
 
-  section: {
-    marginBottom: 28,
-  },
-
-  sectionTitle: {
-    fontSize: 22,
+  sectionLabel: {
+    fontSize: 13,
     fontWeight: "700",
+    letterSpacing: 1.2,
+    paddingHorizontal: 24,
     marginBottom: 14,
+    textTransform: "uppercase",
+  },
+
+  courseRow: {
+    paddingHorizontal: 24,
+    gap: 14,
+    marginBottom: 16,
+  },
+
+  courseCard: {
+    width: 230,
+    minHeight: 190,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+  },
+
+  badge: {
+    alignSelf: "flex-start",
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 12,
+  },
+
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  courseTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  courseMeta: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+
+  courseText: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 12,
+  },
+
+  oldLink: {
+    fontSize: 14,
+    textDecorationLine: "underline",
     paddingHorizontal: 24,
   },
 
-  cardRow: {
+  divider: {
+    height: 1,
+    marginHorizontal: 24,
+    marginVertical: 30,
+  },
+
+  bigGrid: {
     paddingHorizontal: 24,
     gap: 14,
   },
 
-  card: {
-    width: 210,
-    minHeight: 180,
+  bigCard: {
     borderRadius: 24,
     borderWidth: 1,
-    padding: 18,
+    padding: 20,
+    minHeight: 170,
   },
 
   iconBox: {
     width: 54,
     height: 54,
-    borderRadius: 18,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
   },
 
-  cardTitle: {
+  bigCardTitle: {
     fontSize: 18,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
-  cardText: {
+  bigCardText: {
+    fontSize: 15,
+    lineHeight: 23,
+    marginBottom: 18,
+  },
+
+  bigCardAction: {
     fontSize: 14,
-    lineHeight: 21,
+    fontWeight: "700",
   },
 
-  divider: {
-    height: 1,
-    marginTop: 28,
-    marginHorizontal: 24,
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+
+  modalCard: {
+    borderRadius: 24,
+    padding: 24,
+  },
+
+  closeButton: {
+    position: "absolute",
+    right: 18,
+    top: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 18,
+  },
+
+  modalText: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
+
+  modalDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginVertical: 18,
+  },
+
+  modalButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    minHeight: 54,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

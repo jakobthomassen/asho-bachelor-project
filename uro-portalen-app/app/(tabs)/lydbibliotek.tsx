@@ -61,7 +61,7 @@ export default function LydbibliotekScreen() {
       showsVerticalScrollIndicator={false}
     >
       <FadeUpSection delay={0}>
-        <Text style={[styles.title, { color: Colors.text }]}>Bibliotek</Text>
+        <Text style={[styles.title, { color: Colors.text }]}>Lydbibliotek</Text>
         <Text style={[styles.subtitle, { color: Colors.mutedText }]}>
           Utforsk fritt i ditt eget tempo
         </Text>

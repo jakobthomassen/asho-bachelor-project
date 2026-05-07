@@ -159,7 +159,7 @@ export default function HjemScreen() {
 
             <View>
               <Text style={[styles.linkTitle, { color: Colors.text }]}>
-                Bibliotek
+                Lydbibliotek
               </Text>
               <Text style={[styles.linkSubtitle, { color: Colors.mutedText }]}>
                 Utforsk lydøkter i eget tempo
