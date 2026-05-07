@@ -320,3 +320,8 @@ cython_debug/
 
 ### Claude Code ###
 .claude/
+CLAUDE.md
+
+### SQL dumps ###
+dump-*.sql
+*dump*.sql

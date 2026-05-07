@@ -1,49 +1,134 @@
 .composerShell {
-  padding: 0.65rem 1rem;
-  border-top: 1px solid var(--border);
+  padding: 0.85rem 1rem 0.75rem;
   background: var(--surface);
+  margin-top: auto;
 }
 
 .composer {
-  width: min(100%, var(--chat-container-width));
+  width: min(100%, calc(var(--chat-container-width) * 0.7));
   margin: 0 auto;
-  display: flex;
-  gap: 10px;
-  align-items: center;
+}
+
+.composer__inputWrap {
+  position: relative;
 }
 
 .composer__input {
-  flex: 1;
-  padding: 0.5rem 0.85rem;
+  width: 100%;
+  padding: 0.7rem 5rem 0.7rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border);
   outline: none;
   font-size: 0.95rem;
   color: var(--text-primary);
+  box-sizing: border-box;
+  resize: none;
+  overflow-y: hidden;
+  max-height: 5.8rem;
+  line-height: 1.5;
+  font-family: inherit;
+  display: block;
+}
+
+.composer__inputActions {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.composer__micWrap {
+  position: relative;
+  display: inline-flex;
 }
 
 .composer__mic {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--text-primary);
+  color: var(--text-muted);
+  position: relative;
 }
 
 .composer__mic:disabled {
   cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.composer__mic--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.composer__mic--unsupported {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer__micSlash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer__micSlash::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  height: 1.5px;
+  background: var(--text-muted);
+  transform: translate(-50%, -50%) rotate(-45deg);
+  border-radius: 1px;
+}
+
+.composer__sttNote {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  animation: sttNoteIn 0.15s ease;
+  z-index: 10;
+}
+
+@keyframes sttNoteIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .composer__send {
-  padding: 0.5rem 0.9rem;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: none;
-  font-weight: 800;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .composer__send:disabled {

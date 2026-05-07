@@ -1,7 +1,7 @@
 .sidebar {
   width: 280px;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--sidebar-bg);
   transition: width 180ms ease;
 
   height: 100%;
@@ -11,7 +11,24 @@
 }
 
 .sidebar.is-collapsed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
   width: 72px;
+  z-index: 10;
+  border-right: none;
+  background: transparent;
+}
+
+.sidebar.is-collapsed .sidebar__top {
+  border-bottom: none;
+  background: transparent;
+}
+
+.sidebar.is-collapsed .sidebar__toggleButton,
+.sidebar.is-collapsed .sidebar__newButton {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
 }
 
 .sidebar__top {
@@ -85,6 +102,12 @@
   background: transparent;
   cursor: pointer;
   margin-bottom: 6px;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+
+.sidebar__item:not(.is-active):hover {
+  background: var(--surface-muted);
+  border-color: var(--hover-border);
 }
 
 .sidebar__item.is-active {

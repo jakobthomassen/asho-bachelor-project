@@ -9,6 +9,7 @@ import psycopg
 @dataclass(frozen=True)
 class ChatSummaryRow:
     summary_text: str
+    initial_summary_text: Optional[str]
     last_message_id: int
 
 
@@ -16,7 +17,7 @@ def get_summary(conn: psycopg.Connection, *, conversation_id: str) -> Optional[C
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT summary_text, last_message_id
+            SELECT summary_text, initial_summary_text, last_message_id
             FROM chat_summaries
             WHERE conversation_id = %s
             """,
@@ -27,9 +28,10 @@ def get_summary(conn: psycopg.Connection, *, conversation_id: str) -> Optional[C
     if not row:
         return None
 
-    summary_text, last_message_id = row
+    summary_text, initial_summary_text, last_message_id = row
     return ChatSummaryRow(
-        summary_text=str(summary_text),
+        summary_text=str(summary_text or ""),
+        initial_summary_text=str(initial_summary_text) if initial_summary_text else None,
         last_message_id=int(last_message_id),
     )
 
@@ -40,17 +42,19 @@ def upsert_summary(
     conversation_id: str,
     summary_text: str,
     last_message_id: int,
+    initial_summary_text: Optional[str] = None,
 ) -> None:
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO chat_summaries (conversation_id, summary_text, last_message_id)
-            VALUES (%s, %s, %s)
+            INSERT INTO chat_summaries (conversation_id, summary_text, initial_summary_text, last_message_id)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (conversation_id)
             DO UPDATE SET
               summary_text = EXCLUDED.summary_text,
+              initial_summary_text = COALESCE(chat_summaries.initial_summary_text, EXCLUDED.initial_summary_text),
               last_message_id = EXCLUDED.last_message_id,
               updated_at = NOW()
             """,
-            (conversation_id, summary_text, int(last_message_id)),
+            (conversation_id, summary_text, initial_summary_text, int(last_message_id)),
         )

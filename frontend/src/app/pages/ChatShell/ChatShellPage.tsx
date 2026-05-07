@@ -428,13 +428,6 @@ export default function ChatShellPage() {
 
   const sendMessage = () => sendText(input);
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
   const pingBackend = useCallback(async () => {
     setBackendStatus("checking");
     try {
@@ -522,7 +515,6 @@ export default function ChatShellPage() {
           clarifyOptions={clarifyOptions}
           onSendText={sendText}
           onSend={sendMessage}
-          onKeyDown={onKeyDown}
           error={error}
           onDismissError={() => setError(null)}
           endRef={messagesEndRef}
